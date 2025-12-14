@@ -5,14 +5,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,17 +42,45 @@ import app.rive.rememberCommandQueueOrNull
 import app.rive.rememberRiveFile
 import app.rive.runtime.example.R
 import app.rive.sprites.RiveSprite
-import app.rive.sprites.RiveSpriteScene
 import app.rive.sprites.SpriteScale
 import app.rive.sprites.drawRiveSprites
 import app.rive.sprites.rememberRiveSpriteScene
 import kotlinx.coroutines.isActive
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.runtime.withFrameNanos
 import kotlin.time.Duration.Companion.nanoseconds
+import java.util.ArrayDeque
 
 private const val TAG = "Rive/SpriteDemo"
 
+class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_FRAME_COUNT,
+    val updateEveryNFrames:Int=30) {
+    private val frameTimeHistory = ArrayDeque<Long>(averageFrameCount)
+    var updateCounter: Long=0
+    fun updateFramePerSeconds(
+        deltaTime: Long,
+        fps: MutableState<Float>,
+        frameTimeMs: MutableState<Float>)
+    {
+        if (deltaTime > 0) {
+            if (frameTimeHistory.size >= averageFrameCount) {
+                frameTimeHistory.removeFirst()
+            }
+            frameTimeHistory.addLast(deltaTime)
+            if((updateCounter++ % updateEveryNFrames)==0L) {
+                val avgDeltaNs = frameTimeHistory.average()
+                val avgDeltaSeconds = avgDeltaNs / 1_000_000_000.0
+                fps.value = (1.0 / avgDeltaSeconds).toFloat()
+                frameTimeMs.value = (avgDeltaSeconds * 1000.0).toFloat()
+            }
+        }
+    }
+
+    companion object {
+        // Number of frames to average for FPS calculation
+        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 5
+
+    }
+}
 /**
  * Demo activity showcasing the RiveSpriteScene API with multiple animated sprites.
  *
@@ -183,6 +215,11 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     // Track moving sprites
     var movingSprites by remember { mutableStateOf<List<MovingSprite>>(emptyList()) }
 
+    // FPS tracking
+    val fps = remember { mutableStateOf(0f) }
+    val frameTimeMs = remember { mutableStateOf(0f) }
+    val fpsCalculator = remember { FramePerSecondCalculator() }
+
     // Create sprites when all files are loaded and canvas size is known
     LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize) {
         if (canvasSize == Size.Zero) return@LaunchedEffect
@@ -271,6 +308,9 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                 lastFrameTime = frameTimeNs
                 val deltaSeconds = deltaTime / 1_000_000_000f
 
+                // Update FPS rolling average
+                fpsCalculator.updateFramePerSeconds(deltaTime,fps, frameTimeMs)
+
                 // Update sprite positions, rotations, and scales
                 movingSprites.forEach { it.update(deltaSeconds) }
 
@@ -281,19 +321,41 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     }
 
     // Canvas with grid and sprites
-    Canvas(modifier = modifier) {
-        // Update canvas size
-        if (canvasSize != size) {
-            canvasSize = size
+    Box(modifier = modifier) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            // Update canvas size
+            if (canvasSize != size) {
+                canvasSize = size
+            }
+
+            // Draw reference grid
+            drawGrid(textMeasurer)
+
+            // Draw all Rive sprites
+            drawRiveSprites(scene)
         }
 
-        // Draw reference grid
-        drawGrid(textMeasurer)
-
-        // Draw all Rive sprites
-        drawRiveSprites(scene)
+        FPSIndicator(fps, frameTimeMs)
     }
 }
+
+@Composable
+private fun BoxScope.FPSIndicator(
+    fps: MutableState<Float>,
+    frameTimeMs: MutableState<Float>
+) {
+    Text(
+        text = "FPS: ${fps.value.toString().padEnd(12,' ')} (${frameTimeMs.value.toString().padEnd(12,' ')} ms)",
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(16.dp)
+            .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        color = Color.Black,
+        fontSize = 14.sp
+    )
+}
+
 
 /**
  * Draw a reference grid with labeled coordinates.
