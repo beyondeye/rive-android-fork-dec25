@@ -220,11 +220,21 @@ This directory contains comprehensive tests that serve as reference for:
   - Uses `CloseOnce` pattern for safe disposal
   - Uses `SnapshotStateList` for Compose state integration
 
-- [ ] **1.3 Create `RiveSpriteSceneRenderer.kt`**
-  - [ ] Create `rememberRiveSpriteScene(commandQueue: CommandQueue): RiveSpriteScene`
-  - [ ] Create `DrawScope.drawRiveSprites(scene: RiveSpriteScene)` extension
-  - [ ] Handle surface size changes
-  - [ ] Implement automatic texture refresh on animation frame
+- [x] **1.3 Create `RiveSpriteSceneRenderer.kt`** ✅ IMPLEMENTED
+  - [x] Create `rememberRiveSpriteScene(commandQueue: CommandQueue): RiveSpriteScene`
+  - [x] Create `DrawScope.drawRiveSprites(scene: RiveSpriteScene)` extension
+  - [x] Handle surface size changes
+  - [x] Implement automatic texture refresh on animation frame
+  
+  **Implementation Notes:**
+  - Created `rememberRiveSpriteScene()` composable with `DisposableEffect` for lifecycle management
+  - Created `DrawScope.drawRiveSprites()` extension that renders sprites to an off-screen buffer
+  - Uses `RenderBuffer` pattern for GPU-to-bitmap rendering
+  - Sprites are rendered individually with transforms applied via `computeTransformMatrix()`
+  - Includes `SpriteSceneBuffer` class for managing off-screen resources and size changes
+  - Includes `SpriteSceneBufferHolder` for caching buffers across frames (internal API)
+  - Current implementation creates new bitmaps per frame - will be optimized in Phase 2+ with batch rendering
+  - All public APIs marked with `@ExperimentalRiveComposeAPI` annotation
 
 ### Phase 2: CommandQueue Extensions
 
