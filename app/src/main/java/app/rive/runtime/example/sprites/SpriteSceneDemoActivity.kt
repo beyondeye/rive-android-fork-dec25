@@ -6,13 +6,19 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -136,7 +142,7 @@ private data class MovingSprite(
     /**
      * Update the sprite's position, rotation, and scale based on elapsed time.
      */
-    fun update(deltaSeconds: Float) {
+    fun update(deltaSeconds: Float, enableRotation: Boolean = true, enableScaling: Boolean = true) {
         val delta = speed * deltaSeconds
         if (movingForward) {
             progress += delta
@@ -158,11 +164,11 @@ private data class MovingSprite(
             y = lerp(startPos.y, endPos.y, progress)
         )
 
-        // Rotation: 0° to 180° as progress goes 0 to 1
-        sprite.rotation = progress * 180f
+        // Rotation: 0° to 180° as progress goes 0 to 1, or fixed at 0 if disabled
+        sprite.rotation = if (enableRotation) progress * 180f else 0f
 
-        // Scale: 1.0 to 0.5 as progress goes 0 to 1
-        val scale = lerp(1f, 0.5f, progress)
+        // Scale: 1.0 to 0.5 as progress goes 0 to 1, or fixed at 1.0 if disabled
+        val scale = if (enableScaling) lerp(1f, 0.5f, progress) else 1f
         sprite.scale = SpriteScale(scale)
     }
 }
@@ -219,6 +225,10 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     val fps = remember { mutableStateOf(0f) }
     val frameTimeMs = remember { mutableStateOf(0f) }
     val fpsCalculator = remember { FramePerSecondCalculator() }
+
+    // Animation control switches
+    var enableRotation by remember { mutableStateOf(true) }
+    var enableScaling by remember { mutableStateOf(true) }
 
     // Create sprites when all files are loaded and canvas size is known
     LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize) {
@@ -312,7 +322,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                 fpsCalculator.updateFramePerSeconds(deltaTime,fps, frameTimeMs)
 
                 // Update sprite positions, rotations, and scales
-                movingSprites.forEach { it.update(deltaSeconds) }
+                movingSprites.forEach { it.update(deltaSeconds, enableRotation, enableScaling) }
 
                 // Advance Rive animations
                 scene.advance(deltaTime.nanoseconds)
@@ -335,20 +345,80 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             drawRiveSprites(scene)
         }
 
+        ControlPanel(
+            fps = fps,
+            frameTimeMs = frameTimeMs,
+            enableRotation = enableRotation,
+            onEnableRotationChange = { enableRotation = it },
+            enableScaling = enableScaling,
+            onEnableScalingChange = { enableScaling = it }
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.ControlPanel(
+    fps: MutableState<Float>,
+    frameTimeMs: MutableState<Float>,
+    enableRotation: Boolean,
+    onEnableRotationChange: (Boolean) -> Unit,
+    enableScaling: Boolean,
+    onEnableScalingChange: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.End
+    ) {
+        // Switches row
+        Row(
+            modifier = Modifier
+                .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Rotation",
+                    color = Color.Black,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Switch(
+                    checked = enableRotation,
+                    onCheckedChange = onEnableRotationChange
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Scaling",
+                    color = Color.Black,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Switch(
+                    checked = enableScaling,
+                    onCheckedChange = onEnableScalingChange
+                )
+            }
+        }
+        
+        // FPS indicator
         FPSIndicator(fps, frameTimeMs)
     }
 }
 
 @Composable
-private fun BoxScope.FPSIndicator(
+private fun FPSIndicator(
     fps: MutableState<Float>,
     frameTimeMs: MutableState<Float>
 ) {
     Text(
         text = "FPS: ${fps.value.toString().padEnd(12,' ')} (${frameTimeMs.value.toString().padEnd(12,' ')} ms)",
         modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(16.dp)
+            .padding(top = 8.dp)
             .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp),
         color = Color.Black,
