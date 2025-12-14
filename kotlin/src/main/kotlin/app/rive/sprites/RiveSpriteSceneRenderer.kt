@@ -233,12 +233,14 @@ fun DrawScope.drawRiveSprites(
         return
     }
 
-    // Get or create the composite bitmap for this scene
-    // For now, we create a simple bitmap and composite manually
-    // This will be optimized in Phase 2+ with GPU batch rendering
-    val compositeBitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    // Get or create the cached composite bitmap from the scene
+    // This avoids creating a new bitmap every frame
+    val compositeBitmap = scene.getOrCreateCompositeBitmap(width, height)
+    
+    // Clear the bitmap before drawing
+    compositeBitmap.eraseColor(clearColor)
+    
     val canvas = Canvas(compositeBitmap)
-    canvas.drawColor(clearColor)
 
     // Create a paint for compositing sprites
     val paint = Paint().apply {
@@ -246,7 +248,7 @@ fun DrawScope.drawRiveSprites(
         isFilterBitmap = true
     }
 
-    // Render each sprite to a temporary buffer and composite
+    // Render each sprite using its cached render buffer
     for (sprite in sprites) {
         if (!sprite.isVisible) continue
 
@@ -258,23 +260,22 @@ fun DrawScope.drawRiveSprites(
     }
 
     // Draw the composite bitmap to the Compose Canvas
+    // Note: The bitmap is NOT recycled - it's cached in the scene for reuse
     drawImage(
         image = compositeBitmap.asImageBitmap(),
         topLeft = androidx.compose.ui.geometry.Offset.Zero,
     )
-
-    // Clean up the temporary bitmap
-    compositeBitmap.recycle()
 }
 
 /**
  * Render a single sprite to an Android Canvas with its transform applied.
  *
- * This method creates a temporary buffer for the sprite, renders the artboard,
- * and draws it to the target canvas with the sprite's transform.
+ * This method uses the sprite's cached render buffer to avoid expensive GPU
+ * resource allocation on every frame. The buffer is reused across frames and
+ * only recreated when the sprite's size changes.
  *
  * @param sprite The sprite to render.
- * @param commandQueue The command queue for GPU operations.
+ * @param commandQueue The command queue for GPU operations (unused, kept for API compatibility).
  * @param targetCanvas The canvas to draw the sprite to.
  * @param paint The paint to use for drawing.
  */
@@ -284,36 +285,29 @@ private fun renderSpriteToCanvas(
     targetCanvas: Canvas,
     paint: Paint,
 ) {
-    val effectiveSize = sprite.effectiveSize
-    val spriteWidth = effectiveSize.width.toInt().coerceAtLeast(1)
-    val spriteHeight = effectiveSize.height.toInt().coerceAtLeast(1)
+    // Use the sprite's cached render buffer instead of creating a new one each frame
+    val spriteBuffer = sprite.getOrCreateRenderBuffer()
 
-    // Create a temporary buffer for this sprite
-    val spriteBuffer = RenderBuffer(spriteWidth, spriteHeight, commandQueue)
-    try {
-        // Render the sprite's artboard to the buffer
-        spriteBuffer.snapshot(
-            sprite.artboard,
-            sprite.stateMachine,
-            Fit.FILL,  // Fill the sprite size
-            Alignment.CENTER,
-            Color.TRANSPARENT
-        )
+    // Render the sprite's artboard to the buffer
+    spriteBuffer.snapshot(
+        sprite.artboard,
+        sprite.stateMachine,
+        Fit.FILL,  // Fill the sprite size
+        Alignment.CENTER,
+        Color.TRANSPARENT
+    )
 
-        // Convert to bitmap
-        val spriteBitmap = spriteBuffer.toBitmap()
+    // Convert to bitmap
+    val spriteBitmap = spriteBuffer.toBitmap()
 
-        // Apply the sprite's transform and draw to the target canvas
-        targetCanvas.save()
-        targetCanvas.concat(sprite.computeTransformMatrix())
-        targetCanvas.drawBitmap(spriteBitmap, 0f, 0f, paint)
-        targetCanvas.restore()
+    // Apply the sprite's transform and draw to the target canvas
+    targetCanvas.save()
+    targetCanvas.concat(sprite.computeTransformMatrix())
+    targetCanvas.drawBitmap(spriteBitmap, 0f, 0f, paint)
+    targetCanvas.restore()
 
-        // Clean up the sprite bitmap
-        spriteBitmap.recycle()
-    } finally {
-        spriteBuffer.close()
-    }
+    // Clean up the sprite bitmap (the render buffer is NOT closed - it's cached)
+    spriteBitmap.recycle()
 }
 
 /**

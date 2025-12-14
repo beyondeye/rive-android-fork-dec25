@@ -1,8 +1,10 @@
 package app.rive.sprites
 
+import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.geometry.Offset
+import androidx.core.graphics.createBitmap
 import app.rive.RiveFile
 import app.rive.RiveLog
 import app.rive.core.CloseOnce
@@ -67,6 +69,12 @@ class RiveSpriteScene(
         }
         _sprites.clear()
         
+        // Release cached composite bitmap
+        cachedCompositeBitmap?.recycle()
+        cachedCompositeBitmap = null
+        cachedBitmapWidth = 0
+        cachedBitmapHeight = 0
+        
         // Release command queue reference
         commandQueue.release(SPRITE_SCENE_TAG, "Scene closed")
     }
@@ -81,6 +89,52 @@ class RiveSpriteScene(
      * Uses [SnapshotStateList] for Compose state integration.
      */
     private val _sprites: SnapshotStateList<RiveSprite> = mutableStateListOf()
+
+    // region Composite Bitmap Cache
+
+    /**
+     * Cached composite bitmap for rendering all sprites.
+     * Reused across frames to avoid expensive bitmap allocations.
+     * Only recreated when the canvas size changes.
+     */
+    private var cachedCompositeBitmap: Bitmap? = null
+    private var cachedBitmapWidth: Int = 0
+    private var cachedBitmapHeight: Int = 0
+
+    /**
+     * Get or create a composite bitmap for rendering sprites.
+     *
+     * The bitmap is cached and reused across frames. It is only recreated when
+     * the required size changes.
+     *
+     * @param width The required width in pixels.
+     * @param height The required height in pixels.
+     * @return A bitmap sized to the requested dimensions.
+     */
+    internal fun getOrCreateCompositeBitmap(width: Int, height: Int): Bitmap {
+        val existingBitmap = cachedCompositeBitmap
+        if (existingBitmap != null && 
+            cachedBitmapWidth == width && 
+            cachedBitmapHeight == height) {
+            return existingBitmap
+        }
+
+        // Size changed or no bitmap exists - create a new one
+        existingBitmap?.recycle()
+        
+        RiveLog.d(SPRITE_SCENE_TAG) { 
+            "Creating composite bitmap ${width}x$height " +
+            "(was ${cachedBitmapWidth}x$cachedBitmapHeight)" 
+        }
+
+        val newBitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        cachedCompositeBitmap = newBitmap
+        cachedBitmapWidth = width
+        cachedBitmapHeight = height
+        return newBitmap
+    }
+
+    // endregion
 
     /**
      * Read-only view of all sprites in this scene.

@@ -11,7 +11,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
 import app.rive.Artboard
+import app.rive.RenderBuffer
 import app.rive.RiveFile
+import app.rive.RiveLog
 import app.rive.StateMachine
 import app.rive.core.ArtboardHandle
 import app.rive.core.CommandQueue
@@ -129,6 +131,54 @@ class RiveSprite internal constructor(
      * their state and can receive [advance] calls.
      */
     var isVisible: Boolean by mutableStateOf(true)
+
+    // endregion
+
+    // region Render Buffer Cache
+
+    /**
+     * Cached render buffer for this sprite.
+     * The buffer is reused across frames to avoid expensive GPU resource allocation.
+     * Only recreated when the sprite's effective size changes.
+     */
+    private var cachedRenderBuffer: RenderBuffer? = null
+    private var cachedBufferWidth: Int = 0
+    private var cachedBufferHeight: Int = 0
+
+    /**
+     * Get or create a render buffer for this sprite.
+     *
+     * The buffer is cached and reused across frames. It is only recreated when
+     * the sprite's effective size changes.
+     *
+     * @return A render buffer sized to this sprite's effective size.
+     */
+    internal fun getOrCreateRenderBuffer(): RenderBuffer {
+        val currentSize = effectiveSize
+        val requiredWidth = currentSize.width.toInt().coerceAtLeast(1)
+        val requiredHeight = currentSize.height.toInt().coerceAtLeast(1)
+
+        val existingBuffer = cachedRenderBuffer
+        if (existingBuffer != null && 
+            cachedBufferWidth == requiredWidth && 
+            cachedBufferHeight == requiredHeight) {
+            return existingBuffer
+        }
+
+        // Size changed or no buffer exists - create a new one
+        existingBuffer?.close()
+        
+        RiveLog.d(RIVE_SPRITE_TAG) { 
+            "Creating render buffer ${requiredWidth}x$requiredHeight " +
+            "(was ${cachedBufferWidth}x$cachedBufferHeight)" 
+        }
+
+        val newBuffer = RenderBuffer(requiredWidth, requiredHeight, commandQueue)
+        cachedRenderBuffer = newBuffer
+        cachedBufferWidth = requiredWidth
+        cachedBufferHeight = requiredHeight
+        return newBuffer
+    }
 
     // endregion
 
@@ -387,10 +437,16 @@ class RiveSprite internal constructor(
     /**
      * Release the resources held by this sprite.
      *
-     * This closes the underlying artboard and state machine. The sprite
-     * should not be used after calling close.
+     * This closes the cached render buffer, artboard, and state machine.
+     * The sprite should not be used after calling close.
      */
     override fun close() {
+        // Close cached render buffer first
+        cachedRenderBuffer?.close()
+        cachedRenderBuffer = null
+        cachedBufferWidth = 0
+        cachedBufferHeight = 0
+        
         stateMachine.close()
         artboard.close()
     }
