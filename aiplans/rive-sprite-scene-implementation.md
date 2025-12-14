@@ -172,10 +172,10 @@ This directory contains comprehensive tests that serve as reference for:
 
 ### Phase 1: Core Kotlin Data Structures
 
-- [ ] **1.1 Create `RiveSprite.kt`**
-  - [ ] Define `RiveSprite` class with artboard and state machine references
-  - [ ] Add transform properties: `position: Offset`, `scale: SpriteScale`, `rotation: Float`
-  - [ ] Define `SpriteScale` data class (similar to `androidx.compose.ui.layout.ScaleFactor`):
+- [x] **1.1 Create `RiveSprite.kt`** ✅ IMPLEMENTED
+  - [x] Define `RiveSprite` class with artboard and state machine references
+  - [x] Add transform properties: `position: Offset`, `scale: SpriteScale`, `rotation: Float`
+  - [x] Define `SpriteScale` data class (similar to `androidx.compose.ui.layout.ScaleFactor`):
     ```kotlin
     @Immutable
     data class SpriteScale(val scaleX: Float, val scaleY: Float) {
@@ -186,18 +186,18 @@ This directory contains comprehensive tests that serve as reference for:
     // Extension for uniform scaling
     fun SpriteScale(scale: Float) = SpriteScale(scale, scale)
     ```
-  - [ ] Add `zIndex: Int` for z-ordering
-  - [ ] Add `size: Size` for the sprite's display size in DrawScope units
-  - [ ] Add `origin: SpriteOrigin` sealed class with three types:
+  - [x] Add `zIndex: Int` for z-ordering
+  - [x] Add `size: Size` for the sprite's display size in DrawScope units
+  - [x] Add `origin: SpriteOrigin` sealed class with three types:
     - `SpriteOrigin.Center` - pivot at center (0.5, 0.5)
     - `SpriteOrigin.TopLeft` - pivot at top-left (0, 0)
     - `SpriteOrigin.Custom(pivotX: Float, pivotY: Float)` - custom pivot where (0,0) = top-left, (1,1) = bottom-right
-  - [ ] Add `isVisible: Boolean` flag
-  - [ ] Implement `fire(triggerName: String)` for triggering animations
-  - [ ] Implement `setBoolean(name: String, value: Boolean)` for state machine inputs
-  - [ ] Implement `setNumber(name: String, value: Float)` for state machine inputs
-  - [ ] Implement `computeTransformMatrix(): Matrix` to compute the final transform
-  - [ ] Implement internal `getArtboardBounds(): Rect` for hit testing
+  - [x] Add `isVisible: Boolean` flag
+  - [x] Implement `fire(triggerName: String)` for triggering animations (stubbed - needs CommandQueue extension in Phase 2)
+  - [x] Implement `setBoolean(name: String, value: Boolean)` for state machine inputs (stubbed - needs CommandQueue extension in Phase 2)
+  - [x] Implement `setNumber(name: String, value: Float)` for state machine inputs (stubbed - needs CommandQueue extension in Phase 2)
+  - [x] Implement `computeTransformMatrix(): Matrix` to compute the final transform
+  - [x] Implement internal `getArtboardBounds(): Rect` for hit testing
 
 - [ ] **1.2 Create `RiveSpriteScene.kt`**
   - [ ] Define `RiveSpriteScene` class
