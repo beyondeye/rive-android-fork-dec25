@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import androidx.activity.ComponentActivity
+import app.rive.runtime.example.sprites.SpriteSceneDemoActivity
 import app.rive.runtime.kotlin.controllers.ControllerStateManagement
 
 @ControllerStateManagement
@@ -42,6 +43,7 @@ class MainActivity : ComponentActivity() {
         Pair(R.id.go_font_fallback, FontFallback::class.java),
         Pair(R.id.go_touch_passthrough, TouchPassthroughActivity::class.java),
         Pair(R.id.go_image_binding, ImageBindingActivity::class.java),
+        Pair(R.id.go_sprite_scene, SpriteSceneDemoActivity::class.java),
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
