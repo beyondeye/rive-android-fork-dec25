@@ -14,8 +14,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -83,7 +89,7 @@ class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_
 
     companion object {
         // Number of frames to average for FPS calculation
-        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 5
+        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 30
 
     }
 }
@@ -238,9 +244,13 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     
     // Render mode switch
     var useBatchRendering by remember { mutableStateOf(false) }
+    
+    // Sprite configuration controls
+    var spritesPerDirection by remember { mutableStateOf(2) }
+    var spriteSize by remember { mutableStateOf(50) }
 
     // Create sprites when all files are loaded and canvas size is known
-    LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize) {
+    LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize, spritesPerDirection, spriteSize) {
         if (canvasSize == Size.Zero) return@LaunchedEffect
 
         val hFile = (horizontalFileResult as? Result.Success)?.value ?: return@LaunchedEffect
@@ -251,63 +261,63 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
         scene.clearSprites()
 
         val sprites = mutableListOf<MovingSprite>()
-        val spriteSize = Size(80f, 80f)
+        val spriteSizeValue = Size(spriteSize.toFloat(), spriteSize.toFloat())
         val margin = 100f
 
-        // Create 2 horizontal sprites
-        repeat(2) { i ->
+        // Create horizontal sprites
+        repeat(spritesPerDirection) { i ->
             val sprite = scene.createSprite(hFile)
-            sprite.size = spriteSize
+            sprite.size = spriteSizeValue
             sprite.zIndex = i
 
-            val yPos = margin + (i + 1) * (canvasSize.height - 2 * margin) / 3
-            val newMovingSprite=                MovingSprite(
+            val yPos = margin + (i + 1) * (canvasSize.height - 2 * margin) / (spritesPerDirection + 1)
+            val newMovingSprite = MovingSprite(
                 sprite = sprite,
                 startPos = Offset(margin, yPos),
-                endPos = Offset(canvasSize.width - margin - spriteSize.width, yPos),
-                progress = i * 0.5f,  // Stagger start positions
-                speed = 0.25f + i * 0.1f  // Slightly different speeds
+                endPos = Offset(canvasSize.width - margin - spriteSizeValue.width, yPos),
+                progress = (i.toFloat() / spritesPerDirection.coerceAtLeast(1)) * 0.5f,  // Stagger start positions
+                speed = 0.25f + i * 0.05f  // Slightly different speeds
             )
             sprites.add(newMovingSprite)
             RiveLog.d(TAG) { "*NEW SPRITE* Horiz. at starting pos: ${newMovingSprite.startPos.x}, ${newMovingSprite.startPos.y}, progress: ${newMovingSprite.progress}" }
         }
 
-        // Create 2 vertical sprites
-        repeat(2) { i ->
+        // Create vertical sprites
+        repeat(spritesPerDirection) { i ->
             val sprite = scene.createSprite(vFile)
-            sprite.size = spriteSize
-            sprite.zIndex = 2 + i
+            sprite.size = spriteSizeValue
+            sprite.zIndex = spritesPerDirection + i
 
-            val xPos = margin + (i + 1) * (canvasSize.width - 2 * margin) / 3
+            val xPos = margin + (i + 1) * (canvasSize.width - 2 * margin) / (spritesPerDirection + 1)
 
-            val newMovingSprite= MovingSprite(
+            val newMovingSprite = MovingSprite(
                 sprite = sprite,
                 startPos = Offset(xPos, margin),
-                endPos = Offset(xPos, canvasSize.height - margin - spriteSize.height),
-                progress = i * 0.5f,
-                speed = 0.3f + i * 0.1f
+                endPos = Offset(xPos, canvasSize.height - margin - spriteSizeValue.height),
+                progress = (i.toFloat() / spritesPerDirection.coerceAtLeast(1)) * 0.5f,
+                speed = 0.3f + i * 0.05f
             )
             sprites.add(newMovingSprite)
             RiveLog.d(TAG) { "*NEW SPRITE* Vert. at starting pos: ${newMovingSprite.startPos.x}, ${newMovingSprite.startPos.y}, progress: ${newMovingSprite.progress}" }
         }
 
-        // Create 2 diagonal sprites
-        repeat(2) { i ->
+        // Create diagonal sprites
+        repeat(spritesPerDirection) { i ->
             val sprite = scene.createSprite(dFile)
-            sprite.size = spriteSize
-            sprite.zIndex = 4 + i
+            sprite.size = spriteSizeValue
+            sprite.zIndex = 2 * spritesPerDirection + i
 
-            val startX = if (i == 0) margin else canvasSize.width - margin - spriteSize.width
-            val startY = margin
-            val endX = if (i == 0) canvasSize.width - margin - spriteSize.width else margin
-            val endY = canvasSize.height - margin - spriteSize.height
+            val startX = if (i % 2 == 0) margin else canvasSize.width - margin - spriteSizeValue.width
+            val startY = margin + (i / 2) * (canvasSize.height - 2 * margin) / ((spritesPerDirection + 1) / 2).coerceAtLeast(1)
+            val endX = if (i % 2 == 0) canvasSize.width - margin - spriteSizeValue.width else margin
+            val endY = canvasSize.height - margin - spriteSizeValue.height - (i / 2) * (canvasSize.height - 2 * margin) / ((spritesPerDirection + 1) / 2).coerceAtLeast(1)
 
-            val newMovingSprite= MovingSprite(
+            val newMovingSprite = MovingSprite(
                 sprite = sprite,
                 startPos = Offset(startX, startY),
                 endPos = Offset(endX, endY),
-                progress = i * 0.3f,
-                speed = 0.2f + i * 0.05f
+                progress = (i.toFloat() / spritesPerDirection.coerceAtLeast(1)) * 0.3f,
+                speed = 0.2f + i * 0.03f
             )
             sprites.add(newMovingSprite)
             RiveLog.d(TAG) { "*NEW SPRITE* Diag. at starting pos: ${newMovingSprite.startPos.x}, ${newMovingSprite.startPos.y}, progress: ${newMovingSprite.progress}" }
@@ -344,6 +354,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     // Canvas with grid and sprites
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
+            @Suppress("UNUSED_EXPRESSION")
             frameCounter // Just reading this forces the Canvas to redraw
             // Update canvas size
             if (canvasSize != size) {
@@ -363,6 +374,10 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
         ControlPanel(
             fps = fps,
             frameTimeMs = frameTimeMs,
+            spritesPerDirection = spritesPerDirection,
+            onSpritesPerDirectionChange = { spritesPerDirection = it },
+            spriteSize = spriteSize,
+            onSpriteSizeChange = { spriteSize = it },
             enableRotation = enableRotation,
             onEnableRotationChange = { enableRotation = it },
             enableScaling = enableScaling,
@@ -375,10 +390,66 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * A reusable numeric control with plus/minus buttons.
+ */
+@Composable
+private fun NumericControl(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    min: Int,
+    max: Int,
+    step: Int = 1
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            color = Color.Black,
+            fontSize = 14.sp
+        )
+        IconButton(
+            onClick = { if (value > min) onValueChange(value - step) },
+            modifier = Modifier.size(32.dp),
+            enabled = value > min
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowLeft,
+                contentDescription = "Decrease $label",
+                tint = if (value > min) Color.Black else Color.Gray
+            )
+        }
+        Text(
+            text = value.toString(),
+            color = Color.Black,
+            fontSize = 14.sp,
+            modifier = Modifier.width(40.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        IconButton(
+            onClick = { if (value < max) onValueChange(value + step) },
+            modifier = Modifier.size(32.dp),
+            enabled = value < max
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowRight,
+                contentDescription = "Increase $label",
+                tint = if (value < max) Color.Black else Color.Gray
+            )
+        }
+    }
+}
+
 @Composable
 private fun BoxScope.ControlPanel(
     fps: MutableState<Float>,
     frameTimeMs: MutableState<Float>,
+    spritesPerDirection: Int,
+    onSpritesPerDirectionChange: (Int) -> Unit,
+    spriteSize: Int,
+    onSpriteSizeChange: (Int) -> Unit,
     enableRotation: Boolean,
     onEnableRotationChange: (Boolean) -> Unit,
     enableScaling: Boolean,
@@ -394,6 +465,34 @@ private fun BoxScope.ControlPanel(
             .padding(16.dp),
         horizontalAlignment = Alignment.End
     ) {
+        // Numeric controls row (sprites per direction and size)
+        Row(
+            modifier = Modifier
+                .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            NumericControl(
+                label = "Sprts",
+                value = spritesPerDirection,
+                onValueChange = onSpritesPerDirectionChange,
+                min = 1,
+                max = 20,
+                step = 1
+            )
+            NumericControl(
+                label = "sz",
+                value = spriteSize,
+                onValueChange = onSpriteSizeChange,
+                min = 20,
+                max = 300,
+                step = 10
+            )
+        }
+        
+        Spacer(modifier = Modifier.padding(top = 8.dp))
+        
         // Switches row
         Row(
             modifier = Modifier
