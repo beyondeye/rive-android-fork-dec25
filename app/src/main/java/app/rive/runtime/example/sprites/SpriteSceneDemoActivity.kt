@@ -1,6 +1,7 @@
 package app.rive.runtime.example.sprites
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -252,15 +253,15 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             sprite.zIndex = i
 
             val yPos = margin + (i + 1) * (canvasSize.height - 2 * margin) / 3
-            sprites.add(
-                MovingSprite(
-                    sprite = sprite,
-                    startPos = Offset(margin, yPos),
-                    endPos = Offset(canvasSize.width - margin - spriteSize.width, yPos),
-                    progress = i * 0.5f,  // Stagger start positions
-                    speed = 0.25f + i * 0.1f  // Slightly different speeds
-                )
+            val newSprite=                MovingSprite(
+                sprite = sprite,
+                startPos = Offset(margin, yPos),
+                endPos = Offset(canvasSize.width - margin - spriteSize.width, yPos),
+                progress = i * 0.5f,  // Stagger start positions
+                speed = 0.25f + i * 0.1f  // Slightly different speeds
             )
+            sprites.add(newSprite)
+            RiveLog.d(TAG) { "*NEW SPRITE* at starting pos: ${newSprite.startPos.x}, ${newSprite.startPos.y}, progress: ${newSprite.progress}" }
         }
 
         // Create 2 vertical sprites
