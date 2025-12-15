@@ -2387,31 +2387,14 @@ extern "C"
             glFinish();
             glPixelStorei(GL_PACK_ALIGNMENT, 1);
             
-            // Try to read directly as BGRA if extension is supported (zero conversion!)
-            bool usedBgraExt = false;
-            if (checkBgraExtSupport())
-            {
-                glReadPixels(0, 0, widthInt, heightInt, GL_BGRA_EXT, GL_UNSIGNED_BYTE, pixels);
-                GLenum error = glGetError();
-                if (error == GL_NO_ERROR)
-                {
-                    usedBgraExt = true;
-                    // Just flip vertically (no color conversion needed)
-                    flipImageVertically(pixels, widthInt, heightInt);
-                }
-            }
+            // Read pixels as RGBA (OpenGL default format)
+            // Note: Bitmap.copyPixelsFromBuffer() expects RGBA format, NOT BGRA!
+            // So we do NOT convert the colors - just flip vertically.
+            glReadPixels(0, 0, widthInt, heightInt, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
             
-            if (!usedBgraExt)
-            {
-                // Fallback: read as RGBA and convert
-                glReadPixels(0, 0, widthInt, heightInt, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-                
-                // Flip image vertically (optimized memcpy)
-                flipImageVertically(pixels, widthInt, heightInt);
-                
-                // Convert RGBA to BGRA using NEON or scalar (optimized)
-                convertRgbaToBgra(pixels, widthInt * heightInt);
-            }
+            // Flip image vertically to convert from OpenGL coordinates (origin at bottom-left)
+            // to Android coordinates (origin at top-left)
+            flipImageVertically(pixels, widthInt, heightInt);
 
             // Present and signal completion
             renderContext->present(nativeSurface);
