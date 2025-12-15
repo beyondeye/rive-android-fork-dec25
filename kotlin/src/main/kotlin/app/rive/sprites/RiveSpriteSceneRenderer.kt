@@ -373,119 +373,12 @@ private fun DrawScope.drawRiveSpritesBatch(
 }
 
 /**
- * Read pixels from a GPU surface into a byte buffer.
+ * Copy pixels from a BGRA byte buffer to an ARGB_8888 bitmap.
  *
- * ## Current Behavior (Pre-Phase 4.4)
+ * The native code outputs BGRA format which matches Android's ARGB_8888 byte order
+ * on little-endian systems. This allows direct buffer copy without per-pixel conversion.
  *
- * Since native pixel readback is not yet implemented, this function uses a **fallback**
- * approach: it re-renders all sprites using the per-sprite method directly to the
- * [compositeBitmap]. The [buffer] parameter is not populated in this mode.
- *
- * When using the fallback, the function returns `false` to indicate that [copyPixelBufferToBitmap]
- * should NOT be called (since the bitmap is already populated directly).
- *
- * ## Phase 4.4 Migration
- *
- * When implementing Phase 4.4 (native pixel readback), modify this function to:
- *
- * 1. **Add native readback call:**
- *    ```kotlin
- *    // Try native readback first
- *    val success = tryNativePixelReadback(surface, buffer)
- *    if (success) return true  // Signal that copyPixelBufferToBitmap should be called
- *    ```
- *
- * 2. **Options for native implementation:**
- *    - Option A: Add `cppReadPixels(surfacePointer, buffer)` native method
- *    - Option B: Modify `cppDrawMultiple` to also fill a pixel buffer parameter
- *    - Option C: Use EGL shared texture for direct GPU-to-CPU readback
- *
- * 3. **Return value semantics:**
- *    - Return `true` when native readback succeeds (buffer is populated)
- *    - Return `false` when fallback is used (compositeBitmap is populated directly)
- *
- * @param scene The sprite scene (for accessing command queue and sprites).
- * @param surface The GPU surface to read from. Currently unused in fallback mode, but will be
- *   the source for native pixel readback in Phase 4.4.
- * @param buffer The buffer to write pixels into (RGBA format, 4 bytes per pixel).
- *   Currently unused in fallback mode, but will receive GPU pixels in Phase 4.4.
- * @param compositeBitmap The bitmap to populate. In fallback mode, this is populated directly.
- *   In Phase 4.4, this will be populated by [copyPixelBufferToBitmap] after this function returns.
- * @param width The width in pixels.
- * @param height The height in pixels.
- * @param clearColor The clear color used for rendering.
- * @return `true` if native readback was used (buffer contains pixel data, call [copyPixelBufferToBitmap]),
- *   `false` if fallback was used (compositeBitmap already contains rendered content, skip conversion).
- */
-@Suppress("UNUSED_PARAMETER") // surface and buffer will be used when native pixel readback is implemented
-@ExperimentalRiveComposeAPI
-private fun readPixelsFromSurface(
-    scene: RiveSpriteScene,
-    surface: RiveSurface,
-    buffer: ByteArray,
-    compositeBitmap: Bitmap,
-    width: Int,
-    height: Int,
-    clearColor: Int,
-): Boolean {
-    // ========================================================================================
-    // PHASE 4.4 TODO: Implement native pixel readback here
-    // ========================================================================================
-    // When native readback is available, add code like:
-    //
-    // val success = cppReadPixels(surface.nativePointer, buffer)
-    // if (success) {
-    //     return true  // Caller will call copyPixelBufferToBitmap()
-    // }
-    //
-    // Options for native implementation:
-    // 1. Add cppReadPixels(surfacePointer, buffer) native method in bindings_command_queue.cpp
-    // 2. Modify cppDrawMultiple to also fill a pixel buffer parameter
-    // 3. Use EGL PBuffer or shared texture for GPU-to-CPU pixel transfer
-    // ========================================================================================
-
-    // FALLBACK: Re-render sprites individually to get pixels
-    // This negates the performance benefit of batch rendering, but ensures correctness.
-    // The GPU surface was populated by drawMultiple() but we can't read it back yet.
-    
-    compositeBitmap.eraseColor(clearColor)
-
-    val canvas = Canvas(compositeBitmap)
-    val paint = Paint().apply {
-        isAntiAlias = true
-        isFilterBitmap = true
-    }
-
-    val sprites = scene.getSortedSprites()
-    for (sprite in sprites) {
-        if (!sprite.isVisible) continue
-        try {
-            renderSpriteToCanvas(sprite, scene.commandQueue, canvas, paint)
-        } catch (e: Exception) {
-            RiveLog.e(RENDERER_TAG, e) { "Failed to render sprite in batch fallback" }
-        }
-    }
-
-    // Return false to indicate we used fallback (bitmap populated directly)
-    // Caller should NOT call copyPixelBufferToBitmap when this returns false
-    return false
-}
-
-/**
- * Copy pixels from an RGBA byte buffer to an ARGB_8888 bitmap.
- *
- * This function converts pixel data from GPU format (RGBA) to Android bitmap format (ARGB_8888).
- *
- * ## Phase 4.4 Usage
- *
- * This function will be called when [readPixelsFromSurface] returns `true`, indicating
- * that native pixel readback was successful and the [buffer] contains valid pixel data
- * from the GPU surface.
- *
- * Currently, this function is not called because [readPixelsFromSurface] always uses
- * the fallback path (returns `false`) and populates the bitmap directly.
- *
- * @param buffer Source buffer in RGBA format (4 bytes per pixel: R, G, B, A).
+ * @param buffer Source buffer in BGRA format (4 bytes per pixel).
  * @param bitmap Destination bitmap in ARGB_8888 format.
  * @param width Width in pixels.
  * @param height Height in pixels.
@@ -496,24 +389,10 @@ private fun copyPixelBufferToBitmap(
     width: Int,
     height: Int,
 ) {
-    // Note: This is currently not used because readPixelsFromSurface uses the fallback
-    // Once proper GPU readback is implemented, this will convert RGBA -> ARGB
-    
-    val pixels = IntArray(width * height)
-    var bufferIndex = 0
-    var pixelIndex = 0
-
-    while (bufferIndex < buffer.size && pixelIndex < pixels.size) {
-        val r = buffer[bufferIndex].toInt() and 0xFF
-        val g = buffer[bufferIndex + 1].toInt() and 0xFF
-        val b = buffer[bufferIndex + 2].toInt() and 0xFF
-        val a = buffer[bufferIndex + 3].toInt() and 0xFF
-        pixels[pixelIndex] = (a shl 24) or (r shl 16) or (g shl 8) or b
-        bufferIndex += 4
-        pixelIndex++
-    }
-
-    bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+    // Native code outputs BGRA which matches ARGB_8888 byte order on little-endian
+    // Use direct buffer copy for optimal performance
+    val byteBuffer = java.nio.ByteBuffer.wrap(buffer)
+    bitmap.copyPixelsFromBuffer(byteBuffer)
 }
 
 /**
