@@ -238,7 +238,12 @@ This directory contains comprehensive tests that serve as reference for:
 
 ### Phase 2: CommandQueue Extensions
 
-- [ ] **2.1 Add `SpriteDrawCommand` data class to `CommandQueue.kt`**
+- [x] **2.1 Add `SpriteDrawCommand` data class to `CommandQueue.kt`** ✅ IMPLEMENTED
+  - [x] Define data class with artboardHandle, stateMachineHandle, transform, artboardWidth, artboardHeight
+  - [x] Add `init` validation for transform array size (must be 6 elements)
+  - [x] Override `equals()` and `hashCode()` for proper FloatArray comparison
+  - [x] Override `toString()` for debugging
+  
   ```kotlin
   data class SpriteDrawCommand(
       val artboardHandle: ArtboardHandle,
@@ -249,19 +254,19 @@ This directory contains comprehensive tests that serve as reference for:
   )
   ```
 
-- [ ] **2.2 Add `drawMultiple()` method to `CommandQueue.kt`**
-  - [ ] Define method signature:
-    ```kotlin
-    fun drawMultiple(
-        commands: List<SpriteDrawCommand>,
-        surface: RiveSurface,
-        viewportWidth: Int,
-        viewportHeight: Int,
-        clearColor: Int = Color.TRANSPARENT
-    )
-    ```
-  - [ ] Add JNI external declaration for `cppDrawMultiple`
-  - [ ] Implement command batching logic
+- [x] **2.2 Add `drawMultiple()` method to `CommandQueue.kt`** ✅ IMPLEMENTED
+  - [x] Add JNI external declaration `cppDrawMultiple` with flattened arrays for JNI efficiency
+  - [x] Implement public `drawMultiple()` method
+  - [x] Implement command batching logic (flatten command data into parallel arrays)
+  
+  **Implementation Notes:**
+  - The `cppDrawMultiple` JNI method is declared but not yet implemented in native code (Phase 3)
+  - Arrays are flattened for efficient JNI transfer:
+    - `transforms`: 6 floats per command [scaleX, skewY, skewX, scaleY, translateX, translateY]
+    - `artboardHandles`, `stateMachineHandles`, `artboardWidths`, `artboardHeights`: parallel arrays
+  - Calling `drawMultiple()` before Phase 3 native implementation will throw `UnsatisfiedLinkError`
+  - Method includes early return for empty command list
+  - Uses `System.arraycopy()` for efficient transform array copying
 
 ### Phase 3: Native Implementation
 

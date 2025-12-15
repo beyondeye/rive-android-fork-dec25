@@ -44,6 +44,67 @@ import kotlin.time.Duration
 const val COMMAND_QUEUE_TAG = "Rive/CQ"
 
 /**
+ * A command describing a single sprite to be drawn in a batch operation.
+ *
+ * Used with [CommandQueue.drawMultiple] for efficient batch rendering of sprites.
+ * Each command specifies an artboard/state machine pair along with a transform
+ * to apply during rendering.
+ *
+ * The transform is a 6-element affine transform in the format:
+ * `[scaleX, skewY, skewX, scaleY, translateX, translateY]`
+ *
+ * This corresponds to the matrix:
+ * ```
+ * | scaleX  skewX   translateX |
+ * | skewY   scaleY  translateY |
+ * | 0       0       1          |
+ * ```
+ *
+ * @param artboardHandle The handle of the artboard to draw.
+ * @param stateMachineHandle The handle of the state machine associated with the artboard.
+ * @param transform 6-element affine transform array.
+ * @param artboardWidth The width of the artboard in pixels (used for scaling calculations).
+ * @param artboardHeight The height of the artboard in pixels (used for scaling calculations).
+ */
+data class SpriteDrawCommand(
+    val artboardHandle: ArtboardHandle,
+    val stateMachineHandle: StateMachineHandle,
+    val transform: FloatArray,
+    val artboardWidth: Float,
+    val artboardHeight: Float,
+) {
+    init {
+        require(transform.size == 6) { 
+            "Transform must have exactly 6 elements, got ${transform.size}" 
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is SpriteDrawCommand) return false
+        return artboardHandle == other.artboardHandle &&
+               stateMachineHandle == other.stateMachineHandle &&
+               transform.contentEquals(other.transform) &&
+               artboardWidth == other.artboardWidth &&
+               artboardHeight == other.artboardHeight
+    }
+
+    override fun hashCode(): Int {
+        var result = artboardHandle.hashCode()
+        result = 31 * result + stateMachineHandle.hashCode()
+        result = 31 * result + transform.contentHashCode()
+        result = 31 * result + artboardWidth.hashCode()
+        result = 31 * result + artboardHeight.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "SpriteDrawCommand(artboard=$artboardHandle, stateMachine=$stateMachineHandle, " +
+               "size=${artboardWidth}x$artboardHeight, transform=[${transform.joinToString()}])"
+    }
+}
+
+/**
  * A [CommandQueue] is the worker that runs Rive in a thread. It holds all of
  * the state, including assets ([images][ImageHandle], [audio][AudioHandle], and
  * [fonts][FontHandle]), [Rive files][RiveFile], [artboards][Artboard], state machines, and
@@ -425,6 +486,44 @@ class CommandQueue(
     )
 
     private external fun cppRunOnCommandServer(pointer: Long, work: () -> Unit)
+
+    /**
+     * Native method for batch rendering multiple sprites in a single GPU pass.
+     *
+     * Arrays are flattened for JNI efficiency:
+     * - transforms: 6 floats per command [scaleX, skewY, skewX, scaleY, translateX, translateY]
+     *
+     * @param pointer The command queue native pointer.
+     * @param renderContextPointer The render context native pointer.
+     * @param surfaceNativePointer The surface native pointer.
+     * @param drawKey The draw key for this operation.
+     * @param renderTargetPointer The render target native pointer.
+     * @param viewportWidth The viewport width in pixels.
+     * @param viewportHeight The viewport height in pixels.
+     * @param clearColor The clear color in AARRGGBB format.
+     * @param artboardHandles Array of artboard handles.
+     * @param stateMachineHandles Array of state machine handles.
+     * @param transforms Flattened array of transforms (6 floats per command).
+     * @param artboardWidths Array of artboard widths.
+     * @param artboardHeights Array of artboard heights.
+     * @param count Number of commands.
+     */
+    private external fun cppDrawMultiple(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        renderTargetPointer: Long,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int,
+        artboardHandles: LongArray,
+        stateMachineHandles: LongArray,
+        transforms: FloatArray,
+        artboardWidths: FloatArray,
+        artboardHeights: FloatArray,
+        count: Int
+    )
 
     companion object {
         /**
@@ -2255,6 +2354,74 @@ class CommandQueue(
         clearColor,
         buffer
     )
+
+    /**
+     * Draw multiple sprites in a single batch operation.
+     *
+     * This method is optimized for rendering many sprites efficiently by batching them into a
+     * single GPU render pass. Each sprite's transform is applied individually during rendering.
+     *
+     * The sprites are rendered in the order they appear in the [commands] list. For correct
+     * z-ordering, ensure the list is sorted by z-index before calling this method.
+     *
+     * **Note:** The native implementation (`cppDrawMultiple`) must be implemented in Phase 3
+     * before this method can be used. Until then, calling this method will throw an
+     * [UnsatisfiedLinkError].
+     *
+     * @param commands The list of sprite draw commands to execute.
+     * @param surface The surface to draw to.
+     * @param viewportWidth The width of the viewport in pixels.
+     * @param viewportHeight The height of the viewport in pixels.
+     * @param clearColor The color to clear the surface with before drawing, in AARRGGBB format.
+     *   Defaults to transparent.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws UnsatisfiedLinkError If the native implementation is not yet available.
+     */
+    @Throws(IllegalStateException::class, UnsatisfiedLinkError::class)
+    fun drawMultiple(
+        commands: List<SpriteDrawCommand>,
+        surface: RiveSurface,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int = Color.TRANSPARENT
+    ) {
+        if (commands.isEmpty()) return
+
+        val count = commands.size
+        
+        // Pre-allocate arrays for JNI
+        val artboardHandles = LongArray(count)
+        val stateMachineHandles = LongArray(count)
+        val transforms = FloatArray(count * 6)
+        val artboardWidths = FloatArray(count)
+        val artboardHeights = FloatArray(count)
+
+        // Flatten command data into arrays for efficient JNI transfer
+        commands.forEachIndexed { index, command ->
+            artboardHandles[index] = command.artboardHandle.handle
+            stateMachineHandles[index] = command.stateMachineHandle.handle
+            System.arraycopy(command.transform, 0, transforms, index * 6, 6)
+            artboardWidths[index] = command.artboardWidth
+            artboardHeights[index] = command.artboardHeight
+        }
+
+        cppDrawMultiple(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            surface.renderTargetPointer.pointer,
+            viewportWidth,
+            viewportHeight,
+            clearColor,
+            artboardHandles,
+            stateMachineHandles,
+            transforms,
+            artboardWidths,
+            artboardHeights,
+            count
+        )
+    }
 
     /**
      * Enqueue arbitrary Kotlin code to be run on the command server thread.
