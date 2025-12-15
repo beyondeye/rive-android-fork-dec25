@@ -47,6 +47,7 @@ import app.rive.rememberCommandQueueOrNull
 import app.rive.rememberRiveFile
 import app.rive.runtime.example.R
 import app.rive.sprites.RiveSprite
+import app.rive.sprites.SpriteRenderMode
 import app.rive.sprites.SpriteScale
 import app.rive.sprites.drawRiveSprites
 import app.rive.sprites.rememberRiveSpriteScene
@@ -233,6 +234,9 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     var enableRotation by remember { mutableStateOf(true) }
     var enableScaling by remember { mutableStateOf(true) }
     var enableMovement by remember { mutableStateOf(true) }
+    
+    // Render mode switch
+    var useBatchRendering by remember { mutableStateOf(false) }
 
     // Create sprites when all files are loaded and canvas size is known
     LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize) {
@@ -346,8 +350,11 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             // Draw reference grid
             drawGrid(textMeasurer)
 
-            // Draw all Rive sprites
-            drawRiveSprites(scene)
+            // Draw all Rive sprites with selected render mode
+            drawRiveSprites(
+                scene,
+                renderMode = if (useBatchRendering) SpriteRenderMode.BATCH else SpriteRenderMode.PER_SPRITE
+            )
         }
 
         ControlPanel(
@@ -358,7 +365,9 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             enableScaling = enableScaling,
             onEnableScalingChange = { enableScaling = it },
             enableMovement = enableMovement,
-            onEnableMovementChange = { enableMovement = it }
+            onEnableMovementChange = { enableMovement = it },
+            useBatchRendering = useBatchRendering,
+            onUseBatchRenderingChange = { useBatchRendering = it }
         )
     }
 }
@@ -372,7 +381,9 @@ private fun BoxScope.ControlPanel(
     enableScaling: Boolean,
     onEnableScalingChange: (Boolean) -> Unit,
     enableMovement: Boolean,
-    onEnableMovementChange: (Boolean) -> Unit
+    onEnableMovementChange: (Boolean) -> Unit,
+    useBatchRendering: Boolean,
+    onUseBatchRenderingChange: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -390,7 +401,7 @@ private fun BoxScope.ControlPanel(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Rotation",
+                    text = "Rot",
                     color = Color.Black,
                     fontSize = 14.sp
                 )
@@ -402,7 +413,7 @@ private fun BoxScope.ControlPanel(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Scaling",
+                    text = "Scale",
                     color = Color.Black,
                     fontSize = 14.sp
                 )
@@ -422,6 +433,18 @@ private fun BoxScope.ControlPanel(
                 Switch(
                     checked = enableMovement,
                     onCheckedChange = onEnableMovementChange
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Batch",
+                    color = Color.Black,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Switch(
+                    checked = useBatchRendering,
+                    onCheckedChange = onUseBatchRenderingChange
                 )
             }
         }
