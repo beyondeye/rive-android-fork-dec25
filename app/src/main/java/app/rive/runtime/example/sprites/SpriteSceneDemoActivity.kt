@@ -1,7 +1,6 @@
 package app.rive.runtime.example.sprites
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -42,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rive.ExperimentalRiveComposeAPI
 import app.rive.Result
-import app.rive.RiveFile
 import app.rive.RiveFileSource
 import app.rive.RiveLog
 import app.rive.rememberCommandQueueOrNull
@@ -143,7 +141,7 @@ private data class MovingSprite(
     /**
      * Update the sprite's position, rotation, and scale based on elapsed time.
      */
-    fun update(deltaSeconds: Float, enableRotation: Boolean = true, enableScaling: Boolean = true) {
+    fun update(deltaSeconds: Float, enableRotation: Boolean = true, enableScaling: Boolean = true, enableMovement: Boolean = true) {
         val delta = speed * deltaSeconds
         if (movingForward) {
             progress += delta
@@ -159,11 +157,15 @@ private data class MovingSprite(
             }
         }
 
-        // Interpolate position
-        sprite.position = Offset(
-            x = lerp(startPos.x, endPos.x, progress),
-            y = lerp(startPos.y, endPos.y, progress)
-        )
+        // Interpolate position if movement is enabled, otherwise use startPos
+        sprite.position = if (enableMovement) {
+            Offset(
+                x = lerp(startPos.x, endPos.x, progress),
+                y = lerp(startPos.y, endPos.y, progress)
+            )
+        } else {
+            startPos
+        }
 
         // Rotation: 0° to 180° as progress goes 0 to 1, or fixed at 0 if disabled
         sprite.rotation = if (enableRotation) progress * 180f else 0f
@@ -230,6 +232,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     // Animation control switches
     var enableRotation by remember { mutableStateOf(true) }
     var enableScaling by remember { mutableStateOf(true) }
+    var enableMovement by remember { mutableStateOf(true) }
 
     // Create sprites when all files are loaded and canvas size is known
     LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize) {
@@ -253,15 +256,15 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             sprite.zIndex = i
 
             val yPos = margin + (i + 1) * (canvasSize.height - 2 * margin) / 3
-            val newSprite=                MovingSprite(
+            val newMovingSprite=                MovingSprite(
                 sprite = sprite,
                 startPos = Offset(margin, yPos),
                 endPos = Offset(canvasSize.width - margin - spriteSize.width, yPos),
                 progress = i * 0.5f,  // Stagger start positions
                 speed = 0.25f + i * 0.1f  // Slightly different speeds
             )
-            sprites.add(newSprite)
-            RiveLog.d(TAG) { "*NEW SPRITE* at starting pos: ${newSprite.startPos.x}, ${newSprite.startPos.y}, progress: ${newSprite.progress}" }
+            sprites.add(newMovingSprite)
+            RiveLog.d(TAG) { "*NEW SPRITE* Horiz. at starting pos: ${newMovingSprite.startPos.x}, ${newMovingSprite.startPos.y}, progress: ${newMovingSprite.progress}" }
         }
 
         // Create 2 vertical sprites
@@ -271,15 +274,16 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             sprite.zIndex = 2 + i
 
             val xPos = margin + (i + 1) * (canvasSize.width - 2 * margin) / 3
-            sprites.add(
-                MovingSprite(
-                    sprite = sprite,
-                    startPos = Offset(xPos, margin),
-                    endPos = Offset(xPos, canvasSize.height - margin - spriteSize.height),
-                    progress = i * 0.5f,
-                    speed = 0.3f + i * 0.1f
-                )
+
+            val newMovingSprite= MovingSprite(
+                sprite = sprite,
+                startPos = Offset(xPos, margin),
+                endPos = Offset(xPos, canvasSize.height - margin - spriteSize.height),
+                progress = i * 0.5f,
+                speed = 0.3f + i * 0.1f
             )
+            sprites.add(newMovingSprite)
+            RiveLog.d(TAG) { "*NEW SPRITE* Vert. at starting pos: ${newMovingSprite.startPos.x}, ${newMovingSprite.startPos.y}, progress: ${newMovingSprite.progress}" }
         }
 
         // Create 2 diagonal sprites
@@ -293,15 +297,15 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             val endX = if (i == 0) canvasSize.width - margin - spriteSize.width else margin
             val endY = canvasSize.height - margin - spriteSize.height
 
-            sprites.add(
-                MovingSprite(
-                    sprite = sprite,
-                    startPos = Offset(startX, startY),
-                    endPos = Offset(endX, endY),
-                    progress = i * 0.3f,
-                    speed = 0.2f + i * 0.05f
-                )
+            val newMovingSprite= MovingSprite(
+                sprite = sprite,
+                startPos = Offset(startX, startY),
+                endPos = Offset(endX, endY),
+                progress = i * 0.3f,
+                speed = 0.2f + i * 0.05f
             )
+            sprites.add(newMovingSprite)
+            RiveLog.d(TAG) { "*NEW SPRITE* Diag. at starting pos: ${newMovingSprite.startPos.x}, ${newMovingSprite.startPos.y}, progress: ${newMovingSprite.progress}" }
         }
 
         movingSprites = sprites
@@ -323,7 +327,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                 fpsCalculator.updateFramePerSeconds(deltaTime,fps, frameTimeMs)
 
                 // Update sprite positions, rotations, and scales
-                movingSprites.forEach { it.update(deltaSeconds, enableRotation, enableScaling) }
+                movingSprites.forEach { it.update(deltaSeconds, enableRotation, enableScaling, enableMovement) }
 
                 // Advance Rive animations
                 scene.advance(deltaTime.nanoseconds)
@@ -352,7 +356,9 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
             enableRotation = enableRotation,
             onEnableRotationChange = { enableRotation = it },
             enableScaling = enableScaling,
-            onEnableScalingChange = { enableScaling = it }
+            onEnableScalingChange = { enableScaling = it },
+            enableMovement = enableMovement,
+            onEnableMovementChange = { enableMovement = it }
         )
     }
 }
@@ -364,7 +370,9 @@ private fun BoxScope.ControlPanel(
     enableRotation: Boolean,
     onEnableRotationChange: (Boolean) -> Unit,
     enableScaling: Boolean,
-    onEnableScalingChange: (Boolean) -> Unit
+    onEnableScalingChange: (Boolean) -> Unit,
+    enableMovement: Boolean,
+    onEnableMovementChange: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -402,6 +410,18 @@ private fun BoxScope.ControlPanel(
                 Switch(
                     checked = enableScaling,
                     onCheckedChange = onEnableScalingChange
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Move",
+                    color = Color.Black,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Switch(
+                    checked = enableMovement,
+                    onCheckedChange = onEnableMovementChange
                 )
             }
         }
