@@ -336,15 +336,89 @@ This directory contains comprehensive tests that serve as reference for:
 
 ### Phase 4: Compose Canvas Integration
 
-- [ ] **4.1 Implement texture management**
-  - [ ] Create off-screen GPU surface matching DrawScope size
-  - [ ] Handle surface recreation on size change
-  - [ ] Implement texture caching for static sprites
+- [x] **4.1 Implement texture management** ✅ IMPLEMENTED
+  - [x] Create off-screen GPU surface matching DrawScope size
+  - [x] Handle surface recreation on size change
+  - [x] Implement texture caching for static sprites
+  - [x] Add rendering mode selection (PER_SPRITE vs BATCH)
+  - [x] Add dirty tracking for scene changes
+  
+  **Implementation Notes:**
+  
+  **New Files Created:**
+  - `SpriteRenderMode.kt`: Enum for selecting rendering approach
+    - `PER_SPRITE`: Individual sprite rendering (default, more compatible)
+    - `BATCH`: Single GPU pass rendering (better performance for 20+ sprites)
+  
+  **Modified Files:**
+  - `RiveSpriteScene.kt`:
+    - Added shared GPU surface management (`sharedSurface`, `getOrCreateSharedSurface()`)
+    - Added pixel buffer for GPU readback (`pixelBuffer`, `getPixelBuffer()`)
+    - Added dirty tracking (`isDirty`, `markDirty()`, `clearDirty()`)
+    - Added draw command building (`buildDrawCommands()`)
+    - Added documentation about surface ownership trade-offs
+  
+  - `RiveSpriteSceneRenderer.kt`:
+    - Added `renderMode` parameter to `drawRiveSprites()`
+    - Implemented `drawRiveSpritesPerSprite()` for individual sprite rendering
+    - Implemented `drawRiveSpritesBatch()` for batch GPU rendering
+    - Added automatic fallback from BATCH to PER_SPRITE on errors
+    - Added pixel buffer to bitmap conversion utilities
+  
+  **Surface Ownership Decision:**
+  - Currently scene-owned (simpler lifecycle)
+  - Documented trade-offs for renderer-owned approach (see Phase 4.3)
+  
+  **Known Limitations:**
+  - Batch mode currently falls back to per-sprite rendering for pixel readback
+  - GPU-to-CPU pixel transfer needs native support (see TODO in code)
+  - True batch performance benefits require Phase 4.3 native readback support
 
-- [ ] **4.2 Implement `drawRiveSprites()` extension**
-  - [ ] Trigger scene render if dirty
-  - [ ] Draw GPU texture to Canvas via `drawImage()`
-  - [ ] Handle scaling for different pixel densities
+- [x] **4.2 Implement `drawRiveSprites()` extension** ✅ IMPLEMENTED (merged with 4.1)
+  - [x] Trigger scene render if dirty
+  - [x] Draw GPU texture to Canvas via `drawImage()`
+  - [x] Handle scaling for different pixel densities
+
+### Phase 4.3 (Optional): Move Surface Ownership to Renderer
+
+This optional phase migrates surface ownership from the scene to the renderer
+for better multi-canvas support.
+
+**Trade-offs:**
+
+| Aspect | Scene-Owned (Current) | Renderer-Owned |
+|--------|----------------------|----------------|
+| Lifecycle | Simple (tied to scene) | Complex (DisposableEffect) |
+| Multi-canvas | Surface may not match | Surface always matches |
+| API complexity | Simpler | More complex |
+| Flexibility | Less flexible | More flexible |
+
+- [ ] **4.3.1 Create SpriteSceneSurface holder class**
+  - [ ] Hold RiveSurface reference
+  - [ ] Track size for recreation
+  - [ ] Implement AutoCloseable
+
+- [ ] **4.3.2 Modify rememberRiveSpriteScene composable**
+  - [ ] Add optional surface holder parameter
+  - [ ] Default to scene-owned surface if not provided
+
+- [ ] **4.3.3 Create rememberSpriteSceneSurface composable**
+  - [ ] Create surface holder with DisposableEffect
+  - [ ] Tie to composable lifecycle
+
+### Phase 4.4 (Optional): Native Pixel Readback
+
+This phase adds native support for reading pixels from batch-rendered surfaces,
+enabling true batch rendering performance.
+
+- [ ] **4.4.1 Add native readback method**
+  - [ ] Option A: `cppReadPixels(surfacePointer, buffer)` native method
+  - [ ] Option B: Modify `cppDrawMultiple` to fill a pixel buffer
+  - [ ] Option C: Use EGL shared texture for direct readback
+
+- [ ] **4.4.2 Update batch rendering path**
+  - [ ] Use native readback instead of per-sprite fallback
+  - [ ] Implement async readback with double-buffering for performance
 
 ### Phase 5: Hit Testing
 

@@ -9,6 +9,8 @@ import app.rive.RiveFile
 import app.rive.RiveLog
 import app.rive.core.CloseOnce
 import app.rive.core.CommandQueue
+import app.rive.core.RiveSurface
+import app.rive.core.SpriteDrawCommand
 import kotlin.time.Duration
 
 private const val SPRITE_SCENE_TAG = "Rive/SpriteScene"
@@ -21,6 +23,32 @@ private const val SPRITE_SCENE_TAG = "Rive/SpriteScene"
  * - Batch animation advancement
  * - Z-order sorted rendering (via [getSortedSprites])
  * - Hit testing with z-order awareness
+ * - Shared GPU surface for batch rendering
+ *
+ * ## Surface Ownership
+ *
+ * The scene owns the shared GPU surface used for batch rendering. This design choice
+ * provides simpler lifecycle management (surface tied to scene lifetime).
+ *
+ * **Current approach (Scene-owned surface):**
+ * - Pros:
+ *   - Simpler lifecycle management (surface tied to scene)
+ *   - Single source of truth for surface state
+ *   - Easy to clean up (closed with scene)
+ * - Cons:
+ *   - Surface size may not match if scene is used with multiple canvases
+ *   - Less flexible for advanced use cases
+ *
+ * **Alternative (Renderer-owned surface):**
+ * - Pros:
+ *   - Surface size always matches the Canvas it's drawn to
+ *   - Better for multi-canvas scenarios
+ *   - More flexible composition
+ * - Cons:
+ *   - More complex lifecycle (need DisposableEffect tracking)
+ *   - Need to pass surface around or use holders
+ *
+ * See Phase 4.3 in the implementation plan for migrating to renderer-owned surface.
  *
  * ## Usage
  *
@@ -74,6 +102,13 @@ class RiveSpriteScene(
         cachedCompositeBitmap = null
         cachedBitmapWidth = 0
         cachedBitmapHeight = 0
+        
+        // Release shared surface for batch rendering
+        sharedSurface?.close()
+        sharedSurface = null
+        sharedSurfaceWidth = 0
+        sharedSurfaceHeight = 0
+        pixelBuffer = null
         
         // Release command queue reference
         commandQueue.release(SPRITE_SCENE_TAG, "Scene closed")
@@ -132,6 +167,137 @@ class RiveSpriteScene(
         cachedBitmapWidth = width
         cachedBitmapHeight = height
         return newBitmap
+    }
+
+    // endregion
+
+    // region Shared Surface for Batch Rendering
+
+    /**
+     * Shared GPU surface for batch rendering all sprites.
+     *
+     * This surface is used when [SpriteRenderMode.BATCH] is selected. All sprites
+     * are rendered to this single surface in one GPU pass, which is more efficient
+     * than creating individual surfaces per sprite.
+     *
+     * The surface is created lazily when batch rendering is first requested and
+     * is recreated if the viewport size changes.
+     */
+    private var sharedSurface: RiveSurface? = null
+    private var sharedSurfaceWidth: Int = 0
+    private var sharedSurfaceHeight: Int = 0
+
+    /**
+     * Pixel buffer for reading rendered content from the shared surface.
+     *
+     * This buffer is used to transfer GPU-rendered content to a CPU-accessible
+     * bitmap for display in Compose Canvas.
+     */
+    private var pixelBuffer: ByteArray? = null
+
+    /**
+     * Get or create the shared GPU surface for batch rendering.
+     *
+     * The surface is cached and reused across frames. It is only recreated when
+     * the viewport size changes.
+     *
+     * @param width The required width in pixels.
+     * @param height The required height in pixels.
+     * @return A [RiveSurface] sized to the requested dimensions.
+     * @throws RuntimeException If the surface cannot be created.
+     */
+    internal fun getOrCreateSharedSurface(width: Int, height: Int): RiveSurface {
+        check(!closeOnce.closed) { "Cannot get surface from a closed scene" }
+
+        val existingSurface = sharedSurface
+        if (existingSurface != null &&
+            sharedSurfaceWidth == width &&
+            sharedSurfaceHeight == height
+        ) {
+            return existingSurface
+        }
+
+        // Size changed or no surface exists - create a new one
+        existingSurface?.close()
+
+        RiveLog.d(SPRITE_SCENE_TAG) {
+            "Creating shared surface ${width}x$height " +
+                    "(was ${sharedSurfaceWidth}x$sharedSurfaceHeight)"
+        }
+
+        val newSurface = commandQueue.createImageSurface(width, height)
+        sharedSurface = newSurface
+        sharedSurfaceWidth = width
+        sharedSurfaceHeight = height
+
+        // Also resize the pixel buffer
+        val bufferSize = width * height * 4 // RGBA
+        if (pixelBuffer == null || pixelBuffer!!.size != bufferSize) {
+            pixelBuffer = ByteArray(bufferSize)
+        }
+
+        return newSurface
+    }
+
+    /**
+     * Get the pixel buffer for reading from the shared surface.
+     *
+     * @return The pixel buffer, or null if the shared surface hasn't been created.
+     */
+    internal fun getPixelBuffer(): ByteArray? = pixelBuffer
+
+    /**
+     * Build a list of [SpriteDrawCommand] for batch rendering.
+     *
+     * This converts all visible sprites into draw commands that can be passed
+     * to [CommandQueue.drawMultiple].
+     *
+     * @return List of draw commands, sorted by z-index.
+     */
+    internal fun buildDrawCommands(): List<SpriteDrawCommand> {
+        return getSortedSprites().map { sprite ->
+            val effectiveSize = sprite.effectiveSize
+            SpriteDrawCommand(
+                artboardHandle = sprite.artboardHandle,
+                stateMachineHandle = sprite.stateMachineHandle,
+                transform = sprite.computeTransformArray(),
+                artboardWidth = effectiveSize.width,
+                artboardHeight = effectiveSize.height
+            )
+        }
+    }
+
+    // endregion
+
+    // region Dirty Tracking
+
+    /**
+     * Flag indicating whether the scene needs to be re-rendered.
+     *
+     * This is set to true when:
+     * - Sprites are added, removed, or reordered
+     * - Sprite visibility changes
+     * - (Note: transform changes are handled by Compose state)
+     *
+     * Used by the renderer to skip re-rendering when the scene hasn't changed
+     * and animations haven't advanced.
+     */
+    @Volatile
+    internal var isDirty: Boolean = true
+        private set
+
+    /**
+     * Mark the scene as dirty, requiring re-render.
+     */
+    internal fun markDirty() {
+        isDirty = true
+    }
+
+    /**
+     * Clear the dirty flag after rendering.
+     */
+    internal fun clearDirty() {
+        isDirty = false
     }
 
     // endregion
@@ -202,6 +368,7 @@ class RiveSpriteScene(
         require(sprite !in _sprites) { "Sprite is already in this scene" }
         
         _sprites.add(sprite)
+        markDirty()
         RiveLog.d(SPRITE_SCENE_TAG) { "Added sprite, total=${_sprites.size}" }
     }
 
@@ -215,6 +382,7 @@ class RiveSpriteScene(
         val removed = _sprites.remove(sprite)
         if (removed) {
             sprite.close()
+            markDirty()
             RiveLog.d(SPRITE_SCENE_TAG) { "Removed sprite, total=${_sprites.size}" }
         }
         return removed
@@ -232,6 +400,7 @@ class RiveSpriteScene(
     fun detachSprite(sprite: RiveSprite): Boolean {
         val removed = _sprites.remove(sprite)
         if (removed) {
+            markDirty()
             RiveLog.d(SPRITE_SCENE_TAG) { "Detached sprite, total=${_sprites.size}" }
         }
         return removed
@@ -244,6 +413,7 @@ class RiveSpriteScene(
         RiveLog.d(SPRITE_SCENE_TAG) { "Clearing ${_sprites.size} sprites" }
         _sprites.forEach { it.close() }
         _sprites.clear()
+        markDirty()
     }
 
     // endregion
