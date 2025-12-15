@@ -234,6 +234,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     var enableRotation by remember { mutableStateOf(true) }
     var enableScaling by remember { mutableStateOf(true) }
     var enableMovement by remember { mutableStateOf(true) }
+    var frameCounter by remember { mutableStateOf(0L) }
     
     // Render mode switch
     var useBatchRendering by remember { mutableStateOf(false) }
@@ -323,6 +324,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
         var lastFrameTime = 0L
         while (isActive) {
             withFrameNanos { frameTimeNs ->
+                frameCounter++ // Force recomposition
                 val deltaTime = if (lastFrameTime == 0L) 0L else frameTimeNs - lastFrameTime
                 lastFrameTime = frameTimeNs
                 val deltaSeconds = deltaTime / 1_000_000_000f
@@ -342,6 +344,7 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     // Canvas with grid and sprites
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
+            frameCounter // Just reading this forces the Canvas to redraw
             // Update canvas size
             if (canvasSize != size) {
                 canvasSize = size
