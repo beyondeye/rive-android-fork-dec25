@@ -270,29 +270,69 @@ This directory contains comprehensive tests that serve as reference for:
 
 ### Phase 3: Native Implementation
 
-- [ ] **3.1 Create `sprite_batch.hpp`**
-  - [ ] Define C++ struct for sprite draw command:
-    ```cpp
-    struct SpriteDrawCommand {
-        rive::ArtboardHandle artboard;
-        rive::StateMachineHandle stateMachine;
-        rive::Mat2D transform;
-        float artboardWidth;
-        float artboardHeight;
-    };
-    ```
+- [x] **3.1 Create `sprite_batch.hpp`** ✅ SKIPPED (Not needed)
+  - The sprite batch data structure is handled inline in the JNI binding
+  - No separate header file is required as the data is passed via flattened arrays
 
-- [ ] **3.2 Add JNI binding in `bindings_command_queue.cpp`**
-  - [ ] Implement `Java_app_rive_core_CommandQueue_cppDrawMultiple`
-  - [ ] Parse Java array of commands into C++ vector
-  - [ ] Extract transform matrix from float array
+- [x] **3.2 Add JNI binding in `bindings_command_queue.cpp`** ✅ IMPLEMENTED
+  - [x] Implement `Java_app_rive_core_CommandQueue_cppDrawMultiple`
+  - [x] Parse Java arrays into C++ vectors for async lambda capture
+  - [x] Extract transform matrix from float array (6 elements per sprite)
 
-- [ ] **3.3 Implement batch draw in native code**
-  - [ ] Iterate through sorted commands
-  - [ ] For each command:
-    - [ ] Apply sprite transform with `renderer.save()` / `renderer.transform()` / `renderer.restore()`
-    - [ ] Draw artboard at origin
-  - [ ] Flush GPU render
+- [x] **3.3 Implement batch draw in native code** ✅ IMPLEMENTED
+  - [x] Iterate through sprites in order (z-order is pre-sorted on Kotlin side)
+  - [x] For each sprite:
+    - [x] Get artboard instance from handle (skip if null with warning)
+    - [x] Extract 6-element transform [xx, xy, yx, yy, tx, ty] into `rive::Mat2D`
+    - [x] Calculate scale to fit artboard into target sprite size
+    - [x] Combine transforms: sprite transform * scale-to-fit transform
+    - [x] Apply with `renderer.save()` / `renderer.transform()` / artboard `draw()` / `renderer.restore()`
+  - [x] Flush GPU render with `riveContext->flush()`
+  - [x] Present to surface with `renderContext->present()`
+
+  **Implementation Notes:**
+  
+  **JNI Signature:**
+  ```cpp
+  JNIEXPORT void JNICALL
+  Java_app_rive_core_CommandQueue_cppDrawMultiple(
+      JNIEnv* env,
+      jobject,
+      jlong ref,                      // CommandQueue pointer
+      jlong renderContextRef,         // RenderContext pointer
+      jlong surfaceRef,               // Surface pointer
+      jlong drawKey,                  // Draw key handle
+      jlong renderTargetRef,          // Render target pointer
+      jint viewportWidth,             // Viewport width in pixels
+      jint viewportHeight,            // Viewport height in pixels
+      jint jClearColor,               // Clear color (AARRGGBB)
+      jlongArray jArtboardHandles,    // Array of artboard handles
+      jlongArray jStateMachineHandles,// Array of state machine handles (unused currently)
+      jfloatArray jTransforms,        // Flattened transforms (6 floats per sprite)
+      jfloatArray jArtboardWidths,    // Target widths
+      jfloatArray jArtboardHeights,   // Target heights
+      jint count                      // Number of sprites
+  )
+  ```
+
+  **Transform Format:**
+  - Uses `rive::Mat2D` which stores 6 floats: `[xx, xy, yx, yy, tx, ty]`
+  - Maps to: `[scaleX, skewY, skewX, scaleY, translateX, translateY]`
+  - Compatible with Android's `Matrix` values after extraction
+
+  **Artboard Scaling:**
+  - Each sprite has a target size (from `RiveSprite.effectiveSize`)
+  - The artboard is scaled to fit: `scaleX = targetWidth / artboardWidth`
+  - Final transform = spriteTransform * scaleToFit
+
+  **Error Handling:**
+  - Null artboards are skipped with a warning log (doesn't fail the entire batch)
+  - Uses `RiveLogW` for per-sprite warnings to avoid log spam
+  
+  **Async Execution:**
+  - Java arrays are copied to C++ vectors before lambda capture
+  - Lambda is executed asynchronously on the command server thread
+  - Uses `std::move` for efficient vector capture in lambda
 
 ### Phase 4: Compose Canvas Integration
 

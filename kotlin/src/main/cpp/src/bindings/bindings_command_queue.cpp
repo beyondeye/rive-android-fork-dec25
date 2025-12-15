@@ -2069,6 +2069,161 @@ extern "C"
     }
 
     JNIEXPORT void JNICALL
+    Java_app_rive_core_CommandQueue_cppDrawMultiple(JNIEnv* env,
+                                                    jobject,
+                                                    jlong ref,
+                                                    jlong renderContextRef,
+                                                    jlong surfaceRef,
+                                                    jlong drawKey,
+                                                    jlong renderTargetRef,
+                                                    jint viewportWidth,
+                                                    jint viewportHeight,
+                                                    jint jClearColor,
+                                                    jlongArray jArtboardHandles,
+                                                    jlongArray jStateMachineHandles,
+                                                    jfloatArray jTransforms,
+                                                    jfloatArray jArtboardWidths,
+                                                    jfloatArray jArtboardHeights,
+                                                    jint count)
+    {
+        auto* commandQueue = reinterpret_cast<CommandQueueWithThread*>(ref);
+        auto* renderContext =
+            reinterpret_cast<RenderContext*>(renderContextRef);
+        auto* nativeSurface = reinterpret_cast<void*>(surfaceRef);
+        auto* renderTarget =
+            reinterpret_cast<rive::gpu::RenderTargetGL*>(renderTargetRef);
+        auto clearColor = static_cast<uint32_t>(jClearColor);
+        auto widthInt = static_cast<int>(viewportWidth);
+        auto heightInt = static_cast<int>(viewportHeight);
+        auto spriteCount = static_cast<int>(count);
+
+        if (spriteCount <= 0)
+        {
+            return;
+        }
+
+        // Extract Java arrays into C++ vectors for use in the draw lambda
+        // We need to copy these because the lambda will be executed asynchronously
+        auto artboardHandles = std::vector<jlong>(spriteCount);
+        auto stateMachineHandles = std::vector<jlong>(spriteCount);
+        auto transforms = std::vector<float>(spriteCount * 6);
+        auto artboardWidths = std::vector<float>(spriteCount);
+        auto artboardHeights = std::vector<float>(spriteCount);
+
+        env->GetLongArrayRegion(jArtboardHandles,
+                                0,
+                                spriteCount,
+                                artboardHandles.data());
+        env->GetLongArrayRegion(jStateMachineHandles,
+                                0,
+                                spriteCount,
+                                stateMachineHandles.data());
+        env->GetFloatArrayRegion(jTransforms,
+                                 0,
+                                 spriteCount * 6,
+                                 transforms.data());
+        env->GetFloatArrayRegion(jArtboardWidths,
+                                 0,
+                                 spriteCount,
+                                 artboardWidths.data());
+        env->GetFloatArrayRegion(jArtboardHeights,
+                                 0,
+                                 spriteCount,
+                                 artboardHeights.data());
+
+        auto drawWork = [commandQueue,
+                         renderContext,
+                         nativeSurface,
+                         renderTarget,
+                         widthInt,
+                         heightInt,
+                         clearColor,
+                         spriteCount,
+                         artboardHandles = std::move(artboardHandles),
+                         stateMachineHandles = std::move(stateMachineHandles),
+                         transforms = std::move(transforms),
+                         artboardWidths = std::move(artboardWidths),
+                         artboardHeights = std::move(artboardHeights)](
+                            rive::DrawKey drawKey,
+                            rive::CommandServer* server) {
+            // Render backend specific - make the context current
+            renderContext->beginFrame(nativeSurface);
+
+            // Retrieve the Rive RenderContext from the CommandServer
+            auto riveContext =
+                static_cast<rive::gpu::RenderContext*>(server->factory());
+
+            riveContext->beginFrame(rive::gpu::RenderContext::FrameDescriptor{
+                .renderTargetWidth = static_cast<uint32_t>(widthInt),
+                .renderTargetHeight = static_cast<uint32_t>(heightInt),
+                .loadAction = rive::gpu::LoadAction::clear,
+                .clearColor = clearColor,
+            });
+
+            // Stack allocate a Rive Renderer
+            auto renderer = rive::RiveRenderer(riveContext);
+
+            // Draw each sprite with its transform
+            for (int i = 0; i < spriteCount; ++i)
+            {
+                auto artboard = server->getArtboardInstance(
+                    handleFromLong<rive::ArtboardHandle>(artboardHandles[i]));
+                if (artboard == nullptr)
+                {
+                    RiveLogW(TAG_CQ,
+                             "DrawMultiple: Artboard %d is null, skipping",
+                             i);
+                    continue;
+                }
+
+                // Extract the 6-element transform for this sprite
+                // Format: [xx, xy, yx, yy, tx, ty] = [scaleX, skewY, skewX, scaleY, translateX, translateY]
+                int transformOffset = i * 6;
+                rive::Mat2D spriteTransform(
+                    transforms[transformOffset + 0],  // xx (scaleX)
+                    transforms[transformOffset + 1],  // xy (skewY)
+                    transforms[transformOffset + 2],  // yx (skewX)
+                    transforms[transformOffset + 3],  // yy (scaleY)
+                    transforms[transformOffset + 4],  // tx (translateX)
+                    transforms[transformOffset + 5]   // ty (translateY)
+                );
+
+                // Calculate scale to fit artboard into the requested sprite size
+                float artboardWidth = artboard->width();
+                float artboardHeight = artboard->height();
+                float targetWidth = artboardWidths[i];
+                float targetHeight = artboardHeights[i];
+
+                // Compute scale factors to fit artboard into target size
+                float scaleX = targetWidth / artboardWidth;
+                float scaleY = targetHeight / artboardHeight;
+
+                // Create a scaling transform to fit the artboard to sprite size
+                rive::Mat2D scaleToFit = rive::Mat2D::fromScale(scaleX, scaleY);
+
+                // Combine: first scale the artboard to fit, then apply sprite transform
+                rive::Mat2D finalTransform = spriteTransform * scaleToFit;
+
+                // Save renderer state, apply transform, draw, restore
+                renderer.save();
+                renderer.transform(finalTransform);
+                artboard->draw(&renderer);
+                renderer.restore();
+            }
+
+            // Flush the draw commands
+            riveContext->flush({
+                .renderTarget = renderTarget,
+            });
+
+            // Render context specific - swap buffers
+            renderContext->present(nativeSurface);
+        };
+
+        commandQueue->draw(handleFromLong<rive::DrawKey>(drawKey), drawWork);
+    }
+
+    JNIEXPORT void JNICALL
     Java_app_rive_core_CommandQueue_cppRunOnCommandServer(JNIEnv* env,
                                                           jobject,
                                                           jlong ref,
