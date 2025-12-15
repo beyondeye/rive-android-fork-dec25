@@ -508,6 +508,45 @@ class CommandQueue(
      * @param artboardHeights Array of artboard heights.
      * @param count Number of commands.
      */
+    private external fun cppDrawMultipleToBuffer(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        renderTargetPointer: Long,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int,
+        artboardHandles: LongArray,
+        stateMachineHandles: LongArray,
+        transforms: FloatArray,
+        artboardWidths: FloatArray,
+        artboardHeights: FloatArray,
+        count: Int,
+        buffer: ByteArray
+    )
+
+    /**
+     * Native method for batch rendering multiple sprites in a single GPU pass (async, no pixel readback).
+     *
+     * Arrays are flattened for JNI efficiency:
+     * - transforms: 6 floats per command [scaleX, skewY, skewX, scaleY, translateX, translateY]
+     *
+     * @param pointer The command queue native pointer.
+     * @param renderContextPointer The render context native pointer.
+     * @param surfaceNativePointer The surface native pointer.
+     * @param drawKey The draw key for this operation.
+     * @param renderTargetPointer The render target native pointer.
+     * @param viewportWidth The viewport width in pixels.
+     * @param viewportHeight The viewport height in pixels.
+     * @param clearColor The clear color in AARRGGBB format.
+     * @param artboardHandles Array of artboard handles.
+     * @param stateMachineHandles Array of state machine handles.
+     * @param transforms Flattened array of transforms (6 floats per command).
+     * @param artboardWidths Array of artboard widths.
+     * @param artboardHeights Array of artboard heights.
+     * @param count Number of commands.
+     */
     private external fun cppDrawMultiple(
         pointer: Long,
         renderContextPointer: Long,
@@ -2356,17 +2395,23 @@ class CommandQueue(
     )
 
     /**
-     * Draw multiple sprites in a single batch operation.
+     * Draw multiple sprites in a single batch operation (asynchronous, fire-and-forget).
      *
-     * This method is optimized for rendering many sprites efficiently by batching them into a
-     * single GPU render pass. Each sprite's transform is applied individually during rendering.
+     * This method renders all sprites to a GPU surface efficiently by batching them into a
+     * single GPU render pass. The method returns immediately; rendering happens asynchronously
+     * on the command server thread.
+     *
+     * ## When to Use
+     *
+     * Use this method when you need to render sprites to a GPU surface for display on screen
+     * (e.g., via a TextureView). Since no pixel readback is performed, this is the fastest
+     * option for real-time rendering.
+     *
+     * For reading pixels back to CPU memory (e.g., for Compose Canvas rendering or snapshots),
+     * use [drawMultipleToBuffer] instead.
      *
      * The sprites are rendered in the order they appear in the [commands] list. For correct
      * z-ordering, ensure the list is sorted by z-index before calling this method.
-     *
-     * **Note:** The native implementation (`cppDrawMultiple`) must be implemented in Phase 3
-     * before this method can be used. Until then, calling this method will throw an
-     * [UnsatisfiedLinkError].
      *
      * @param commands The list of sprite draw commands to execute.
      * @param surface The surface to draw to.
@@ -2376,6 +2421,7 @@ class CommandQueue(
      *   Defaults to transparent.
      * @throws IllegalStateException If the CommandQueue has been released.
      * @throws UnsatisfiedLinkError If the native implementation is not yet available.
+     * @see drawMultipleToBuffer
      */
     @Throws(IllegalStateException::class, UnsatisfiedLinkError::class)
     fun drawMultiple(
@@ -2420,6 +2466,96 @@ class CommandQueue(
             artboardWidths,
             artboardHeights,
             count
+        )
+    }
+
+    /**
+     * Draw multiple sprites in a single batch operation with pixel readback (synchronous).
+     *
+     * This method renders all sprites to a GPU surface and reads the pixels back into the
+     * provided buffer. The method blocks until rendering is complete and pixels are available.
+     *
+     * ## When to Use
+     *
+     * Use this method when you need to read the rendered pixels back to CPU memory, such as:
+     * - Rendering to a Compose Canvas (via Bitmap)
+     * - Creating snapshots or thumbnails
+     * - Image processing pipelines
+     *
+     * For rendering directly to screen (e.g., via TextureView) without pixel readback,
+     * use [drawMultiple] instead, which is faster because it doesn't block.
+     *
+     * ## Threading
+     *
+     * ⚠️ This method is **synchronous** and blocks the calling thread until the GPU finishes
+     * rendering and pixels are read back (~1-5ms typically). This is acceptable for:
+     * - Compose Canvas drawing (which is already blocking)
+     * - Snapshot/thumbnail generation
+     * - Single-frame renders
+     *
+     * For high-performance scenarios requiring 60fps, consider using [drawMultiple] with
+     * async pixel readback (future Phase 4.5 double-buffering).
+     *
+     * The sprites are rendered in the order they appear in the [commands] list. For correct
+     * z-ordering, ensure the list is sorted by z-index before calling this method.
+     *
+     * @param commands The list of sprite draw commands to execute.
+     * @param surface The surface to draw to.
+     * @param buffer The byte array buffer to render into. Must be at least
+     *   viewportWidth * viewportHeight * 4 bytes in size (RGBA format).
+     * @param viewportWidth The width of the viewport in pixels.
+     * @param viewportHeight The height of the viewport in pixels.
+     * @param clearColor The color to clear the surface with before drawing, in AARRGGBB format.
+     *   Defaults to transparent.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws UnsatisfiedLinkError If the native implementation is not yet available.
+     * @see drawMultiple
+     */
+    @Throws(IllegalStateException::class, UnsatisfiedLinkError::class)
+    fun drawMultipleToBuffer(
+        commands: List<SpriteDrawCommand>,
+        surface: RiveSurface,
+        buffer: ByteArray,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int = Color.TRANSPARENT
+    ) {
+        if (commands.isEmpty()) return
+
+        val count = commands.size
+
+        // Pre-allocate arrays for JNI
+        val artboardHandles = LongArray(count)
+        val stateMachineHandles = LongArray(count)
+        val transforms = FloatArray(count * 6)
+        val artboardWidths = FloatArray(count)
+        val artboardHeights = FloatArray(count)
+
+        // Flatten command data into arrays for efficient JNI transfer
+        commands.forEachIndexed { index, command ->
+            artboardHandles[index] = command.artboardHandle.handle
+            stateMachineHandles[index] = command.stateMachineHandle.handle
+            System.arraycopy(command.transform, 0, transforms, index * 6, 6)
+            artboardWidths[index] = command.artboardWidth
+            artboardHeights[index] = command.artboardHeight
+        }
+
+        cppDrawMultipleToBuffer(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            surface.renderTargetPointer.pointer,
+            viewportWidth,
+            viewportHeight,
+            clearColor,
+            artboardHandles,
+            stateMachineHandles,
+            transforms,
+            artboardWidths,
+            artboardHeights,
+            count,
+            buffer
         )
     }
 

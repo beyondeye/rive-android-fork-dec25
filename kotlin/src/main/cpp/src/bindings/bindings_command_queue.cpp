@@ -2068,6 +2068,232 @@ extern "C"
         }
     }
 
+    /**
+     * Draw multiple sprites to a buffer (synchronous).
+     *
+     * This method renders all sprites to the GPU surface and then reads the pixels
+     * back into the provided buffer. It blocks until the rendering is complete.
+     *
+     * The buffer must be pre-allocated with size: width * height * 4 bytes (RGBA).
+     * The pixel data is flipped vertically to match Android's coordinate system.
+     *
+     * @param ref CommandQueue pointer
+     * @param renderContextRef RenderContext pointer
+     * @param surfaceRef Surface pointer
+     * @param drawKey Draw key handle
+     * @param renderTargetRef Render target pointer
+     * @param viewportWidth Viewport width in pixels
+     * @param viewportHeight Viewport height in pixels
+     * @param jClearColor Clear color (AARRGGBB)
+     * @param jArtboardHandles Array of artboard handles
+     * @param jStateMachineHandles Array of state machine handles
+     * @param jTransforms Flattened transforms (6 floats per sprite)
+     * @param jArtboardWidths Target widths
+     * @param jArtboardHeights Target heights
+     * @param count Number of sprites
+     * @param jBuffer Output buffer for pixel data (RGBA, 4 bytes per pixel)
+     */
+    JNIEXPORT void JNICALL
+    Java_app_rive_core_CommandQueue_cppDrawMultipleToBuffer(
+        JNIEnv* env,
+        jobject,
+        jlong ref,
+        jlong renderContextRef,
+        jlong surfaceRef,
+        jlong drawKey,
+        jlong renderTargetRef,
+        jint viewportWidth,
+        jint viewportHeight,
+        jint jClearColor,
+        jlongArray jArtboardHandles,
+        jlongArray jStateMachineHandles,
+        jfloatArray jTransforms,
+        jfloatArray jArtboardWidths,
+        jfloatArray jArtboardHeights,
+        jint count,
+        jbyteArray jBuffer)
+    {
+        auto* commandQueue = reinterpret_cast<CommandQueueWithThread*>(ref);
+        auto* renderContext =
+            reinterpret_cast<RenderContext*>(renderContextRef);
+        auto* nativeSurface = reinterpret_cast<void*>(surfaceRef);
+        auto* renderTarget =
+            reinterpret_cast<rive::gpu::RenderTargetGL*>(renderTargetRef);
+        auto clearColor = static_cast<uint32_t>(jClearColor);
+        auto widthInt = static_cast<int>(viewportWidth);
+        auto heightInt = static_cast<int>(viewportHeight);
+        auto spriteCount = static_cast<int>(count);
+
+        if (spriteCount <= 0)
+        {
+            return;
+        }
+
+        auto* pixels = reinterpret_cast<uint8_t*>(
+            env->GetByteArrayElements(jBuffer, nullptr));
+        if (pixels == nullptr)
+        {
+            RiveLogE(TAG_CQ,
+                     "Failed to access pixel buffer for drawMultipleToBuffer");
+            return;
+        }
+
+        // Extract Java arrays into C++ vectors for use in the draw lambda
+        auto artboardHandles = std::vector<jlong>(spriteCount);
+        auto stateMachineHandles = std::vector<jlong>(spriteCount);
+        auto transforms = std::vector<float>(spriteCount * 6);
+        auto artboardWidths = std::vector<float>(spriteCount);
+        auto artboardHeights = std::vector<float>(spriteCount);
+
+        env->GetLongArrayRegion(jArtboardHandles,
+                                0,
+                                spriteCount,
+                                artboardHandles.data());
+        env->GetLongArrayRegion(jStateMachineHandles,
+                                0,
+                                spriteCount,
+                                stateMachineHandles.data());
+        env->GetFloatArrayRegion(jTransforms,
+                                 0,
+                                 spriteCount * 6,
+                                 transforms.data());
+        env->GetFloatArrayRegion(jArtboardWidths,
+                                 0,
+                                 spriteCount,
+                                 artboardWidths.data());
+        env->GetFloatArrayRegion(jArtboardHeights,
+                                 0,
+                                 spriteCount,
+                                 artboardHeights.data());
+
+        // Use a promise to make this synchronous - we need to wait for pixels
+        auto completionPromise = std::make_shared<std::promise<bool>>();
+
+        auto drawWork = [commandQueue,
+                         renderContext,
+                         nativeSurface,
+                         renderTarget,
+                         widthInt,
+                         heightInt,
+                         clearColor,
+                         spriteCount,
+                         pixels,
+                         completionPromise,
+                         artboardHandles = std::move(artboardHandles),
+                         stateMachineHandles = std::move(stateMachineHandles),
+                         transforms = std::move(transforms),
+                         artboardWidths = std::move(artboardWidths),
+                         artboardHeights = std::move(artboardHeights)](
+                            rive::DrawKey drawKey,
+                            rive::CommandServer* server) {
+            // Render backend specific - make the context current
+            renderContext->beginFrame(nativeSurface);
+
+            // Retrieve the Rive RenderContext from the CommandServer
+            auto riveContext =
+                static_cast<rive::gpu::RenderContext*>(server->factory());
+
+            riveContext->beginFrame(rive::gpu::RenderContext::FrameDescriptor{
+                .renderTargetWidth = static_cast<uint32_t>(widthInt),
+                .renderTargetHeight = static_cast<uint32_t>(heightInt),
+                .loadAction = rive::gpu::LoadAction::clear,
+                .clearColor = clearColor,
+            });
+
+            // Stack allocate a Rive Renderer
+            auto renderer = rive::RiveRenderer(riveContext);
+
+            // Draw each sprite with its transform
+            for (int i = 0; i < spriteCount; ++i)
+            {
+                auto artboard = server->getArtboardInstance(
+                    handleFromLong<rive::ArtboardHandle>(artboardHandles[i]));
+                if (artboard == nullptr)
+                {
+                    RiveLogW(TAG_CQ,
+                             "DrawMultipleToBuffer: Artboard %d is null, "
+                             "skipping",
+                             i);
+                    continue;
+                }
+
+                // Extract the 6-element transform for this sprite
+                int transformOffset = i * 6;
+                rive::Mat2D spriteTransform(
+                    transforms[transformOffset + 0],  // xx (scaleX)
+                    transforms[transformOffset + 1],  // xy (skewY)
+                    transforms[transformOffset + 2],  // yx (skewX)
+                    transforms[transformOffset + 3],  // yy (scaleY)
+                    transforms[transformOffset + 4],  // tx (translateX)
+                    transforms[transformOffset + 5]   // ty (translateY)
+                );
+
+                // Calculate scale to fit artboard into the requested sprite
+                // size
+                float artboardWidth = artboard->width();
+                float artboardHeight = artboard->height();
+                float targetWidth = artboardWidths[i];
+                float targetHeight = artboardHeights[i];
+
+                float scaleX = targetWidth / artboardWidth;
+                float scaleY = targetHeight / artboardHeight;
+
+                rive::Mat2D scaleToFit = rive::Mat2D::fromScale(scaleX, scaleY);
+                rive::Mat2D finalTransform = spriteTransform * scaleToFit;
+
+                renderer.save();
+                renderer.transform(finalTransform);
+                artboard->draw(&renderer);
+                renderer.restore();
+            }
+
+            // Flush the draw commands
+            riveContext->flush({
+                .renderTarget = renderTarget,
+            });
+
+            // Read pixels from the framebuffer
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glFinish();
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            glReadPixels(0,
+                         0,
+                         widthInt,
+                         heightInt,
+                         GL_RGBA,
+                         GL_UNSIGNED_BYTE,
+                         pixels);
+
+            // Flip the image vertically (OpenGL origin is bottom-left)
+            auto rowBytes = static_cast<size_t>(widthInt) * 4;
+            std::vector<uint8_t> row(rowBytes);
+            auto* data = pixels;
+            for (int y = 0; y < heightInt / 2; ++y)
+            {
+                auto* top = data + (static_cast<size_t>(y) * rowBytes);
+                auto* bottom =
+                    data + (static_cast<size_t>(heightInt - 1 - y) * rowBytes);
+                std::memcpy(row.data(), top, rowBytes);
+                std::memcpy(top, bottom, rowBytes);
+                std::memcpy(bottom, row.data(), rowBytes);
+            }
+
+            // Present and signal completion
+            renderContext->present(nativeSurface);
+            completionPromise->set_value(true);
+        };
+
+        commandQueue->draw(handleFromLong<rive::DrawKey>(drawKey), drawWork);
+
+        // Wait for completion - this makes the call synchronous
+        completionPromise->get_future().wait();
+
+        // Release the buffer back to Java
+        env->ReleaseByteArrayElements(jBuffer,
+                                      reinterpret_cast<jbyte*>(pixels),
+                                      0);
+    }
+
     JNIEXPORT void JNICALL
     Java_app_rive_core_CommandQueue_cppDrawMultiple(JNIEnv* env,
                                                     jobject,

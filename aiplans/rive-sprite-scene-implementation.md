@@ -411,19 +411,67 @@ for better multi-canvas support.
   - [ ] Create surface holder with DisposableEffect
   - [ ] Tie to composable lifecycle
 
-### Phase 4.4 (Optional): Native Pixel Readback
+### Phase 4.4: Synchronous Batch Rendering with Pixel Readback ✅ IMPLEMENTED
 
-This phase adds native support for reading pixels from batch-rendered surfaces,
-enabling true batch rendering performance.
+This phase adds native support for rendering multiple sprites and reading pixels back
+in a single synchronous call, enabling true batch rendering for Compose Canvas.
 
-- [ ] **4.4.1 Add native readback method**
-  - [ ] Option A: `cppReadPixels(surfacePointer, buffer)` native method
-  - [ ] Option B: Modify `cppDrawMultiple` to fill a pixel buffer
-  - [ ] Option C: Use EGL shared texture for direct readback
+- [x] **4.4.1 Add `cppDrawMultipleToBuffer` native method**
+  - [x] JNI function in `bindings_command_queue.cpp`
+  - [x] Synchronous execution using promise/future pattern
+  - [x] GPU rendering with `glReadPixels()` for pixel readback
+  - [x] Vertical flip to match Android coordinate system
 
-- [ ] **4.4.2 Update batch rendering path**
-  - [ ] Use native readback instead of per-sprite fallback
-  - [ ] Implement async readback with double-buffering for performance
+- [x] **4.4.2 Add `drawMultipleToBuffer()` Kotlin method**
+  - [x] Public method in `CommandQueue.kt`
+  - [x] Documentation for sync vs async usage
+  - [x] Buffer parameter for pixel output
+
+- [x] **4.4.3 Update batch rendering path**
+  - [x] `drawRiveSpritesBatch()` uses `drawMultipleToBuffer()`
+  - [x] Direct pixel buffer to bitmap conversion
+  - [x] Removed fallback workaround code
+
+- [x] **4.4.4 Silent fallback on errors**
+  - [x] Falls back to per-sprite on `UnsatisfiedLinkError`
+  - [x] Falls back to per-sprite on any exception
+  - [x] Uses `RiveLog.d()` for debug-level logging
+
+**Implementation Notes:**
+
+**Sync vs Async Design Decision:**
+- `drawMultiple()`: Async (fire-and-forget), for TextureView/SurfaceView display
+- `drawMultipleToBuffer()`: Sync (blocking), for Compose Canvas/snapshot rendering
+
+**Threading Considerations:**
+- `drawMultipleToBuffer()` blocks the calling thread (~1-5ms typical)
+- Acceptable for Compose Canvas (already blocking during draw)
+- Not recommended for 60fps game loops (use async approach)
+
+**Native Implementation Details:**
+```cpp
+// Uses promise/future for synchronous completion
+auto completionPromise = std::make_shared<std::promise<bool>>();
+commandQueue->draw(drawKey, drawWork);
+completionPromise->get_future().wait();  // Blocks until GPU completes
+```
+
+**Pixel Buffer Format:**
+- RGBA byte array (4 bytes per pixel)
+- Buffer size: `width * height * 4`
+- Vertical flip applied in native code (OpenGL origin is bottom-left)
+
+### Phase 4.5 (Future): Async Double-Buffered Rendering
+
+For high-performance 60fps scenarios, implement double-buffered async rendering:
+
+- [ ] **4.5.1 Add async readback with callback**
+  - [ ] Non-blocking version that signals completion via callback
+  - [ ] Double-buffering to overlap render and readback
+
+- [ ] **4.5.2 Integrate with Compose frame timing**
+  - [ ] Use previous frame's buffer while current frame renders
+  - [ ] Minimize latency while maintaining 60fps
 
 ### Phase 5: Hit Testing
 

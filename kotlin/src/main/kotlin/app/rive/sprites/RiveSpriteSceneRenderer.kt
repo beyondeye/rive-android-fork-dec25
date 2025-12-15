@@ -301,23 +301,16 @@ private fun DrawScope.drawRiveSpritesPerSprite(
 /**
  * Internal implementation of batch rendering mode.
  *
- * Renders all sprites in a single GPU pass using [CommandQueue.drawMultiple].
- * This is more efficient for many sprites but requires the native batch rendering
- * implementation from Phase 3.
+ * Renders all sprites in a single GPU pass using [CommandQueue.drawMultipleToBuffer].
+ * This is more efficient for many sprites as it:
+ * 1. Batches all sprites into a single native call
+ * 2. Renders all sprites to a shared GPU surface
+ * 3. Reads pixels back synchronously for display
  *
- * ## Current Workaround (Pre-Phase 4.4)
+ * The method blocks until rendering is complete (~1-5ms typically), which is
+ * acceptable for Compose Canvas drawing as it's already a blocking operation.
  *
- * Currently, this method calls `drawMultiple()` to render to the GPU surface, but
- * since native pixel readback is not yet implemented, the actual visible output comes
- * from the fallback in [readPixelsFromSurface], which re-renders sprites using the
- * per-sprite approach directly to the composite bitmap.
- *
- * ## Phase 4.4 Migration
- *
- * When Phase 4.4 (native pixel readback) is implemented:
- * 1. [readPixelsFromSurface] will return `true` and fill the pixel buffer from GPU
- * 2. The `if (usedNativeReadback)` block will execute [copyPixelBufferToBitmap]
- * 3. This will provide true batch rendering performance benefits
+ * On any error, silently falls back to per-sprite rendering mode.
  */
 @ExperimentalRiveComposeAPI
 private fun DrawScope.drawRiveSpritesBatch(
@@ -337,16 +330,16 @@ private fun DrawScope.drawRiveSpritesBatch(
             return
         }
 
-        // Get the pixel buffer for reading back rendered content
-        // Note: This buffer is used when native pixel readback is available (Phase 4.4)
+        // Get the pixel buffer for receiving rendered pixels
         val pixelBuffer = scene.getPixelBuffer()
             ?: throw IllegalStateException("Pixel buffer not initialized")
 
-        // Render all sprites in one GPU pass
-        // This populates the GPU surface with all sprites rendered with their transforms
-        scene.commandQueue.drawMultiple(
+        // Render all sprites in one GPU pass with synchronous pixel readback
+        // This is the Phase 4.4 implementation - true batch rendering
+        scene.commandQueue.drawMultipleToBuffer(
             commands = commands,
             surface = surface,
+            buffer = pixelBuffer,
             viewportWidth = width,
             viewportHeight = height,
             clearColor = clearColor
@@ -355,18 +348,8 @@ private fun DrawScope.drawRiveSpritesBatch(
         // Get the composite bitmap for final output
         val compositeBitmap = scene.getOrCreateCompositeBitmap(width, height)
 
-        // Try to read pixels from the GPU surface into the buffer
-        // Returns true if native readback was used, false if fallback was used
-        val usedNativeReadback = readPixelsFromSurface(
-            scene, surface, pixelBuffer, compositeBitmap, width, height, clearColor
-        )
-
-        // PHASE 4.4 TODO: When native readback is implemented, this block will execute
-        // and convert the pixel buffer (RGBA) to the bitmap (ARGB_8888)
-        if (usedNativeReadback) {
-            copyPixelBufferToBitmap(pixelBuffer, compositeBitmap, width, height)
-        }
-        // If fallback was used, compositeBitmap was already populated directly by readPixelsFromSurface
+        // Convert pixel buffer (RGBA) to bitmap (ARGB_8888)
+        copyPixelBufferToBitmap(pixelBuffer, compositeBitmap, width, height)
 
         drawImage(
             image = compositeBitmap.asImageBitmap(),
@@ -378,13 +361,13 @@ private fun DrawScope.drawRiveSpritesBatch(
 
     } catch (e: UnsatisfiedLinkError) {
         // Native batch rendering not available, fall back to per-sprite
-        RiveLog.w(RENDERER_TAG) {
+        RiveLog.d(RENDERER_TAG) {
             "Batch rendering not available (native method missing), falling back to per-sprite"
         }
         drawRiveSpritesPerSprite(scene, width, height, clearColor)
     } catch (e: Exception) {
-        // Any other error, fall back to per-sprite rendering
-        RiveLog.e(RENDERER_TAG, e) { "Batch rendering failed, falling back to per-sprite" }
+        // Any other error, silently fall back to per-sprite rendering
+        RiveLog.d(RENDERER_TAG) { "Batch rendering failed, using per-sprite fallback" }
         drawRiveSpritesPerSprite(scene, width, height, clearColor)
     }
 }
