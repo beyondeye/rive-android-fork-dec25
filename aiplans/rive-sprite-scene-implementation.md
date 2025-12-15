@@ -372,7 +372,12 @@ This directory contains comprehensive tests that serve as reference for:
   **Known Limitations:**
   - Batch mode currently falls back to per-sprite rendering for pixel readback
   - GPU-to-CPU pixel transfer needs native support (see TODO in code)
-  - True batch performance benefits require Phase 4.3 native readback support
+  - True batch performance benefits require Phase 4.4 native readback support
+
+  **Bug Fix (2025-12-15):**
+  - Fixed batch rendering showing blank screen - `readPixelsFromSurface()` now returns `Boolean`
+  - When fallback is used (returns `false`), `copyPixelBufferToBitmap()` is skipped
+  - Comprehensive documentation added for Phase 4.4 migration path
 
 - [x] **4.2 Implement `drawRiveSprites()` extension** ✅ IMPLEMENTED (merged with 4.1)
   - [x] Trigger scene render if dirty

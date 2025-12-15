@@ -304,6 +304,20 @@ private fun DrawScope.drawRiveSpritesPerSprite(
  * Renders all sprites in a single GPU pass using [CommandQueue.drawMultiple].
  * This is more efficient for many sprites but requires the native batch rendering
  * implementation from Phase 3.
+ *
+ * ## Current Workaround (Pre-Phase 4.4)
+ *
+ * Currently, this method calls `drawMultiple()` to render to the GPU surface, but
+ * since native pixel readback is not yet implemented, the actual visible output comes
+ * from the fallback in [readPixelsFromSurface], which re-renders sprites using the
+ * per-sprite approach directly to the composite bitmap.
+ *
+ * ## Phase 4.4 Migration
+ *
+ * When Phase 4.4 (native pixel readback) is implemented:
+ * 1. [readPixelsFromSurface] will return `true` and fill the pixel buffer from GPU
+ * 2. The `if (usedNativeReadback)` block will execute [copyPixelBufferToBitmap]
+ * 3. This will provide true batch rendering performance benefits
  */
 @ExperimentalRiveComposeAPI
 private fun DrawScope.drawRiveSpritesBatch(
@@ -324,10 +338,12 @@ private fun DrawScope.drawRiveSpritesBatch(
         }
 
         // Get the pixel buffer for reading back rendered content
+        // Note: This buffer is used when native pixel readback is available (Phase 4.4)
         val pixelBuffer = scene.getPixelBuffer()
             ?: throw IllegalStateException("Pixel buffer not initialized")
 
         // Render all sprites in one GPU pass
+        // This populates the GPU surface with all sprites rendered with their transforms
         scene.commandQueue.drawMultiple(
             commands = commands,
             surface = surface,
@@ -336,14 +352,21 @@ private fun DrawScope.drawRiveSpritesBatch(
             clearColor = clearColor
         )
 
-        // Read pixels from the GPU surface into the buffer
-        // Note: This requires synchronous readback which may have performance implications
-        // Future optimization: use async readback with double-buffering
-        readPixelsFromSurface(scene, surface, pixelBuffer, width, height, clearColor)
-
-        // Convert pixel buffer to bitmap and draw to Canvas
+        // Get the composite bitmap for final output
         val compositeBitmap = scene.getOrCreateCompositeBitmap(width, height)
-        copyPixelBufferToBitmap(pixelBuffer, compositeBitmap, width, height)
+
+        // Try to read pixels from the GPU surface into the buffer
+        // Returns true if native readback was used, false if fallback was used
+        val usedNativeReadback = readPixelsFromSurface(
+            scene, surface, pixelBuffer, compositeBitmap, width, height, clearColor
+        )
+
+        // PHASE 4.4 TODO: When native readback is implemented, this block will execute
+        // and convert the pixel buffer (RGBA) to the bitmap (ARGB_8888)
+        if (usedNativeReadback) {
+            copyPixelBufferToBitmap(pixelBuffer, compositeBitmap, width, height)
+        }
+        // If fallback was used, compositeBitmap was already populated directly by readPixelsFromSurface
 
         drawImage(
             image = compositeBitmap.asImageBitmap(),
@@ -369,15 +392,47 @@ private fun DrawScope.drawRiveSpritesBatch(
 /**
  * Read pixels from a GPU surface into a byte buffer.
  *
- * This uses a workaround since we need to get pixels from the batch-rendered surface.
- * The current approach creates a temporary render buffer for readback.
+ * ## Current Behavior (Pre-Phase 4.4)
  *
- * @param scene The sprite scene (for accessing command queue).
- * @param surface The surface to read from (unused in workaround, will be used when native readback is added).
- * @param buffer The buffer to write pixels into (unused in workaround, will be used when native readback is added).
+ * Since native pixel readback is not yet implemented, this function uses a **fallback**
+ * approach: it re-renders all sprites using the per-sprite method directly to the
+ * [compositeBitmap]. The [buffer] parameter is not populated in this mode.
+ *
+ * When using the fallback, the function returns `false` to indicate that [copyPixelBufferToBitmap]
+ * should NOT be called (since the bitmap is already populated directly).
+ *
+ * ## Phase 4.4 Migration
+ *
+ * When implementing Phase 4.4 (native pixel readback), modify this function to:
+ *
+ * 1. **Add native readback call:**
+ *    ```kotlin
+ *    // Try native readback first
+ *    val success = tryNativePixelReadback(surface, buffer)
+ *    if (success) return true  // Signal that copyPixelBufferToBitmap should be called
+ *    ```
+ *
+ * 2. **Options for native implementation:**
+ *    - Option A: Add `cppReadPixels(surfacePointer, buffer)` native method
+ *    - Option B: Modify `cppDrawMultiple` to also fill a pixel buffer parameter
+ *    - Option C: Use EGL shared texture for direct GPU-to-CPU readback
+ *
+ * 3. **Return value semantics:**
+ *    - Return `true` when native readback succeeds (buffer is populated)
+ *    - Return `false` when fallback is used (compositeBitmap is populated directly)
+ *
+ * @param scene The sprite scene (for accessing command queue and sprites).
+ * @param surface The GPU surface to read from. Currently unused in fallback mode, but will be
+ *   the source for native pixel readback in Phase 4.4.
+ * @param buffer The buffer to write pixels into (RGBA format, 4 bytes per pixel).
+ *   Currently unused in fallback mode, but will receive GPU pixels in Phase 4.4.
+ * @param compositeBitmap The bitmap to populate. In fallback mode, this is populated directly.
+ *   In Phase 4.4, this will be populated by [copyPixelBufferToBitmap] after this function returns.
  * @param width The width in pixels.
  * @param height The height in pixels.
  * @param clearColor The clear color used for rendering.
+ * @return `true` if native readback was used (buffer contains pixel data, call [copyPixelBufferToBitmap]),
+ *   `false` if fallback was used (compositeBitmap already contains rendered content, skip conversion).
  */
 @Suppress("UNUSED_PARAMETER") // surface and buffer will be used when native pixel readback is implemented
 @ExperimentalRiveComposeAPI
@@ -385,29 +440,31 @@ private fun readPixelsFromSurface(
     scene: RiveSpriteScene,
     surface: RiveSurface,
     buffer: ByteArray,
+    compositeBitmap: Bitmap,
     width: Int,
     height: Int,
     clearColor: Int,
-) {
-    // The drawMultiple call renders to the surface, but we need to read back the pixels.
-    // Currently, there's no direct readback from RiveSurface after drawMultiple.
-    // 
-    // Workaround: The native cppDrawMultiple should handle pixel readback if needed,
-    // or we need to use drawToBuffer pattern similar to RenderBuffer.
+): Boolean {
+    // ========================================================================================
+    // PHASE 4.4 TODO: Implement native pixel readback here
+    // ========================================================================================
+    // When native readback is available, add code like:
     //
-    // For now, we'll re-render using the per-sprite approach to get actual pixels.
-    // This is a temporary implementation until proper GPU readback is added.
+    // val success = cppReadPixels(surface.nativePointer, buffer)
+    // if (success) {
+    //     return true  // Caller will call copyPixelBufferToBitmap()
+    // }
     //
-    // TODO: Add native pixel readback support for batch-rendered surfaces
-    // Options:
-    // 1. Add cppReadPixels(surfacePointer, buffer) native method
-    // 2. Modify cppDrawMultiple to also fill a pixel buffer
-    // 3. Use shared texture with EGL for direct readback
+    // Options for native implementation:
+    // 1. Add cppReadPixels(surfacePointer, buffer) native method in bindings_command_queue.cpp
+    // 2. Modify cppDrawMultiple to also fill a pixel buffer parameter
+    // 3. Use EGL PBuffer or shared texture for GPU-to-CPU pixel transfer
+    // ========================================================================================
 
-    // Temporary: Re-render sprites individually to get pixels
-    // This negates the performance benefit of batch rendering for now
-    val sprites = scene.getSortedSprites()
-    val compositeBitmap = scene.getOrCreateCompositeBitmap(width, height)
+    // FALLBACK: Re-render sprites individually to get pixels
+    // This negates the performance benefit of batch rendering, but ensures correctness.
+    // The GPU surface was populated by drawMultiple() but we can't read it back yet.
+    
     compositeBitmap.eraseColor(clearColor)
 
     val canvas = Canvas(compositeBitmap)
@@ -416,6 +473,7 @@ private fun readPixelsFromSurface(
         isFilterBitmap = true
     }
 
+    val sprites = scene.getSortedSprites()
     for (sprite in sprites) {
         if (!sprite.isVisible) continue
         try {
@@ -425,14 +483,26 @@ private fun readPixelsFromSurface(
         }
     }
 
-    // Note: The actual pixel buffer is not used in this workaround
-    // The bitmap will be used directly
+    // Return false to indicate we used fallback (bitmap populated directly)
+    // Caller should NOT call copyPixelBufferToBitmap when this returns false
+    return false
 }
 
 /**
  * Copy pixels from an RGBA byte buffer to an ARGB_8888 bitmap.
  *
- * @param buffer Source buffer in RGBA format.
+ * This function converts pixel data from GPU format (RGBA) to Android bitmap format (ARGB_8888).
+ *
+ * ## Phase 4.4 Usage
+ *
+ * This function will be called when [readPixelsFromSurface] returns `true`, indicating
+ * that native pixel readback was successful and the [buffer] contains valid pixel data
+ * from the GPU surface.
+ *
+ * Currently, this function is not called because [readPixelsFromSurface] always uses
+ * the fallback path (returns `false`) and populates the bitmap directly.
+ *
+ * @param buffer Source buffer in RGBA format (4 bytes per pixel: R, G, B, A).
  * @param bitmap Destination bitmap in ARGB_8888 format.
  * @param width Width in pixels.
  * @param height Height in pixels.
