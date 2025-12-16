@@ -18,6 +18,8 @@ import app.rive.StateMachine
 import app.rive.core.ArtboardHandle
 import app.rive.core.CommandQueue
 import app.rive.core.StateMachineHandle
+import app.rive.runtime.kotlin.core.Alignment
+import app.rive.runtime.kotlin.core.Fit
 import kotlin.time.Duration
 
 private const val RIVE_SPRITE_TAG = "Rive/Sprite"
@@ -267,6 +269,131 @@ class RiveSprite internal constructor(
      */
     fun advance(deltaTime: Duration) {
         stateMachine.advance(deltaTime)
+    }
+
+    // endregion
+
+    // region Pointer Events
+
+    /**
+     * Send a pointer down event to the state machine.
+     *
+     * This is used for interactive Rive animations that respond to touch/click.
+     * The point should be in DrawScope coordinates (same as [position]).
+     *
+     * The method transforms the point from DrawScope coordinates to artboard
+     * coordinates before forwarding to the state machine.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return True if the point is within the sprite bounds and the event was sent.
+     */
+    fun pointerDown(point: Offset, pointerID: Int = 0): Boolean {
+        val localPoint = transformPointToLocal(point) ?: return false
+        val bounds = getArtboardBounds()
+        
+        if (!bounds.contains(localPoint)) {
+            return false
+        }
+
+        // Forward to state machine using artboard coordinates
+        // Use FILL fit and artboard size as surface size so coords pass through unchanged
+        val displaySize = effectiveSize
+        commandQueue.pointerDown(
+            stateMachineHandle = stateMachineHandle,
+            fit = Fit.FILL,
+            alignment = Alignment.CENTER,
+            surfaceWidth = displaySize.width,
+            surfaceHeight = displaySize.height,
+            pointerID = pointerID,
+            pointerX = localPoint.x,
+            pointerY = localPoint.y
+        )
+        return true
+    }
+
+    /**
+     * Send a pointer move event to the state machine.
+     *
+     * This is used for hover effects and drag interactions in Rive animations.
+     * The point should be in DrawScope coordinates (same as [position]).
+     *
+     * The method transforms the point from DrawScope coordinates to artboard
+     * coordinates before forwarding to the state machine.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return True if the event was sent (even if outside bounds, for proper hover exit handling).
+     */
+    fun pointerMove(point: Offset, pointerID: Int = 0): Boolean {
+        val localPoint = transformPointToLocal(point) ?: return false
+
+        // Always send move events - the state machine handles in/out transitions
+        val displaySize = effectiveSize
+        commandQueue.pointerMove(
+            stateMachineHandle = stateMachineHandle,
+            fit = Fit.FILL,
+            alignment = Alignment.CENTER,
+            surfaceWidth = displaySize.width,
+            surfaceHeight = displaySize.height,
+            pointerID = pointerID,
+            pointerX = localPoint.x,
+            pointerY = localPoint.y
+        )
+        return true
+    }
+
+    /**
+     * Send a pointer up event to the state machine.
+     *
+     * This is used to complete click/tap interactions in Rive animations.
+     * The point should be in DrawScope coordinates (same as [position]).
+     *
+     * The method transforms the point from DrawScope coordinates to artboard
+     * coordinates before forwarding to the state machine.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return True if the event was sent.
+     */
+    fun pointerUp(point: Offset, pointerID: Int = 0): Boolean {
+        val localPoint = transformPointToLocal(point) ?: return false
+
+        val displaySize = effectiveSize
+        commandQueue.pointerUp(
+            stateMachineHandle = stateMachineHandle,
+            fit = Fit.FILL,
+            alignment = Alignment.CENTER,
+            surfaceWidth = displaySize.width,
+            surfaceHeight = displaySize.height,
+            pointerID = pointerID,
+            pointerX = localPoint.x,
+            pointerY = localPoint.y
+        )
+        return true
+    }
+
+    /**
+     * Send a pointer exit event to the state machine.
+     *
+     * This is used when the pointer leaves the sprite's area. Call this when
+     * a pointer that was previously over this sprite moves away.
+     *
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     */
+    fun pointerExit(pointerID: Int = 0) {
+        val displaySize = effectiveSize
+        // Use a point outside the bounds to signal exit
+        commandQueue.pointerExit(
+            stateMachineHandle = stateMachineHandle,
+            fit = Fit.FILL,
+            alignment = Alignment.CENTER,
+            surfaceWidth = displaySize.width,
+            surfaceHeight = displaySize.height,
+            pointerID = pointerID,
+            pointerX = -1f,
+            pointerY = -1f
+        )
     }
 
     // endregion

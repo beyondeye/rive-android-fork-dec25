@@ -334,7 +334,7 @@ This directory contains comprehensive tests that serve as reference for:
   - Lambda is executed asynchronously on the command server thread
   - Uses `std::move` for efficient vector capture in lambda
 
-### Phase 4: Compose Canvas Integration
+### Phase 4: Compose Canvas Integration ✅ COMPLETE
 
 - [x] **4.1 Implement texture management** ✅ IMPLEMENTED
   - [x] Create off-screen GPU surface matching DrawScope size
@@ -473,21 +473,68 @@ For high-performance 60fps scenarios, implement double-buffered async rendering:
   - [ ] Use previous frame's buffer while current frame renders
   - [ ] Minimize latency while maintaining 60fps
 
-### Phase 5: Hit Testing
+### Phase 5: Hit Testing ✅ COMPLETE
 
-- [ ] **5.1 Implement `hitTest()` in `RiveSpriteScene`**
-  - [ ] Iterate sprites in reverse z-order (top to bottom)
-  - [ ] For each visible sprite:
-    - [ ] Invert sprite transform
-    - [ ] Transform test point to sprite-local space
-    - [ ] Check if point is within artboard bounds
-    - [ ] Return first hit
+- [x] **5.1 Implement `hitTest()` in `RiveSpriteScene`** ✅ IMPLEMENTED
+  - [x] Iterate sprites in reverse z-order (top to bottom)
+  - [x] For each visible sprite:
+    - [x] Invert sprite transform
+    - [x] Transform test point to sprite-local space
+    - [x] Check if point is within artboard bounds
+    - [x] Return first hit
+  
+  **Implementation Notes:**
+  - `hitTest(point: Offset): RiveSprite?` - Returns topmost hit sprite
+  - `hitTestAll(point: Offset): List<RiveSprite>` - Returns all hit sprites (top to bottom)
+  - Uses `RiveSprite.transformPointToLocal()` for coordinate conversion
+  - Uses `RiveSprite.getArtboardBounds()` for bounds checking
 
-- [ ] **5.2 Implement pointer event forwarding**
-  - [ ] Add `RiveSprite.pointerDown(artboardPoint: Offset)`
-  - [ ] Add `RiveSprite.pointerMove(artboardPoint: Offset)`
-  - [ ] Add `RiveSprite.pointerUp(artboardPoint: Offset)`
-  - [ ] Forward to state machine for interactive elements
+- [x] **5.2 Implement pointer event forwarding** ✅ IMPLEMENTED
+  - [x] Add `RiveSprite.pointerDown(point: Offset, pointerID: Int)`
+  - [x] Add `RiveSprite.pointerMove(point: Offset, pointerID: Int)`
+  - [x] Add `RiveSprite.pointerUp(point: Offset, pointerID: Int)`
+  - [x] Add `RiveSprite.pointerExit(pointerID: Int)`
+  - [x] Forward to state machine for interactive elements
+  - [x] Add scene-level convenience methods for pointer routing
+  
+  **Implementation Notes:**
+  
+  **RiveSprite Pointer Methods:**
+  - Transform DrawScope coordinates to local artboard coordinates
+  - Use `Fit.FILL` with matching surface/artboard dimensions for direct coordinate passthrough
+  - Support multi-touch via `pointerID` parameter
+  - Return `Boolean` indicating if event was sent (useful for tracking drag targets)
+  
+  **RiveSpriteScene Convenience Methods:**
+  - `pointerDown(point, pointerID)` - Hit test + forward to topmost sprite
+  - `pointerMove(point, pointerID, targetSprite?)` - Forward to specific or topmost sprite
+  - `pointerUp(point, pointerID, targetSprite?)` - Forward to specific or topmost sprite
+  - `pointerExit(sprite, pointerID)` - Send exit event to specific sprite
+  
+  **Usage Example:**
+  ```kotlin
+  var dragTarget: RiveSprite? = null
+  
+  Canvas(modifier = Modifier
+      .fillMaxSize()
+      .pointerInput(Unit) {
+          detectDragGestures(
+              onDragStart = { offset ->
+                  dragTarget = scene.pointerDown(offset)
+              },
+              onDrag = { change, _ ->
+                  scene.pointerMove(change.position, targetSprite = dragTarget)
+              },
+              onDragEnd = {
+                  dragTarget?.let { scene.pointerUp(it.position, targetSprite = it) }
+                  dragTarget = null
+              }
+          )
+      }
+  ) {
+      drawRiveSprites(scene)
+  }
+  ```
 
 ### Phase 6: Testing & Documentation
 

@@ -475,6 +475,127 @@ class RiveSpriteScene(
 
     // endregion
 
+    // region Pointer Event Routing
+
+    /**
+     * Send a pointer down event to the topmost sprite at the given point.
+     *
+     * This is a convenience method that combines hit testing and event forwarding.
+     * The event is only sent to the topmost hit sprite (highest z-index).
+     *
+     * ## Usage
+     *
+     * ```kotlin
+     * Canvas(modifier = Modifier
+     *     .fillMaxSize()
+     *     .pointerInput(Unit) {
+     *         detectTapGestures(
+     *             onPress = { offset ->
+     *                 scene.pointerDown(offset)
+     *             }
+     *         )
+     *     }
+     * ) {
+     *     drawRiveSprites(scene)
+     * }
+     * ```
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return The sprite that received the event, or null if no sprite was hit.
+     */
+    fun pointerDown(point: Offset, pointerID: Int = 0): RiveSprite? {
+        check(!closeOnce.closed) { "Cannot send pointer event to a closed scene" }
+        
+        val hitSprite = hitTest(point)
+        if (hitSprite != null) {
+            hitSprite.pointerDown(point, pointerID)
+        }
+        return hitSprite
+    }
+
+    /**
+     * Send a pointer move event to a specific sprite or the topmost sprite at the point.
+     *
+     * If [targetSprite] is provided, the event is sent to that sprite regardless of
+     * hit testing. This is useful for drag operations where you want to track the
+     * pointer even when it moves outside the sprite's bounds.
+     *
+     * If [targetSprite] is null, the event is sent to the topmost sprite at the point.
+     *
+     * ## Usage for Drag
+     *
+     * ```kotlin
+     * var dragTarget: RiveSprite? = null
+     *
+     * Canvas(modifier = Modifier
+     *     .fillMaxSize()
+     *     .pointerInput(Unit) {
+     *         detectDragGestures(
+     *             onDragStart = { offset ->
+     *                 dragTarget = scene.pointerDown(offset)
+     *             },
+     *             onDrag = { change, _ ->
+     *                 scene.pointerMove(change.position, targetSprite = dragTarget)
+     *             },
+     *             onDragEnd = {
+     *                 dragTarget?.pointerUp(...)
+     *                 dragTarget = null
+     *             }
+     *         )
+     *     }
+     * )
+     * ```
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @param targetSprite If provided, send the event to this sprite. Otherwise, hit test.
+     * @return The sprite that received the event, or null if no sprite was hit/targeted.
+     */
+    fun pointerMove(point: Offset, pointerID: Int = 0, targetSprite: RiveSprite? = null): RiveSprite? {
+        check(!closeOnce.closed) { "Cannot send pointer event to a closed scene" }
+        
+        val sprite = targetSprite ?: hitTest(point)
+        sprite?.pointerMove(point, pointerID)
+        return sprite
+    }
+
+    /**
+     * Send a pointer up event to a specific sprite or the topmost sprite at the point.
+     *
+     * If [targetSprite] is provided, the event is sent to that sprite regardless of
+     * hit testing. This is useful for completing drag operations or ensuring the
+     * up event goes to the same sprite that received the down event.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @param targetSprite If provided, send the event to this sprite. Otherwise, hit test.
+     * @return The sprite that received the event, or null if no sprite was hit/targeted.
+     */
+    fun pointerUp(point: Offset, pointerID: Int = 0, targetSprite: RiveSprite? = null): RiveSprite? {
+        check(!closeOnce.closed) { "Cannot send pointer event to a closed scene" }
+        
+        val sprite = targetSprite ?: hitTest(point)
+        sprite?.pointerUp(point, pointerID)
+        return sprite
+    }
+
+    /**
+     * Send a pointer exit event to a sprite.
+     *
+     * This should be called when a pointer that was previously over a sprite
+     * moves away. Use this to properly trigger hover-out transitions in Rive.
+     *
+     * @param sprite The sprite to send the exit event to.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     */
+    fun pointerExit(sprite: RiveSprite, pointerID: Int = 0) {
+        check(!closeOnce.closed) { "Cannot send pointer event to a closed scene" }
+        sprite.pointerExit(pointerID)
+    }
+
+    // endregion
+
     // region Rendering Support
 
     /**
