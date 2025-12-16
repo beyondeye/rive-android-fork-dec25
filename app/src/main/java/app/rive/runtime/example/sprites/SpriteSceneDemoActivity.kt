@@ -13,23 +13,31 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,8 +47,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -60,10 +72,58 @@ import app.rive.sprites.rememberRiveSpriteScene
 import kotlinx.coroutines.isActive
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlin.time.Duration.Companion.nanoseconds
 import java.util.ArrayDeque
 
 private const val TAG = "Rive/SpriteDemo"
+
+// Minimum distance (in pixels) for a move event to be logged
+private const val MOVE_THRESHOLD_PIXELS = 10f
+
+/**
+ * Represents a single hit test event in the log.
+ */
+private data class HitTestEvent(
+    val timestamp: Long,
+    val eventType: String, // "DOWN", "MOVE", "UP", "EXIT"
+    val pointerID: Int,
+    val spriteIndex: Int?, // null if no sprite was hit
+    val position: Offset
+) {
+    fun toDisplayString(): String {
+        val spriteStr = if (spriteIndex != null) "Sprite #$spriteIndex" else "No hit"
+        val posStr = "(${position.x.roundToInt()}, ${position.y.roundToInt()})"
+        return "[$eventType] Ptr#$pointerID → $spriteStr at $posStr"
+    }
+}
+
+/**
+ * Tracks active drag state for a pointer.
+ */
+private data class PointerDragState(
+    val sprite: RiveSprite,
+    val spriteIndex: Int,
+    var lastPosition: Offset
+)
+
+/**
+ * Colors for different pointer IDs when highlighting.
+ */
+private val POINTER_COLORS = listOf(
+    Color.Red,
+    Color.Blue,
+    Color.Green,
+    Color.Magenta,
+    Color.Cyan,
+    Color(0xFFFF8C00), // Dark Orange
+    Color(0xFF8B008B), // Dark Magenta
+    Color(0xFF006400), // Dark Green
+)
+
+private fun getPointerColor(pointerID: Int): Color {
+    return POINTER_COLORS[pointerID % POINTER_COLORS.size]
+}
 
 class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_FRAME_COUNT,
     val updateEveryNFrames:Int=60) {
@@ -250,6 +310,24 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     var spritesPerDirection by remember { mutableStateOf(2) }
     var spriteSize by remember { mutableStateOf(50) }
 
+    // Hit test mode state
+    var isHitTestMode by remember { mutableStateOf(false) }
+    val hitTestLog = remember { mutableStateOf(listOf<HitTestEvent>()) }
+    val activePointers = remember { mutableStateMapOf<Int, PointerDragState>() }
+    
+    // Maximum number of events to keep in the log
+    val maxLogEvents = 20
+
+    // Helper function to add an event to the log
+    fun addHitTestEvent(event: HitTestEvent) {
+        hitTestLog.value = (listOf(event) + hitTestLog.value).take(maxLogEvents)
+    }
+
+    // Helper function to find sprite index by reference
+    fun findSpriteIndex(sprite: RiveSprite): Int? {
+        return movingSprites.indexOfFirst { it.sprite === sprite }.takeIf { it >= 0 }
+    }
+
     // Create sprites when all files are loaded and canvas size is known
     LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize, spritesPerDirection, spriteSize) {
         if (canvasSize == Size.Zero) return@LaunchedEffect
@@ -352,9 +430,134 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
         }
     }
 
-    // Canvas with grid and sprites
     Box(modifier = modifier) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        // Canvas modifier with optional pointer input for hit test mode
+        val canvasModifier = if (isHitTestMode) {
+            Modifier
+                .fillMaxSize()
+                .pointerInput(movingSprites) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val changes = event.changes
+                            
+                            when (event.type) {
+                                PointerEventType.Press -> {
+                                    changes.forEach { change ->
+                                        val pointerId = change.id.value.toInt()
+                                        val position = change.position
+                                        
+                                        // Hit test and find sprite
+                                        val hitSprite = scene.hitTest(position)
+                                        val spriteIndex = hitSprite?.let { findSpriteIndex(it) }
+                                        
+                                        // Log the event
+                                        addHitTestEvent(HitTestEvent(
+                                            timestamp = System.currentTimeMillis(),
+                                            eventType = "DOWN",
+                                            pointerID = pointerId,
+                                            spriteIndex = spriteIndex,
+                                            position = position
+                                        ))
+                                        
+                                        // Forward pointer event to sprite
+                                        if (hitSprite != null && spriteIndex != null) {
+                                            hitSprite.pointerDown(position, pointerId)
+                                            activePointers[pointerId] = PointerDragState(
+                                                sprite = hitSprite,
+                                                spriteIndex = spriteIndex,
+                                                lastPosition = position
+                                            )
+                                        }
+                                    }
+                                }
+                                PointerEventType.Move -> {
+                                    changes.forEach { change ->
+                                        val pointerId = change.id.value.toInt()
+                                        val position = change.position
+                                        val dragState = activePointers[pointerId]
+                                        
+                                        if (dragState != null) {
+                                            // Check if moved enough to log
+                                            val dx = position.x - dragState.lastPosition.x
+                                            val dy = position.y - dragState.lastPosition.y
+                                            val distance = sqrt(dx * dx + dy * dy)
+                                            
+                                            if (distance >= MOVE_THRESHOLD_PIXELS) {
+                                                // Log the event
+                                                addHitTestEvent(HitTestEvent(
+                                                    timestamp = System.currentTimeMillis(),
+                                                    eventType = "MOVE",
+                                                    pointerID = pointerId,
+                                                    spriteIndex = dragState.spriteIndex,
+                                                    position = position
+                                                ))
+                                                
+                                                // Update last position
+                                                activePointers[pointerId] = dragState.copy(lastPosition = position)
+                                            }
+                                            
+                                            // Always forward move event to sprite
+                                            dragState.sprite.pointerMove(position, pointerId)
+                                        }
+                                    }
+                                }
+                                PointerEventType.Release -> {
+                                    changes.forEach { change ->
+                                        val pointerId = change.id.value.toInt()
+                                        val position = change.position
+                                        val dragState = activePointers[pointerId]
+                                        
+                                        // Log the event
+                                        addHitTestEvent(HitTestEvent(
+                                            timestamp = System.currentTimeMillis(),
+                                            eventType = "UP",
+                                            pointerID = pointerId,
+                                            spriteIndex = dragState?.spriteIndex,
+                                            position = position
+                                        ))
+                                        
+                                        // Forward pointer up to sprite
+                                        dragState?.sprite?.pointerUp(position, pointerId)
+                                        
+                                        // Remove from active pointers
+                                        activePointers.remove(pointerId)
+                                    }
+                                }
+                                PointerEventType.Exit -> {
+                                    changes.forEach { change ->
+                                        val pointerId = change.id.value.toInt()
+                                        val position = change.position
+                                        val dragState = activePointers[pointerId]
+                                        
+                                        if (dragState != null) {
+                                            // Log the event
+                                            addHitTestEvent(HitTestEvent(
+                                                timestamp = System.currentTimeMillis(),
+                                                eventType = "EXIT",
+                                                pointerID = pointerId,
+                                                spriteIndex = dragState.spriteIndex,
+                                                position = position
+                                            ))
+                                            
+                                            // Forward pointer exit to sprite
+                                            dragState.sprite.pointerExit(pointerId)
+                                            
+                                            // Remove from active pointers
+                                            activePointers.remove(pointerId)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+        } else {
+            Modifier.fillMaxSize()
+        }
+
+        // Canvas with grid and sprites
+        Canvas(modifier = canvasModifier) {
             @Suppress("UNUSED_EXPRESSION")
             frameCounter // Just reading this forces the Canvas to redraw
             // Update canvas size
@@ -370,24 +573,77 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                 scene,
                 renderMode = if (useBatchRendering) SpriteRenderMode.BATCH else SpriteRenderMode.PER_SPRITE
             )
+            
+            // Draw highlight bounds for active pointers in hit test mode
+            if (isHitTestMode) {
+                activePointers.forEach { (pointerId, dragState) ->
+                    val sprite = dragState.sprite
+                    val bounds = sprite.getBounds()
+                    val color = getPointerColor(pointerId)
+                    
+                    // Draw bounds rectangle
+                    drawRect(
+                        color = color,
+                        topLeft = Offset(bounds.left, bounds.top),
+                        size = Size(bounds.width, bounds.height),
+                        style = Stroke(width = 3f)
+                    )
+                    
+                    // Draw pointer ID label
+                    val labelText = "P$pointerId"
+                    val labelResult = textMeasurer.measure(
+                        text = labelText,
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            color = color
+                        )
+                    )
+                    drawText(
+                        textLayoutResult = labelResult,
+                        topLeft = Offset(bounds.left + 4f, bounds.top + 4f)
+                    )
+                }
+            }
+        }
+        
+        // Mode toggle button at top-right
+        Button(
+            onClick = { 
+                isHitTestMode = !isHitTestMode
+                // Clear active pointers when switching modes
+                activePointers.clear()
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            Text(if (isHitTestMode) "⚙️ Controls" else "🎯 Hit Test")
         }
 
-        ControlPanel(
-            fps = fps,
-            frameTimeMs = frameTimeMs,
-            spritesPerDirection = spritesPerDirection,
-            onSpritesPerDirectionChange = { spritesPerDirection = it },
-            spriteSize = spriteSize,
-            onSpriteSizeChange = { spriteSize = it },
-            enableRotation = enableRotation,
-            onEnableRotationChange = { enableRotation = it },
-            enableScaling = enableScaling,
-            onEnableScalingChange = { enableScaling = it },
-            enableMovement = enableMovement,
-            onEnableMovementChange = { enableMovement = it },
-            useBatchRendering = useBatchRendering,
-            onUseBatchRenderingChange = { useBatchRendering = it }
-        )
+        // Show appropriate panel based on mode
+        if (isHitTestMode) {
+            HitTestLogPanel(
+                hitTestLog = hitTestLog.value,
+                onClearLog = { hitTestLog.value = emptyList() }
+            )
+        } else {
+            ControlPanel(
+                fps = fps,
+                frameTimeMs = frameTimeMs,
+                spritesPerDirection = spritesPerDirection,
+                onSpritesPerDirectionChange = { spritesPerDirection = it },
+                spriteSize = spriteSize,
+                onSpriteSizeChange = { spriteSize = it },
+                enableRotation = enableRotation,
+                onEnableRotationChange = { enableRotation = it },
+                enableScaling = enableScaling,
+                onEnableScalingChange = { enableScaling = it },
+                enableMovement = enableMovement,
+                onEnableMovementChange = { enableMovement = it },
+                useBatchRendering = useBatchRendering,
+                onUseBatchRenderingChange = { useBatchRendering = it }
+            )
+        }
     }
 }
 
@@ -578,6 +834,132 @@ private fun FPSIndicator(
         Switch(
             checked = useBatchRendering,
             onCheckedChange = onUseBatchRenderingChange
+        )
+    }
+}
+
+/**
+ * Panel displaying the hit test event log with a clear button.
+ */
+@Composable
+private fun BoxScope.HitTestLogPanel(
+    hitTestLog: List<HitTestEvent>,
+    onClearLog: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(16.dp)
+            .width(320.dp)
+            .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+            .padding(8.dp)
+    ) {
+        // Header with title and clear button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Hit Test Log",
+                color = Color.Black,
+                fontSize = 16.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+            TextButton(onClick = onClearLog) {
+                Text("Clear", fontSize = 12.sp)
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        // Log entries
+        if (hitTestLog.isEmpty()) {
+            Text(
+                text = "Touch sprites to see events...",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                state = rememberLazyListState()
+            ) {
+                items(hitTestLog) { event ->
+                    HitTestEventRow(event)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A single row in the hit test log.
+ */
+@Composable
+private fun HitTestEventRow(event: HitTestEvent) {
+    val eventColor = when (event.eventType) {
+        "DOWN" -> Color(0xFF4CAF50) // Green
+        "MOVE" -> Color(0xFF2196F3) // Blue
+        "UP" -> Color(0xFFFF9800) // Orange
+        "EXIT" -> Color(0xFFF44336) // Red
+        else -> Color.Gray
+    }
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Event type badge
+        Text(
+            text = event.eventType,
+            color = Color.White,
+            fontSize = 10.sp,
+            modifier = Modifier
+                .background(eventColor, RoundedCornerShape(2.dp))
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+        )
+        
+        Spacer(modifier = Modifier.width(4.dp))
+        
+        // Pointer ID with color
+        val pointerColor = getPointerColor(event.pointerID)
+        Text(
+            text = "P${event.pointerID}",
+            color = pointerColor,
+            fontSize = 11.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
+        
+        Spacer(modifier = Modifier.width(4.dp))
+        
+        Text(
+            text = "→",
+            color = Color.Gray,
+            fontSize = 11.sp
+        )
+        
+        Spacer(modifier = Modifier.width(4.dp))
+        
+        // Sprite info
+        Text(
+            text = if (event.spriteIndex != null) "Sprite #${event.spriteIndex}" else "No hit",
+            color = if (event.spriteIndex != null) Color.Black else Color.Gray,
+            fontSize = 11.sp
+        )
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Position
+        Text(
+            text = "(${event.position.x.roundToInt()}, ${event.position.y.roundToInt()})",
+            color = Color.DarkGray,
+            fontSize = 10.sp
         )
     }
 }
