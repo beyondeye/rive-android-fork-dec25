@@ -59,13 +59,14 @@ import app.rive.sprites.drawRiveSprites
 import app.rive.sprites.rememberRiveSpriteScene
 import kotlinx.coroutines.isActive
 import androidx.compose.runtime.withFrameNanos
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.nanoseconds
 import java.util.ArrayDeque
 
 private const val TAG = "Rive/SpriteDemo"
 
 class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_FRAME_COUNT,
-    val updateEveryNFrames:Int=30) {
+    val updateEveryNFrames:Int=60) {
     private val frameTimeHistory = ArrayDeque<Long>(averageFrameCount)
     var updateCounter: Long=0
     fun updateFramePerSeconds(
@@ -89,7 +90,7 @@ class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_
 
     companion object {
         // Number of frames to average for FPS calculation
-        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 30
+        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 60
 
     }
 }
@@ -537,39 +538,48 @@ private fun BoxScope.ControlPanel(
                     onCheckedChange = onEnableMovementChange
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Batch",
-                    color = Color.Black,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Switch(
-                    checked = useBatchRendering,
-                    onCheckedChange = onUseBatchRenderingChange
-                )
-            }
         }
         
-        // FPS indicator
-        FPSIndicator(fps, frameTimeMs)
+        // FPS indicator with Batch switch
+        FPSIndicator(
+            fps = fps,
+            frameTimeMs = frameTimeMs,
+            useBatchRendering = useBatchRendering,
+            onUseBatchRenderingChange = onUseBatchRenderingChange
+        )
     }
 }
 
 @Composable
 private fun FPSIndicator(
     fps: MutableState<Float>,
-    frameTimeMs: MutableState<Float>
+    frameTimeMs: MutableState<Float>,
+    useBatchRendering: Boolean,
+    onUseBatchRenderingChange: (Boolean) -> Unit
 ) {
-    Text(
-        text = "FPS: ${fps.value.toString().padEnd(12,' ')} (${frameTimeMs.value.toString().padEnd(12,' ')} ms)",
+    Row(
         modifier = Modifier
             .padding(top = 8.dp)
             .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        color = Color.Black,
-        fontSize = 14.sp
-    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "FPS: ${fps.value.roundToInt()} (${frameTimeMs.value.roundToInt()} ms)",
+            color = Color.Black,
+            fontSize = 14.sp
+        )
+        Text(
+            text = "Batch",
+            color = Color.Black,
+            fontSize = 14.sp
+        )
+        Switch(
+            checked = useBatchRendering,
+            onCheckedChange = onUseBatchRenderingChange
+        )
+    }
 }
 
 
