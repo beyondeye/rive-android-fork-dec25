@@ -154,6 +154,17 @@ class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_
 
     }
 }
+
+// Helper function to add an event to the log
+private fun addHitTestEvent(hitTestLog:MutableState<List<HitTestEvent>>,event: HitTestEvent,maxLogEvents: Int) {
+    hitTestLog.value = (listOf(event) + hitTestLog.value).take(maxLogEvents)
+}
+
+// Helper function to find sprite index by reference
+private fun findSpriteIndex(movingSprites:List<MovingSprite>,sprite: RiveSprite): Int? {
+    return movingSprites.indexOfFirst { it.sprite === sprite }.takeIf { it >= 0 }
+}
+
 /**
  * Demo activity showcasing the RiveSpriteScene API with multiple animated sprites.
  *
@@ -318,15 +329,6 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     // Maximum number of events to keep in the log
     val maxLogEvents = 20
 
-    // Helper function to add an event to the log
-    fun addHitTestEvent(event: HitTestEvent) {
-        hitTestLog.value = (listOf(event) + hitTestLog.value).take(maxLogEvents)
-    }
-
-    // Helper function to find sprite index by reference
-    fun findSpriteIndex(sprite: RiveSprite): Int? {
-        return movingSprites.indexOfFirst { it.sprite === sprite }.takeIf { it >= 0 }
-    }
 
     // Create sprites when all files are loaded and canvas size is known
     LaunchedEffect(horizontalFileResult, verticalFileResult, diagonalFileResult, canvasSize, spritesPerDirection, spriteSize) {
@@ -449,16 +451,16 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                                         
                                         // Hit test and find sprite
                                         val hitSprite = scene.hitTest(position)
-                                        val spriteIndex = hitSprite?.let { findSpriteIndex(it) }
+                                        val spriteIndex = hitSprite?.let { findSpriteIndex(movingSprites,it) }
                                         
                                         // Log the event
-                                        addHitTestEvent(HitTestEvent(
+                                        addHitTestEvent(hitTestLog,HitTestEvent(
                                             timestamp = System.currentTimeMillis(),
                                             eventType = "DOWN",
                                             pointerID = pointerId,
                                             spriteIndex = spriteIndex,
                                             position = position
-                                        ))
+                                        ),maxLogEvents)
                                         
                                         // Forward pointer event to sprite
                                         if (hitSprite != null && spriteIndex != null) {
@@ -485,13 +487,13 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                                             
                                             if (distance >= MOVE_THRESHOLD_PIXELS) {
                                                 // Log the event
-                                                addHitTestEvent(HitTestEvent(
+                                                addHitTestEvent(hitTestLog,HitTestEvent(
                                                     timestamp = System.currentTimeMillis(),
                                                     eventType = "MOVE",
                                                     pointerID = pointerId,
                                                     spriteIndex = dragState.spriteIndex,
                                                     position = position
-                                                ))
+                                                ),maxLogEvents)
                                                 
                                                 // Update last position
                                                 activePointers[pointerId] = dragState.copy(lastPosition = position)
@@ -509,13 +511,13 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                                         val dragState = activePointers[pointerId]
                                         
                                         // Log the event
-                                        addHitTestEvent(HitTestEvent(
+                                        addHitTestEvent(hitTestLog,HitTestEvent(
                                             timestamp = System.currentTimeMillis(),
                                             eventType = "UP",
                                             pointerID = pointerId,
                                             spriteIndex = dragState?.spriteIndex,
                                             position = position
-                                        ))
+                                        ),maxLogEvents)
                                         
                                         // Forward pointer up to sprite
                                         dragState?.sprite?.pointerUp(position, pointerId)
@@ -532,13 +534,13 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
                                         
                                         if (dragState != null) {
                                             // Log the event
-                                            addHitTestEvent(HitTestEvent(
+                                            addHitTestEvent(hitTestLog,HitTestEvent(
                                                 timestamp = System.currentTimeMillis(),
                                                 eventType = "EXIT",
                                                 pointerID = pointerId,
                                                 spriteIndex = dragState.spriteIndex,
                                                 position = position
-                                            ))
+                                            ),maxLogEvents)
                                             
                                             // Forward pointer exit to sprite
                                             dragState.sprite.pointerExit(pointerId)
