@@ -206,10 +206,10 @@ println(props.debug())
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1: Core Classes | 🔴 Not Started | |
-| Phase 2: RiveSprite Integration | 🔴 Not Started | |
-| Phase 3: RiveSpriteScene Integration | 🔴 Not Started | |
-| Phase 4: Testing & Documentation | 🔴 Not Started | |
+| Phase 1: Core Classes | ✅ Complete | Created PropertyMatchMode, SpriteControlProp, PropertyMatcher, DiscoveredProps, SpriteControlPropFactory, SpriteViewModelConfig, SpriteTag |
+| Phase 2: RiveSprite Integration | ✅ Complete | Added viewModelInstance, tags, property methods (setNumber, setString, setBoolean, setEnum, setColor, fireTrigger), reactive flows, updated fromFile() |
+| Phase 3: RiveSpriteScene Integration | ✅ Complete | Added tag-based selection (getSpritesWithTag, getSpritesWithAnyTag, getSpritesWithAllTags), batch property operations, updated createSprite() |
+| Phase 4: Testing & Documentation | ⏳ Ready | KDoc added to all public APIs; user testing and README updates pending |
 
 ---
 

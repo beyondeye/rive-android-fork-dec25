@@ -3,6 +3,7 @@ package app.rive.sprites
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.annotation.ColorInt
 import androidx.compose.ui.geometry.Offset
 import androidx.core.graphics.createBitmap
 import app.rive.RiveFile
@@ -11,6 +12,7 @@ import app.rive.core.CloseOnce
 import app.rive.core.CommandQueue
 import app.rive.core.RiveSurface
 import app.rive.core.SpriteDrawCommand
+import app.rive.sprites.props.SpriteControlProp
 import kotlin.time.Duration
 
 private const val SPRITE_SCENE_TAG = "Rive/SpriteScene"
@@ -333,21 +335,33 @@ class RiveSpriteScene(
      * @param file The Rive file to create the sprite from.
      * @param artboardName The name of the artboard to use, or null for the default.
      * @param stateMachineName The name of the state machine to use, or null for the default.
+     * @param viewModelConfig Configuration for ViewModelInstance creation (default: None).
+     * @param tags Initial tags for grouping this sprite.
      * @return The created [RiveSprite], which is already added to the scene.
      */
     fun createSprite(
         file: RiveFile,
         artboardName: String? = null,
-        stateMachineName: String? = null
+        stateMachineName: String? = null,
+        viewModelConfig: SpriteViewModelConfig = SpriteViewModelConfig.None,
+        tags: Set<SpriteTag> = emptySet()
     ): RiveSprite {
         check(!closeOnce.closed) { "Cannot create sprite on a closed scene" }
         
-        val sprite = RiveSprite.fromFile(file, artboardName, stateMachineName)
+        val sprite = RiveSprite.fromFile(
+            file = file,
+            artboardName = artboardName,
+            stateMachineName = stateMachineName,
+            viewModelConfig = viewModelConfig,
+            tags = tags
+        )
         _sprites.add(sprite)
+        markDirty()
         
         RiveLog.d(SPRITE_SCENE_TAG) { 
             "Created sprite (artboard=${artboardName ?: "default"}, " +
-            "stateMachine=${stateMachineName ?: "default"}), total=${_sprites.size}" 
+            "stateMachine=${stateMachineName ?: "default"}, " +
+            "tags=$tags), total=${_sprites.size}" 
         }
         
         return sprite
@@ -414,6 +428,171 @@ class RiveSpriteScene(
         _sprites.forEach { it.close() }
         _sprites.clear()
         markDirty()
+    }
+
+    // endregion
+
+    // region Tag-Based Sprite Selection
+
+    /**
+     * Get all sprites that have a specific tag.
+     *
+     * @param tag The tag to filter by.
+     * @return A list of sprites with the specified tag.
+     */
+    fun getSpritesWithTag(tag: SpriteTag): List<RiveSprite> =
+        _sprites.filter { it.hasTag(tag) }
+
+    /**
+     * Get all sprites that have any of the specified tags.
+     *
+     * @param tags The tags to filter by.
+     * @return A list of sprites that have at least one of the specified tags.
+     */
+    fun getSpritesWithAnyTag(tags: List<SpriteTag>): List<RiveSprite> =
+        _sprites.filter { sprite -> tags.any { sprite.hasTag(it) } }
+
+    /**
+     * Get all sprites that have all of the specified tags.
+     *
+     * @param tags The tags to filter by.
+     * @return A list of sprites that have all of the specified tags.
+     */
+    fun getSpritesWithAllTags(tags: List<SpriteTag>): List<RiveSprite> =
+        _sprites.filter { sprite -> tags.all { sprite.hasTag(it) } }
+
+    // endregion
+
+    // region Batch Property Operations
+
+    /**
+     * Fire a trigger on all sprites with the specified tag.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param prop The trigger property descriptor.
+     */
+    fun fireTrigger(tag: SpriteTag, prop: SpriteControlProp.Trigger) {
+        getSpritesWithTag(tag).forEach { it.fireTrigger(prop) }
+    }
+
+    /**
+     * Fire a trigger on all sprites with the specified tag using a property path.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param propertyPath The path to the trigger property.
+     */
+    fun fireTrigger(tag: SpriteTag, propertyPath: String) {
+        getSpritesWithTag(tag).forEach { it.fireTrigger(propertyPath) }
+    }
+
+    /**
+     * Set a number property on all sprites with the specified tag.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param prop The number property descriptor.
+     * @param value The value to set.
+     */
+    fun setNumber(tag: SpriteTag, prop: SpriteControlProp.Number, value: Float) {
+        getSpritesWithTag(tag).forEach { it.setNumber(prop, value) }
+    }
+
+    /**
+     * Set a number property on all sprites with the specified tag using a property path.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    fun setNumber(tag: SpriteTag, propertyPath: String, value: Float) {
+        getSpritesWithTag(tag).forEach { it.setNumber(propertyPath, value) }
+    }
+
+    /**
+     * Set a boolean property on all sprites with the specified tag.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param prop The boolean property descriptor.
+     * @param value The value to set.
+     */
+    fun setBoolean(tag: SpriteTag, prop: SpriteControlProp.Toggle, value: Boolean) {
+        getSpritesWithTag(tag).forEach { it.setBoolean(prop, value) }
+    }
+
+    /**
+     * Set a boolean property on all sprites with the specified tag using a property path.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    fun setBoolean(tag: SpriteTag, propertyPath: String, value: Boolean) {
+        getSpritesWithTag(tag).forEach { it.setBoolean(propertyPath, value) }
+    }
+
+    /**
+     * Set a string property on all sprites with the specified tag.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param prop The string property descriptor.
+     * @param value The value to set.
+     */
+    fun setString(tag: SpriteTag, prop: SpriteControlProp.Text, value: String) {
+        getSpritesWithTag(tag).forEach { it.setString(prop, value) }
+    }
+
+    /**
+     * Set a string property on all sprites with the specified tag using a property path.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    fun setString(tag: SpriteTag, propertyPath: String, value: String) {
+        getSpritesWithTag(tag).forEach { it.setString(propertyPath, value) }
+    }
+
+    /**
+     * Set an enum property on all sprites with the specified tag.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param prop The enum property descriptor.
+     * @param value The value to set.
+     */
+    fun setEnum(tag: SpriteTag, prop: SpriteControlProp.Choice, value: String) {
+        getSpritesWithTag(tag).forEach { it.setEnum(prop, value) }
+    }
+
+    /**
+     * Set an enum property on all sprites with the specified tag using a property path.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    fun setEnum(tag: SpriteTag, propertyPath: String, value: String) {
+        getSpritesWithTag(tag).forEach { it.setEnum(propertyPath, value) }
+    }
+
+    /**
+     * Set a color property on all sprites with the specified tag.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param prop The color property descriptor.
+     * @param value The color value as ARGB integer.
+     */
+    fun setColor(tag: SpriteTag, prop: SpriteControlProp.Color, @ColorInt value: Int) {
+        getSpritesWithTag(tag).forEach { it.setColor(prop, value) }
+    }
+
+    /**
+     * Set a color property on all sprites with the specified tag using a property path.
+     *
+     * @param tag The tag to filter sprites by.
+     * @param propertyPath The path to the property.
+     * @param value The color value as ARGB integer.
+     */
+    fun setColor(tag: SpriteTag, propertyPath: String, @ColorInt value: Int) {
+        getSpritesWithTag(tag).forEach { it.setColor(propertyPath, value) }
     }
 
     // endregion

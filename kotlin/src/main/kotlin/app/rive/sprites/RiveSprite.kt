@@ -1,6 +1,7 @@
 package app.rive.sprites
 
 import android.graphics.Matrix
+import androidx.annotation.ColorInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -15,11 +16,16 @@ import app.rive.RenderBuffer
 import app.rive.RiveFile
 import app.rive.RiveLog
 import app.rive.StateMachine
+import app.rive.ViewModelInstance
+import app.rive.ViewModelInstanceSource
+import app.rive.ViewModelSource
 import app.rive.core.ArtboardHandle
 import app.rive.core.CommandQueue
 import app.rive.core.StateMachineHandle
 import app.rive.runtime.kotlin.core.Alignment
 import app.rive.runtime.kotlin.core.Fit
+import app.rive.sprites.props.SpriteControlProp
+import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
 private const val RIVE_SPRITE_TAG = "Rive/Sprite"
@@ -40,31 +46,61 @@ private const val RIVE_SPRITE_TAG = "Rive/Sprite"
  * - [origin]: The pivot point for transformations (default: center)
  * - [zIndex]: Rendering order (higher values render on top)
  *
- * ## State Machine Interaction
+ * ## ViewModel Property Interaction
  *
- * - [fire]: Trigger a state machine input
- * - [setBoolean]: Set a boolean input value
- * - [setNumber]: Set a number input value
- * - [advance]: Advance the state machine by a time delta
+ * Sprites can have a [ViewModelInstance] for data binding. Use the property methods
+ * to interact with ViewModel properties:
+ *
+ * - [setNumber], [setString], [setBoolean], [setEnum], [setColor]: Set property values
+ * - [fireTrigger]: Fire a trigger property
+ * - [getNumberFlow], [getStringFlow], etc.: Observe property changes reactively
+ *
+ * ## Tagging for Batch Operations
+ *
+ * Sprites can be tagged for grouping and batch operations via [RiveSpriteScene]:
+ * - [tags]: Set of tags assigned to this sprite
+ * - [hasTag], [hasAnyTag], [hasAllTags]: Check tag membership
  *
  * ## Example
  *
  * ```kotlin
- * val sprite = scene.createSprite(riveFile, stateMachine = "combat")
- * sprite.position = Offset(100f, 200f)
- * sprite.size = Size(64f, 64f)
- * sprite.rotation = 45f
- * sprite.fire("attack")
+ * // Define property descriptors
+ * object EnemyProps {
+ *     val Health = SpriteControlProp.Number("health")
+ *     val Attack = SpriteControlProp.Trigger("attack")
+ * }
+ *
+ * // Create sprite with auto-binding
+ * val enemy = scene.createSprite(
+ *     file = enemyFile,
+ *     stateMachineName = "combat",
+ *     viewModelConfig = SpriteViewModelConfig.AutoBind,
+ *     tags = setOf(SpriteTag("enemy"))
+ * )
+ *
+ * // Set properties
+ * enemy.setNumber(EnemyProps.Health, 100f)
+ * enemy.fireTrigger(EnemyProps.Attack)
+ *
+ * // Or use path strings
+ * enemy.setNumber("health", 50f)
+ * enemy.fireTrigger("attack")
  * ```
  *
  * @param artboard The Rive artboard instance for this sprite.
  * @param stateMachine The Rive state machine instance for this sprite.
  * @param commandQueue The command queue for GPU operations.
+ * @param viewModelInstance Optional ViewModelInstance for data binding.
+ * @param initialTags Initial tags for grouping this sprite.
+ * @param ownsViewModelInstance Whether this sprite owns (and should close) the VMI.
  */
 class RiveSprite internal constructor(
     val artboard: Artboard,
     val stateMachine: StateMachine,
     internal val commandQueue: CommandQueue,
+    private val viewModelInstance: ViewModelInstance? = null,
+    initialTags: Set<SpriteTag> = emptySet(),
+    private val ownsViewModelInstance: Boolean = true,
 ) : AutoCloseable {
 
     // region Transform Properties
@@ -136,6 +172,44 @@ class RiveSprite internal constructor(
 
     // endregion
 
+    // region Tags for Grouping
+
+    /**
+     * Tags assigned to this sprite for grouping and batch operations.
+     *
+     * Tags can be used with [RiveSpriteScene] batch methods to perform
+     * operations on multiple sprites at once.
+     *
+     * @see SpriteTag
+     */
+    var tags: Set<SpriteTag> by mutableStateOf(initialTags)
+
+    /**
+     * Check if this sprite has a specific tag.
+     *
+     * @param tag The tag to check for
+     * @return True if this sprite has the tag
+     */
+    fun hasTag(tag: SpriteTag): Boolean = tags.contains(tag)
+
+    /**
+     * Check if this sprite has any of the given tags.
+     *
+     * @param checkTags The tags to check for
+     * @return True if this sprite has at least one of the tags
+     */
+    fun hasAnyTag(checkTags: List<SpriteTag>): Boolean = checkTags.any { hasTag(it) }
+
+    /**
+     * Check if this sprite has all of the given tags.
+     *
+     * @param checkTags The tags to check for
+     * @return True if this sprite has all of the tags
+     */
+    fun hasAllTags(checkTags: List<SpriteTag>): Boolean = checkTags.all { hasTag(it) }
+
+    // endregion
+
     // region Render Buffer Cache
 
     /**
@@ -161,18 +235,19 @@ class RiveSprite internal constructor(
         val requiredHeight = currentSize.height.toInt().coerceAtLeast(1)
 
         val existingBuffer = cachedRenderBuffer
-        if (existingBuffer != null && 
-            cachedBufferWidth == requiredWidth && 
-            cachedBufferHeight == requiredHeight) {
+        if (existingBuffer != null &&
+            cachedBufferWidth == requiredWidth &&
+            cachedBufferHeight == requiredHeight
+        ) {
             return existingBuffer
         }
 
         // Size changed or no buffer exists - create a new one
         existingBuffer?.close()
-        
-        RiveLog.d(RIVE_SPRITE_TAG) { 
+
+        RiveLog.d(RIVE_SPRITE_TAG) {
             "Creating render buffer ${requiredWidth}x$requiredHeight " +
-            "(was ${cachedBufferWidth}x$cachedBufferHeight)" 
+                "(was ${cachedBufferWidth}x$cachedBufferHeight)"
         }
 
         val newBuffer = RenderBuffer(requiredWidth, requiredHeight, commandQueue)
@@ -208,56 +283,265 @@ class RiveSprite internal constructor(
     val effectiveSize: Size
         get() = if (size.isSpecified) size else DEFAULT_SPRITE_SIZE
 
+    /**
+     * Whether this sprite has a ViewModelInstance for data binding.
+     */
+    val hasViewModel: Boolean
+        get() = viewModelInstance != null
+
     // endregion
 
-    // region State Machine Methods
+    // region ViewModel Property Methods
 
     /**
-     * Fire a trigger input on the state machine.
+     * Set a number property value on the ViewModelInstance.
      *
-     * Triggers are one-shot inputs that cause state transitions without
-     * maintaining a value. Use this for events like "jump", "attack", "die".
+     * If the sprite has no ViewModelInstance or the property doesn't exist,
+     * this method does nothing (optionally logs a warning if [logPropertyWarnings] is true).
      *
-     * @param triggerName The name of the trigger input as defined in the Rive editor.
-     * @throws IllegalArgumentException If the trigger name doesn't exist.
+     * @param prop The property descriptor
+     * @param value The value to set
      */
-    fun fire(triggerName: String) {
-        // TODO: Implement when CommandQueue.fireStateMachineTrigger is added
-        // For now, this is a placeholder that will be implemented in Phase 2
-        // commandQueue.fireStateMachineTrigger(stateMachineHandle, triggerName)
+    fun setNumber(prop: SpriteControlProp.Number, value: Float) {
+        setNumber(prop.name, value)
     }
 
     /**
-     * Set a boolean input value on the state machine.
+     * Set a number property value by path.
      *
-     * Boolean inputs are used for on/off states like "isRunning", "isGrounded",
-     * "hasWeapon".
-     *
-     * @param name The name of the boolean input as defined in the Rive editor.
-     * @param value The boolean value to set.
-     * @throws IllegalArgumentException If the input name doesn't exist or isn't a boolean.
+     * @param propertyPath The path to the property (slash-delimited for nested)
+     * @param value The value to set
      */
-    fun setBoolean(name: String, value: Boolean) {
-        // TODO: Implement when CommandQueue.setStateMachineBoolean is added
-        // For now, this is a placeholder that will be implemented in Phase 2
-        // commandQueue.setStateMachineBoolean(stateMachineHandle, name, value)
+    fun setNumber(propertyPath: String, value: Float) {
+        viewModelInstance?.setNumber(propertyPath, value)
+            ?: logPropertyWarning("setNumber", propertyPath)
     }
 
     /**
-     * Set a number input value on the state machine.
+     * Get a Flow of number property values for reactive observation.
      *
-     * Number inputs are used for continuous values like "speed", "health",
-     * "direction".
-     *
-     * @param name The name of the number input as defined in the Rive editor.
-     * @param value The float value to set.
-     * @throws IllegalArgumentException If the input name doesn't exist or isn't a number.
+     * @param prop The property descriptor
+     * @return A Flow of Float values, or null if no ViewModelInstance
      */
-    fun setNumber(name: String, value: Float) {
-        // TODO: Implement when CommandQueue.setStateMachineNumber is added
-        // For now, this is a placeholder that will be implemented in Phase 2
-        // commandQueue.setStateMachineNumber(stateMachineHandle, name, value)
+    fun getNumberFlow(prop: SpriteControlProp.Number): Flow<Float>? =
+        viewModelInstance?.getNumberFlow(prop.name)
+
+    /**
+     * Get a Flow of number property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of Float values, or null if no ViewModelInstance
+     */
+    fun getNumberFlow(propertyPath: String): Flow<Float>? =
+        viewModelInstance?.getNumberFlow(propertyPath)
+
+    /**
+     * Set a string property value on the ViewModelInstance.
+     *
+     * @param prop The property descriptor
+     * @param value The value to set
+     */
+    fun setString(prop: SpriteControlProp.Text, value: String) {
+        setString(prop.name, value)
     }
+
+    /**
+     * Set a string property value by path.
+     *
+     * @param propertyPath The path to the property
+     * @param value The value to set
+     */
+    fun setString(propertyPath: String, value: String) {
+        viewModelInstance?.setString(propertyPath, value)
+            ?: logPropertyWarning("setString", propertyPath)
+    }
+
+    /**
+     * Get a Flow of string property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    fun getStringFlow(prop: SpriteControlProp.Text): Flow<String>? =
+        viewModelInstance?.getStringFlow(prop.name)
+
+    /**
+     * Get a Flow of string property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    fun getStringFlow(propertyPath: String): Flow<String>? =
+        viewModelInstance?.getStringFlow(propertyPath)
+
+    /**
+     * Set a boolean property value on the ViewModelInstance.
+     *
+     * @param prop The property descriptor
+     * @param value The value to set
+     */
+    fun setBoolean(prop: SpriteControlProp.Toggle, value: Boolean) {
+        setBoolean(prop.name, value)
+    }
+
+    /**
+     * Set a boolean property value by path.
+     *
+     * @param propertyPath The path to the property
+     * @param value The value to set
+     */
+    fun setBoolean(propertyPath: String, value: Boolean) {
+        viewModelInstance?.setBoolean(propertyPath, value)
+            ?: logPropertyWarning("setBoolean", propertyPath)
+    }
+
+    /**
+     * Get a Flow of boolean property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of Boolean values, or null if no ViewModelInstance
+     */
+    fun getBooleanFlow(prop: SpriteControlProp.Toggle): Flow<Boolean>? =
+        viewModelInstance?.getBooleanFlow(prop.name)
+
+    /**
+     * Get a Flow of boolean property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of Boolean values, or null if no ViewModelInstance
+     */
+    fun getBooleanFlow(propertyPath: String): Flow<Boolean>? =
+        viewModelInstance?.getBooleanFlow(propertyPath)
+
+    /**
+     * Set an enum property value on the ViewModelInstance.
+     *
+     * @param prop The property descriptor
+     * @param value The enum value as a string
+     */
+    fun setEnum(prop: SpriteControlProp.Choice, value: String) {
+        setEnum(prop.name, value)
+    }
+
+    /**
+     * Set an enum property value by path.
+     *
+     * @param propertyPath The path to the property
+     * @param value The enum value as a string
+     */
+    fun setEnum(propertyPath: String, value: String) {
+        viewModelInstance?.setEnum(propertyPath, value)
+            ?: logPropertyWarning("setEnum", propertyPath)
+    }
+
+    /**
+     * Get a Flow of enum property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    fun getEnumFlow(prop: SpriteControlProp.Choice): Flow<String>? =
+        viewModelInstance?.getEnumFlow(prop.name)
+
+    /**
+     * Get a Flow of enum property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    fun getEnumFlow(propertyPath: String): Flow<String>? =
+        viewModelInstance?.getEnumFlow(propertyPath)
+
+    /**
+     * Set a color property value on the ViewModelInstance.
+     *
+     * @param prop The property descriptor
+     * @param value The color as ARGB integer
+     */
+    fun setColor(prop: SpriteControlProp.Color, @ColorInt value: Int) {
+        setColor(prop.name, value)
+    }
+
+    /**
+     * Set a color property value by path.
+     *
+     * @param propertyPath The path to the property
+     * @param value The color as ARGB integer
+     */
+    fun setColor(propertyPath: String, @ColorInt value: Int) {
+        viewModelInstance?.setColor(propertyPath, value)
+            ?: logPropertyWarning("setColor", propertyPath)
+    }
+
+    /**
+     * Get a Flow of color property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of Int (ARGB) values, or null if no ViewModelInstance
+     */
+    fun getColorFlow(prop: SpriteControlProp.Color): Flow<Int>? =
+        viewModelInstance?.getColorFlow(prop.name)
+
+    /**
+     * Get a Flow of color property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of Int (ARGB) values, or null if no ViewModelInstance
+     */
+    fun getColorFlow(propertyPath: String): Flow<Int>? =
+        viewModelInstance?.getColorFlow(propertyPath)
+
+    /**
+     * Fire a trigger property on the ViewModelInstance.
+     *
+     * Triggers are one-shot events that cause state transitions without
+     * maintaining a value. Use for events like "attack", "jump", "die".
+     *
+     * @param prop The trigger property descriptor
+     */
+    fun fireTrigger(prop: SpriteControlProp.Trigger) {
+        fireTrigger(prop.name)
+    }
+
+    /**
+     * Fire a trigger property by path.
+     *
+     * @param propertyPath The path to the trigger property
+     */
+    fun fireTrigger(propertyPath: String) {
+        viewModelInstance?.fireTrigger(propertyPath)
+            ?: logPropertyWarning("fireTrigger", propertyPath)
+    }
+
+    /**
+     * Get a Flow of trigger events for reactive observation.
+     *
+     * @param prop The trigger property descriptor
+     * @return A Flow of Unit values (emits when trigger fires), or null if no ViewModelInstance
+     */
+    fun getTriggerFlow(prop: SpriteControlProp.Trigger): Flow<Unit>? =
+        viewModelInstance?.getTriggerFlow(prop.name)
+
+    /**
+     * Get a Flow of trigger events by path.
+     *
+     * @param propertyPath The path to the trigger property
+     * @return A Flow of Unit values, or null if no ViewModelInstance
+     */
+    fun getTriggerFlow(propertyPath: String): Flow<Unit>? =
+        viewModelInstance?.getTriggerFlow(propertyPath)
+
+    private fun logPropertyWarning(operation: String, propertyPath: String) {
+        if (logPropertyWarnings) {
+            RiveLog.w(RIVE_SPRITE_TAG) {
+                "$operation('$propertyPath') skipped: no ViewModelInstance"
+            }
+        }
+    }
+
+    // endregion
+
+    // region Animation Control
 
     /**
      * Advance the state machine by the given time delta.
@@ -291,7 +575,7 @@ class RiveSprite internal constructor(
     fun pointerDown(point: Offset, pointerID: Int = 0): Boolean {
         val localPoint = transformPointToLocal(point) ?: return false
         val bounds = getArtboardBounds()
-        
+
         if (!bounds.contains(localPoint)) {
             return false
         }
@@ -564,7 +848,8 @@ class RiveSprite internal constructor(
     /**
      * Release the resources held by this sprite.
      *
-     * This closes the cached render buffer, artboard, and state machine.
+     * This closes the cached render buffer, artboard, state machine,
+     * and optionally the ViewModelInstance.
      * The sprite should not be used after calling close.
      */
     override fun close() {
@@ -573,7 +858,12 @@ class RiveSprite internal constructor(
         cachedRenderBuffer = null
         cachedBufferWidth = 0
         cachedBufferHeight = 0
-        
+
+        // Close ViewModelInstance if we own it
+        if (ownsViewModelInstance) {
+            viewModelInstance?.close()
+        }
+
         stateMachine.close()
         artboard.close()
     }
@@ -587,26 +877,108 @@ class RiveSprite internal constructor(
         private val DEFAULT_SPRITE_SIZE = Size(100f, 100f)
 
         /**
+         * Global setting to log property operation warnings.
+         *
+         * When true, warns when property operations are skipped because
+         * the sprite has no ViewModelInstance. Useful during development.
+         */
+        var logPropertyWarnings: Boolean = false
+
+        /**
          * Create a new [RiveSprite] from a [RiveFile].
          *
          * @param file The Rive file to create the sprite from.
          * @param artboardName The name of the artboard to use, or null for the default.
          * @param stateMachineName The name of the state machine to use, or null for the default.
+         * @param viewModelConfig Configuration for ViewModelInstance creation.
+         * @param tags Initial tags for grouping this sprite.
          * @return A new [RiveSprite] instance.
          */
         fun fromFile(
             file: RiveFile,
             artboardName: String? = null,
-            stateMachineName: String? = null
+            stateMachineName: String? = null,
+            viewModelConfig: SpriteViewModelConfig = SpriteViewModelConfig.None,
+            tags: Set<SpriteTag> = emptySet()
         ): RiveSprite {
             val artboard = Artboard.fromFile(file, artboardName)
             val stateMachine = StateMachine.fromArtboard(artboard, stateMachineName)
 
+            // Create ViewModelInstance based on config
+            val (vmi, ownsVmi) = createViewModelInstance(file, artboard, viewModelConfig)
+
+            // Bind VMI to state machine if available
+            if (vmi != null) {
+                try {
+                    file.commandQueue.bindViewModelInstance(
+                        stateMachine.stateMachineHandle,
+                        vmi.instanceHandle
+                    )
+                } catch (e: Exception) {
+                    RiveLog.w(RIVE_SPRITE_TAG) {
+                        "Failed to bind ViewModelInstance: ${e.message}"
+                    }
+                }
+            }
+
             return RiveSprite(
                 artboard = artboard,
                 stateMachine = stateMachine,
-                commandQueue = file.commandQueue
+                commandQueue = file.commandQueue,
+                viewModelInstance = vmi,
+                initialTags = tags,
+                ownsViewModelInstance = ownsVmi
             )
+        }
+
+        private fun createViewModelInstance(
+            file: RiveFile,
+            artboard: Artboard,
+            config: SpriteViewModelConfig
+        ): Pair<ViewModelInstance?, Boolean> {
+            return when (config) {
+                is SpriteViewModelConfig.None -> {
+                    null to false
+                }
+
+                is SpriteViewModelConfig.AutoBind -> {
+                    // Try to create default VMI for artboard
+                    try {
+                        val vmi = ViewModelInstance.fromFile(
+                            file,
+                            ViewModelSource.DefaultForArtboard(artboard).defaultInstance()
+                        )
+                        vmi to true
+                    } catch (e: Exception) {
+                        RiveLog.d(RIVE_SPRITE_TAG) {
+                            "No default ViewModel for artboard: ${e.message}"
+                        }
+                        null to false
+                    }
+                }
+
+                is SpriteViewModelConfig.Named -> {
+                    val vmi = ViewModelInstance.fromFile(
+                        file,
+                        ViewModelSource.Named(config.viewModelName).defaultInstance()
+                    )
+                    vmi to true
+                }
+
+                is SpriteViewModelConfig.NamedInstance -> {
+                    val vmi = ViewModelInstance.fromFile(
+                        file,
+                        ViewModelSource.Named(config.viewModelName)
+                            .namedInstance(config.instanceName)
+                    )
+                    vmi to true
+                }
+
+                is SpriteViewModelConfig.External -> {
+                    // External VMI - we don't own it
+                    config.instance to false
+                }
+            }
         }
     }
 }
