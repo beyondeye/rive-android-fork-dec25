@@ -17,7 +17,6 @@ import app.rive.RiveFile
 import app.rive.RiveLog
 import app.rive.StateMachine
 import app.rive.ViewModelInstance
-import app.rive.ViewModelInstanceSource
 import app.rive.ViewModelSource
 import app.rive.core.ArtboardHandle
 import app.rive.core.CommandQueue
