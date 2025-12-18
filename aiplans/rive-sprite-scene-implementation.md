@@ -20,9 +20,9 @@ The current `RiveUI` composable is designed for rendering a single Rive animatio
 
 ### Solution: RiveSpriteScene API
 
-We will create a new API that:
+We created a new API that:
 
-- Renders multiple Rive artboards in a single GPU pass
+- Renders multiple Rive artboards in a single GPU pass (batch mode) or individually (per-sprite mode)
 - Uses DrawScope coordinates directly (not artboard coordinates)
 - Supports flexible z-ordering among sprites
 - Provides hit testing and animation control per sprite
@@ -42,23 +42,49 @@ When a developer sets `sprite.position = Offset(100f, 200f)`, the sprite's **ori
 
 This means game code never needs to think about artboard space - everything is in DrawScope units.
 
-### Why Single GPU Surface?
+### Why Two Rendering Modes?
 
-Rendering hundreds of Rive objects to individual surfaces would be prohibitively expensive. Instead:
+The implementation provides two rendering approaches to balance compatibility and performance:
 
-1. All sprites render to a **single off-screen GPU texture** in one render pass
-2. Sprites are sorted by z-index before rendering
-3. Per-sprite transforms are applied during the GPU render
-4. The final texture is drawn to the Compose Canvas as an image
+**PER_SPRITE Mode (Default):**
+- Renders each sprite individually to its cached `RenderBuffer`
+- Composites onto a shared bitmap using Android Canvas
+- More resilient (one sprite failure doesn't affect others)
+- Works without native batch rendering
+- Best for debugging or small numbers of sprites (<= 3)
 
-### Why Not Android Canvas Renderer?
+**BATCH Mode:**
+- Renders all sprites in a single GPU pass via `drawMultipleToBuffer()`
+- Single shared GPU surface for the entire scene
+- Much better performance for many sprites
+- Lower memory usage
+- Best for production use with 5+ sprites. (almost x10 faster for 60 sprites, for example)
 
-While the Canvas renderer could render directly to a Compose Canvas, the GPU-based Rive Renderer offers:
+### Why Scene-Owned Surface?
 
-- Better performance for complex animations
-- Hardware acceleration
-- Consistent rendering quality
-- Support for all Rive features (some require GPU)
+The scene owns the shared GPU surface used for batch rendering. This design choice provides simpler lifecycle management (surface tied to scene lifetime).
+
+**Trade-offs:**
+
+| Aspect | Scene-Owned (Current) | Renderer-Owned (Alternative) |
+|--------|----------------------|------------------------------|
+| Lifecycle | Simple (tied to scene) | Complex (DisposableEffect) |
+| Multi-canvas | Surface may not match | Surface always matches |
+| API complexity | Simpler | More complex |
+| Flexibility | Less flexible | More flexible |
+
+See Phase 4.3 (optional) for migrating to renderer-owned surface if needed.
+
+### Why Synchronous Batch Rendering?
+
+`drawMultipleToBuffer()` is synchronous (blocks ~1-5ms) because:
+
+1. Compose Canvas drawing is already blocking - no benefit to async
+2. Simpler API without callbacks or state management
+3. Immediate pixel availability for bitmap conversion
+4. Acceptable latency for Compose Canvas scenarios
+
+For high-performance 60fps scenarios requiring async rendering, see Phase 4.5 (future enhancement).
 
 ---
 
@@ -78,29 +104,32 @@ While the Canvas renderer could render directly to a Compose Canvas, the GPU-bas
 │                           ▼                                                 │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  RiveSpriteScene                                                     │    │
-│  │  ├── sprites: List<RiveSprite>                                      │    │
+│  │  ├── sprites: SnapshotStateList<RiveSprite>                         │    │
 │  │  ├── advance(deltaTime) → advances all state machines               │    │
-│  │  ├── render() → GPU batch render all sprites                        │    │
-│  │  └── hitTest(point) → returns topmost hit sprite                    │    │
+│  │  ├── getSortedSprites() → z-ordered visible sprites                 │    │
+│  │  ├── hitTest(point) → returns topmost hit sprite                    │    │
+│  │  ├── buildDrawCommands() → List<SpriteDrawCommand>                  │    │
+│  │  └── getOrCreateSharedSurface() → GPU surface for batch mode        │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                           │                                                 │
 │         ┌─────────────────┼─────────────────┐                               │
 │         ▼                 ▼                 ▼                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                          │
-│  │ RiveSprite  │  │ RiveSprite  │  │ RiveSprite  │                          │
-│  │ - position  │  │ - position  │  │ - position  │                          │
-│  │ - scale     │  │ - scale     │  │ - scale     │                          │
-│  │ - rotation  │  │ - rotation  │  │ - rotation  │                          │
-│  │ - zIndex    │  │ - zIndex    │  │ - zIndex    │                          │
-│  │ - artboard  │  │ - artboard  │  │ - artboard  │                          │
-│  │ - stateMach │  │ - stateMach │  │ - stateMach │                          │
-│  └─────────────┘  └─────────────┘  └─────────────┘                          │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                │
+│  │ RiveSprite      │ │ RiveSprite      │ │ RiveSprite      │                │
+│  │ - position      │ │ - position      │ │ - position      │                │
+│  │ - scale         │ │ - scale         │ │ - scale         │                │
+│  │ - rotation      │ │ - rotation      │ │ - rotation      │                │
+│  │ - zIndex        │ │ - zIndex        │ │ - zIndex        │                │
+│  │ - origin        │ │ - origin        │ │ - origin        │                │
+│  │ - artboard      │ │ - artboard      │ │ - artboard      │                │
+│  │ - stateMachine  │ │ - stateMachine  │ │ - stateMachine  │                │
+│  │ - renderBuffer  │ │ - renderBuffer  │ │ - renderBuffer  │ (cached)       │
+│  └─────────────────┘ └─────────────────┘ └─────────────────┘                │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  CommandQueue (extended)                                             │    │
-│  │  └── drawMultiple(commands, surface, clearColor)                    │    │
-│  │      - Batches all draw commands                                    │    │
-│  │      - Applies per-command transforms on GPU                        │    │
+│  │  ├── drawMultiple(commands, surface) → async, fire-and-forget       │    │
+│  │  └── drawMultipleToBuffer(commands, surface, buffer) → sync         │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -109,7 +138,7 @@ While the Canvas renderer could render directly to a Compose Canvas, the GPU-bas
 
 ## File References
 
-### Files to Create
+### Implemented Files
 
 | File Path | Purpose |
 |-----------|---------|
@@ -118,16 +147,16 @@ While the Canvas renderer could render directly to a Compose Canvas, the GPU-bas
 | `kotlin/src/main/kotlin/app/rive/sprites/RiveSpriteSceneRenderer.kt` | Compose integration (composables, extensions) |
 | `kotlin/src/main/kotlin/app/rive/sprites/SpriteScale.kt` | Scale data class with independent scaleX/scaleY |
 | `kotlin/src/main/kotlin/app/rive/sprites/SpriteOrigin.kt` | Origin sealed class (Center, TopLeft, Custom) |
-| `kotlin/src/main/cpp/include/models/sprite_batch.hpp` | C++ data structures for batch rendering |
+| `kotlin/src/main/kotlin/app/rive/sprites/SpriteRenderMode.kt` | Enum for PER_SPRITE vs BATCH rendering |
 
-### Files to Modify
+### Modified Files
 
 | File Path | Changes |
 |-----------|---------|
-| `kotlin/src/main/kotlin/app/rive/core/CommandQueue.kt` | Add `drawMultiple()` method, `SpriteDrawCommand` data class |
-| `kotlin/src/main/cpp/src/bindings/bindings_command_queue.cpp` | Add JNI bindings for `cppDrawMultiple` |
+| `kotlin/src/main/kotlin/app/rive/core/CommandQueue.kt` | Added `SpriteDrawCommand` data class, `drawMultiple()`, `drawMultipleToBuffer()` methods |
+| `kotlin/src/main/cpp/src/bindings/bindings_command_queue.cpp` | Added JNI bindings for `cppDrawMultiple`, `cppDrawMultipleToBuffer` |
 
-### Reference Files (unchanged, for understanding)
+### Reference Files (for understanding existing patterns)
 
 | File Path | Relevance |
 |-----------|-----------|
@@ -135,6 +164,8 @@ While the Canvas renderer could render directly to a Compose Canvas, the GPU-bas
 | `kotlin/src/main/kotlin/app/rive/RiveFile.kt` | File loading pattern |
 | `kotlin/src/main/kotlin/app/rive/Artboard.kt` | Artboard wrapper |
 | `kotlin/src/main/kotlin/app/rive/StateMachine.kt` | State machine wrapper |
+| `kotlin/src/main/kotlin/app/rive/RenderBuffer.kt` | Off-screen rendering pattern |
+| `kotlin/src/main/kotlin/app/rive/core/CloseOnce.kt` | Safe disposal pattern |
 | `kotlin/src/main/java/app/rive/runtime/kotlin/core/Helpers.kt` | Coordinate conversion utilities |
 | `kotlin/src/main/java/app/rive/runtime/kotlin/core/Rive.kt` | `calculateRequiredBounds()` function |
 
@@ -170,80 +201,77 @@ This directory contains comprehensive tests that serve as reference for:
 
 ## Implementation Checklist
 
-### Phase 1: Core Kotlin Data Structures
+### Phase 1: Core Kotlin Data Structures ✅ COMPLETE
 
-- [x] **1.1 Create `RiveSprite.kt`** ✅ IMPLEMENTED
+- [x] **1.1 Create `RiveSprite.kt`**
   - [x] Define `RiveSprite` class with artboard and state machine references
   - [x] Add transform properties: `position: Offset`, `scale: SpriteScale`, `rotation: Float`
-  - [x] Define `SpriteScale` data class (similar to `androidx.compose.ui.layout.ScaleFactor`):
-    ```kotlin
-    @Immutable
-    data class SpriteScale(val scaleX: Float, val scaleY: Float) {
-        companion object {
-            val Unscaled = SpriteScale(1f, 1f)
-        }
-    }
-    // Extension for uniform scaling
-    fun SpriteScale(scale: Float) = SpriteScale(scale, scale)
-    ```
   - [x] Add `zIndex: Int` for z-ordering
   - [x] Add `size: Size` for the sprite's display size in DrawScope units
-  - [x] Add `origin: SpriteOrigin` sealed class with three types:
-    - `SpriteOrigin.Center` - pivot at center (0.5, 0.5)
-    - `SpriteOrigin.TopLeft` - pivot at top-left (0, 0)
-    - `SpriteOrigin.Custom(pivotX: Float, pivotY: Float)` - custom pivot where (0,0) = top-left, (1,1) = bottom-right
+  - [x] Add `origin: SpriteOrigin` sealed class (Center, TopLeft, Custom)
   - [x] Add `isVisible: Boolean` flag
-  - [x] Implement `fire(triggerName: String)` for triggering animations (stubbed - needs CommandQueue extension in Phase 2)
-  - [x] Implement `setBoolean(name: String, value: Boolean)` for state machine inputs (stubbed - needs CommandQueue extension in Phase 2)
-  - [x] Implement `setNumber(name: String, value: Float)` for state machine inputs (stubbed - needs CommandQueue extension in Phase 2)
-  - [x] Implement `computeTransformMatrix(): Matrix` to compute the final transform
-  - [x] Implement internal `getArtboardBounds(): Rect` for hit testing
-
-- [x] **1.2 Create `RiveSpriteScene.kt`** ✅ IMPLEMENTED
-  - [x] Define `RiveSpriteScene` class
-  - [x] Hold reference to `CommandQueue`
-  - [x] Manage `mutableStateListOf<RiveSprite>()` for sprites
-  - [x] Implement `createSprite(file: RiveFile, artboardName: String?, stateMachineName: String?): RiveSprite`
-  - [x] Implement `removeSprite(sprite: RiveSprite)`
-  - [x] Implement `advance(deltaTime: Duration)` to advance all state machines
-  - [x] Implement `hitTest(point: Offset): RiveSprite?` returning topmost hit
-  - [x] Implement internal `getSortedSprites(): List<RiveSprite>` by z-index
-  - [x] Manage shared GPU surface lifecycle (deferred to Phase 4 - uses CommandQueue reference counting)
+  - [x] Implement `fire()`, `setBoolean()`, `setNumber()` (stubbed - TODO comments remain)
+  - [x] Implement `advance(deltaTime: Duration)`
+  - [x] Implement `computeTransformMatrix(): Matrix`
+  - [x] Implement `computeTransformArray(): FloatArray` for native rendering
+  - [x] Implement `getArtboardBounds(): Rect` for hit testing
+  - [x] Implement `transformPointToLocal(point: Offset): Offset?`
+  - [x] Implement `hitTest(point: Offset): Boolean`
+  - [x] Implement `getBounds(): Rect` for axis-aligned bounding box
+  - [x] Implement cached `RenderBuffer` management (`getOrCreateRenderBuffer()`)
   - [x] Implement `close()` for cleanup
-  
-  **Implementation Notes:**
-  - Added `addSprite()` for adding externally created sprites
-  - Added `detachSprite()` for transferring sprite ownership without closing
-  - Added `clearSprites()` for bulk removal
-  - Added `hitTestAll()` for finding all sprites at a point
-  - Added `getAllSortedSprites()` for including invisible sprites
-  - Uses `CloseOnce` pattern for safe disposal
-  - Uses `SnapshotStateList` for Compose state integration
 
-- [x] **1.3 Create `RiveSpriteSceneRenderer.kt`** ✅ IMPLEMENTED
+- [x] **1.2 Create `SpriteScale.kt`**
+  - [x] Define `SpriteScale` data class with `scaleX`, `scaleY`
+  - [x] Add `Unscaled` companion object constant
+  - [x] Add `isUniform`, `uniformScale` properties
+  - [x] Add operator overloads (`times`, `div`)
+  - [x] Add uniform scaling factory function `SpriteScale(scale: Float)`
+
+- [x] **1.3 Create `SpriteOrigin.kt`**
+  - [x] Define sealed class with `pivotX`, `pivotY` abstract properties
+  - [x] Implement `Center` data object (0.5, 0.5)
+  - [x] Implement `TopLeft` data object (0, 0)
+  - [x] Implement `Custom` data class with validation (0-1 range)
+
+- [x] **1.4 Create `RiveSpriteScene.kt`**
+  - [x] Define `RiveSpriteScene` class
+  - [x] Hold reference to `CommandQueue` with acquire/release
+  - [x] Manage `SnapshotStateList<RiveSprite>` for Compose state integration
+  - [x] Implement `createSprite()`, `addSprite()`, `removeSprite()`, `detachSprite()`, `clearSprites()`
+  - [x] Implement `advance(deltaTime: Duration)` to advance all visible state machines
+  - [x] Implement `hitTest(point: Offset): RiveSprite?` returning topmost hit
+  - [x] Implement `hitTestAll(point: Offset): List<RiveSprite>`
+  - [x] Implement `getSortedSprites()`, `getAllSortedSprites()`
+  - [x] Implement dirty tracking (`isDirty`, `markDirty()`, `clearDirty()`)
+  - [x] Implement shared surface management (`getOrCreateSharedSurface()`, `getPixelBuffer()`)
+  - [x] Implement cached composite bitmap (`getOrCreateCompositeBitmap()`)
+  - [x] Implement `buildDrawCommands(): List<SpriteDrawCommand>`
+  - [x] Implement pointer event routing (`pointerDown()`, `pointerMove()`, `pointerUp()`, `pointerExit()`)
+  - [x] Implement `close()` for cleanup using `CloseOnce` pattern
+
+- [x] **1.5 Create `SpriteRenderMode.kt`**
+  - [x] Define enum with `PER_SPRITE` and `BATCH` modes
+  - [x] Add `DEFAULT` companion constant (currently `PER_SPRITE`)
+  - [x] Add KDoc with performance guidance
+
+- [x] **1.6 Create `RiveSpriteSceneRenderer.kt`**
   - [x] Create `rememberRiveSpriteScene(commandQueue: CommandQueue): RiveSpriteScene`
-  - [x] Create `DrawScope.drawRiveSprites(scene: RiveSpriteScene)` extension
-  - [x] Handle surface size changes
-  - [x] Implement automatic texture refresh on animation frame
-  
-  **Implementation Notes:**
-  - Created `rememberRiveSpriteScene()` composable with `DisposableEffect` for lifecycle management
-  - Created `DrawScope.drawRiveSprites()` extension that renders sprites to an off-screen buffer
-  - Uses `RenderBuffer` pattern for GPU-to-bitmap rendering
-  - Sprites are rendered individually with transforms applied via `computeTransformMatrix()`
-  - Includes `SpriteSceneBuffer` class for managing off-screen resources and size changes
-  - Includes `SpriteSceneBufferHolder` for caching buffers across frames (internal API)
-  - Current implementation creates new bitmaps per frame - will be optimized in Phase 2+ with batch rendering
-  - All public APIs marked with `@ExperimentalRiveComposeAPI` annotation
+  - [x] Create `DrawScope.drawRiveSprites(scene, renderMode, clearColor)` extension
+  - [x] Implement `drawRiveSpritesPerSprite()` for individual sprite rendering
+  - [x] Implement `drawRiveSpritesBatch()` for batch GPU rendering
+  - [x] Implement `renderSpriteToCanvas()` helper
+  - [x] Implement `copyPixelBufferToBitmap()` for BGRA to ARGB conversion
+  - [x] Implement `SpriteSceneBuffer` and `SpriteSceneBufferHolder` for caching
+  - [x] Add silent fallback from BATCH to PER_SPRITE on errors
 
-### Phase 2: CommandQueue Extensions
+### Phase 2: CommandQueue Extensions ✅ COMPLETE
 
-- [x] **2.1 Add `SpriteDrawCommand` data class to `CommandQueue.kt`** ✅ IMPLEMENTED
-  - [x] Define data class with artboardHandle, stateMachineHandle, transform, artboardWidth, artboardHeight
-  - [x] Add `init` validation for transform array size (must be 6 elements)
-  - [x] Override `equals()` and `hashCode()` for proper FloatArray comparison
-  - [x] Override `toString()` for debugging
-  
+- [x] **2.1 Add `SpriteDrawCommand` data class to `CommandQueue.kt`**
+  - [x] Define with `artboardHandle`, `stateMachineHandle`, `transform`, `artboardWidth`, `artboardHeight`
+  - [x] Add `init` validation for transform array size (6 elements)
+  - [x] Override `equals()`, `hashCode()`, `toString()` for proper FloatArray handling
+
   ```kotlin
   data class SpriteDrawCommand(
       val artboardHandle: ArtboardHandle,
@@ -254,149 +282,61 @@ This directory contains comprehensive tests that serve as reference for:
   )
   ```
 
-- [x] **2.2 Add `drawMultiple()` method to `CommandQueue.kt`** ✅ IMPLEMENTED
-  - [x] Add JNI external declaration `cppDrawMultiple` with flattened arrays for JNI efficiency
-  - [x] Implement public `drawMultiple()` method
-  - [x] Implement command batching logic (flatten command data into parallel arrays)
-  
-  **Implementation Notes:**
-  - The `cppDrawMultiple` JNI method is declared but not yet implemented in native code (Phase 3)
-  - Arrays are flattened for efficient JNI transfer:
-    - `transforms`: 6 floats per command [scaleX, skewY, skewX, scaleY, translateX, translateY]
-    - `artboardHandles`, `stateMachineHandles`, `artboardWidths`, `artboardHeights`: parallel arrays
-  - Calling `drawMultiple()` before Phase 3 native implementation will throw `UnsatisfiedLinkError`
-  - Method includes early return for empty command list
-  - Uses `System.arraycopy()` for efficient transform array copying
+- [x] **2.2 Add `drawMultiple()` method (async, fire-and-forget)**
+  - [x] Add JNI external declaration `cppDrawMultiple`
+  - [x] Implement command flattening into parallel arrays for JNI efficiency
+  - [x] Document use case: TextureView/SurfaceView display rendering
 
-### Phase 3: Native Implementation
+- [x] **2.3 Add `drawMultipleToBuffer()` method (sync, with pixel readback)**
+  - [x] Add JNI external declaration `cppDrawMultipleToBuffer`
+  - [x] Implement command flattening into parallel arrays
+  - [x] Document use case: Compose Canvas rendering, snapshots
 
-- [x] **3.1 Create `sprite_batch.hpp`** ✅ SKIPPED (Not needed)
-  - The sprite batch data structure is handled inline in the JNI binding
-  - No separate header file is required as the data is passed via flattened arrays
+### Phase 3: Native Implementation ✅ COMPLETE
 
-- [x] **3.2 Add JNI binding in `bindings_command_queue.cpp`** ✅ IMPLEMENTED
+- [x] **3.1 Add JNI bindings in `bindings_command_queue.cpp`**
   - [x] Implement `Java_app_rive_core_CommandQueue_cppDrawMultiple`
+  - [x] Implement `Java_app_rive_core_CommandQueue_cppDrawMultipleToBuffer`
   - [x] Parse Java arrays into C++ vectors for async lambda capture
-  - [x] Extract transform matrix from float array (6 elements per sprite)
-
-- [x] **3.3 Implement batch draw in native code** ✅ IMPLEMENTED
-  - [x] Iterate through sprites in order (z-order is pre-sorted on Kotlin side)
-  - [x] For each sprite:
-    - [x] Get artboard instance from handle (skip if null with warning)
-    - [x] Extract 6-element transform [xx, xy, yx, yy, tx, ty] into `rive::Mat2D`
-    - [x] Calculate scale to fit artboard into target sprite size
-    - [x] Combine transforms: sprite transform * scale-to-fit transform
-    - [x] Apply with `renderer.save()` / `renderer.transform()` / artboard `draw()` / `renderer.restore()`
-  - [x] Flush GPU render with `riveContext->flush()`
-  - [x] Present to surface with `renderContext->present()`
-
-  **Implementation Notes:**
-  
-  **JNI Signature:**
-  ```cpp
-  JNIEXPORT void JNICALL
-  Java_app_rive_core_CommandQueue_cppDrawMultiple(
-      JNIEnv* env,
-      jobject,
-      jlong ref,                      // CommandQueue pointer
-      jlong renderContextRef,         // RenderContext pointer
-      jlong surfaceRef,               // Surface pointer
-      jlong drawKey,                  // Draw key handle
-      jlong renderTargetRef,          // Render target pointer
-      jint viewportWidth,             // Viewport width in pixels
-      jint viewportHeight,            // Viewport height in pixels
-      jint jClearColor,               // Clear color (AARRGGBB)
-      jlongArray jArtboardHandles,    // Array of artboard handles
-      jlongArray jStateMachineHandles,// Array of state machine handles (unused currently)
-      jfloatArray jTransforms,        // Flattened transforms (6 floats per sprite)
-      jfloatArray jArtboardWidths,    // Target widths
-      jfloatArray jArtboardHeights,   // Target heights
-      jint count                      // Number of sprites
-  )
-  ```
+  - [x] Extract transforms into `rive::Mat2D` format
 
   **Transform Format:**
   - Uses `rive::Mat2D` which stores 6 floats: `[xx, xy, yx, yy, tx, ty]`
   - Maps to: `[scaleX, skewY, skewX, scaleY, translateX, translateY]`
   - Compatible with Android's `Matrix` values after extraction
 
-  **Artboard Scaling:**
-  - Each sprite has a target size (from `RiveSprite.effectiveSize`)
-  - The artboard is scaled to fit: `scaleX = targetWidth / artboardWidth`
-  - Final transform = spriteTransform * scaleToFit
+- [x] **3.2 Implement batch draw in native code**
+  - [x] Iterate through sprites in z-order (pre-sorted on Kotlin side)
+  - [x] Get artboard instance from handle (skip if null with warning)
+  - [x] Calculate scale to fit artboard into target sprite size
+  - [x] Combine transforms: sprite transform * scale-to-fit transform
+  - [x] Apply with `renderer.save()` / `renderer.transform()` / artboard `draw()` / `renderer.restore()`
+  - [x] Flush GPU render with `riveContext->flush()`
+  - [x] Present to surface with `renderContext->present()`
 
-  **Error Handling:**
-  - Null artboards are skipped with a warning log (doesn't fail the entire batch)
-  - Uses `RiveLogW` for per-sprite warnings to avoid log spam
-  
-  **Async Execution:**
-  - Java arrays are copied to C++ vectors before lambda capture
-  - Lambda is executed asynchronously on the command server thread
-  - Uses `std::move` for efficient vector capture in lambda
+- [x] **3.3 Implement pixel readback for buffer version**
+  - [x] Use promise/future pattern for synchronous completion
+  - [x] Read pixels with `glReadPixels()`
+  - [x] Apply vertical flip (OpenGL origin is bottom-left)
 
 ### Phase 4: Compose Canvas Integration ✅ COMPLETE
 
-- [x] **4.1 Implement texture management** ✅ IMPLEMENTED
-  - [x] Create off-screen GPU surface matching DrawScope size
-  - [x] Handle surface recreation on size change
-  - [x] Implement texture caching for static sprites
-  - [x] Add rendering mode selection (PER_SPRITE vs BATCH)
-  - [x] Add dirty tracking for scene changes
-  
-  **Implementation Notes:**
-  
-  **New Files Created:**
-  - `SpriteRenderMode.kt`: Enum for selecting rendering approach
-    - `PER_SPRITE`: Individual sprite rendering (default, more compatible)
-    - `BATCH`: Single GPU pass rendering (better performance for 20+ sprites)
-  
-  **Modified Files:**
-  - `RiveSpriteScene.kt`:
-    - Added shared GPU surface management (`sharedSurface`, `getOrCreateSharedSurface()`)
-    - Added pixel buffer for GPU readback (`pixelBuffer`, `getPixelBuffer()`)
-    - Added dirty tracking (`isDirty`, `markDirty()`, `clearDirty()`)
-    - Added draw command building (`buildDrawCommands()`)
-    - Added documentation about surface ownership trade-offs
-  
-  - `RiveSpriteSceneRenderer.kt`:
-    - Added `renderMode` parameter to `drawRiveSprites()`
-    - Implemented `drawRiveSpritesPerSprite()` for individual sprite rendering
-    - Implemented `drawRiveSpritesBatch()` for batch GPU rendering
-    - Added automatic fallback from BATCH to PER_SPRITE on errors
-    - Added pixel buffer to bitmap conversion utilities
-  
-  **Surface Ownership Decision:**
-  - Currently scene-owned (simpler lifecycle)
-  - Documented trade-offs for renderer-owned approach (see Phase 4.3)
-  
-  **Known Limitations:**
-  - Batch mode currently falls back to per-sprite rendering for pixel readback
-  - GPU-to-CPU pixel transfer needs native support (see TODO in code)
-  - True batch performance benefits require Phase 4.4 native readback support
+- [x] **4.1 Implement per-sprite rendering mode**
+  - [x] Render each sprite to its cached `RenderBuffer`
+  - [x] Composite onto shared bitmap using Android Canvas with transforms
+  - [x] Draw composite bitmap to Compose Canvas via `drawImage()`
 
-  **Bug Fix (2025-12-15):**
-  - Fixed batch rendering showing blank screen - `readPixelsFromSurface()` now returns `Boolean`
-  - When fallback is used (returns `false`), `copyPixelBufferToBitmap()` is skipped
-  - Comprehensive documentation added for Phase 4.4 migration path
+- [x] **4.2 Implement batch rendering mode**
+  - [x] Get or create shared GPU surface from scene
+  - [x] Build draw commands from sorted visible sprites
+  - [x] Use `drawMultipleToBuffer()` for synchronous rendering
+  - [x] Convert pixel buffer (BGRA) to bitmap (ARGB_8888)
+  - [x] Draw bitmap to Compose Canvas
+  - [x] Silent fallback to per-sprite on `UnsatisfiedLinkError` or exceptions
 
-- [x] **4.2 Implement `drawRiveSprites()` extension** ✅ IMPLEMENTED (merged with 4.1)
-  - [x] Trigger scene render if dirty
-  - [x] Draw GPU texture to Canvas via `drawImage()`
-  - [x] Handle scaling for different pixel densities
+### Phase 4.3 (Optional): Renderer-Owned Surface
 
-### Phase 4.3 (Optional): Move Surface Ownership to Renderer
-
-This optional phase migrates surface ownership from the scene to the renderer
-for better multi-canvas support.
-
-**Trade-offs:**
-
-| Aspect | Scene-Owned (Current) | Renderer-Owned |
-|--------|----------------------|----------------|
-| Lifecycle | Simple (tied to scene) | Complex (DisposableEffect) |
-| Multi-canvas | Surface may not match | Surface always matches |
-| API complexity | Simpler | More complex |
-| Flexibility | Less flexible | More flexible |
+This optional phase migrates surface ownership from the scene to the renderer for better multi-canvas support.
 
 - [ ] **4.3.1 Create SpriteSceneSurface holder class**
   - [ ] Hold RiveSurface reference
@@ -411,56 +351,6 @@ for better multi-canvas support.
   - [ ] Create surface holder with DisposableEffect
   - [ ] Tie to composable lifecycle
 
-### Phase 4.4: Synchronous Batch Rendering with Pixel Readback ✅ IMPLEMENTED
-
-This phase adds native support for rendering multiple sprites and reading pixels back
-in a single synchronous call, enabling true batch rendering for Compose Canvas.
-
-- [x] **4.4.1 Add `cppDrawMultipleToBuffer` native method**
-  - [x] JNI function in `bindings_command_queue.cpp`
-  - [x] Synchronous execution using promise/future pattern
-  - [x] GPU rendering with `glReadPixels()` for pixel readback
-  - [x] Vertical flip to match Android coordinate system
-
-- [x] **4.4.2 Add `drawMultipleToBuffer()` Kotlin method**
-  - [x] Public method in `CommandQueue.kt`
-  - [x] Documentation for sync vs async usage
-  - [x] Buffer parameter for pixel output
-
-- [x] **4.4.3 Update batch rendering path**
-  - [x] `drawRiveSpritesBatch()` uses `drawMultipleToBuffer()`
-  - [x] Direct pixel buffer to bitmap conversion
-  - [x] Removed fallback workaround code
-
-- [x] **4.4.4 Silent fallback on errors**
-  - [x] Falls back to per-sprite on `UnsatisfiedLinkError`
-  - [x] Falls back to per-sprite on any exception
-  - [x] Uses `RiveLog.d()` for debug-level logging
-
-**Implementation Notes:**
-
-**Sync vs Async Design Decision:**
-- `drawMultiple()`: Async (fire-and-forget), for TextureView/SurfaceView display
-- `drawMultipleToBuffer()`: Sync (blocking), for Compose Canvas/snapshot rendering
-
-**Threading Considerations:**
-- `drawMultipleToBuffer()` blocks the calling thread (~1-5ms typical)
-- Acceptable for Compose Canvas (already blocking during draw)
-- Not recommended for 60fps game loops (use async approach)
-
-**Native Implementation Details:**
-```cpp
-// Uses promise/future for synchronous completion
-auto completionPromise = std::make_shared<std::promise<bool>>();
-commandQueue->draw(drawKey, drawWork);
-completionPromise->get_future().wait();  // Blocks until GPU completes
-```
-
-**Pixel Buffer Format:**
-- RGBA byte array (4 bytes per pixel)
-- Buffer size: `width * height * 4`
-- Vertical flip applied in native code (OpenGL origin is bottom-left)
-
 ### Phase 4.5 (Future): Async Double-Buffered Rendering
 
 For high-performance 60fps scenarios, implement double-buffered async rendering:
@@ -473,70 +363,32 @@ For high-performance 60fps scenarios, implement double-buffered async rendering:
   - [ ] Use previous frame's buffer while current frame renders
   - [ ] Minimize latency while maintaining 60fps
 
-### Phase 5: Hit Testing ✅ COMPLETE
+### Phase 5: Hit Testing & Pointer Events ✅ COMPLETE
 
-- [x] **5.1 Implement `hitTest()` in `RiveSpriteScene`** ✅ IMPLEMENTED
-  - [x] Iterate sprites in reverse z-order (top to bottom)
-  - [x] For each visible sprite:
-    - [x] Invert sprite transform
-    - [x] Transform test point to sprite-local space
-    - [x] Check if point is within artboard bounds
-    - [x] Return first hit
-  
-  **Implementation Notes:**
-  - `hitTest(point: Offset): RiveSprite?` - Returns topmost hit sprite
-  - `hitTestAll(point: Offset): List<RiveSprite>` - Returns all hit sprites (top to bottom)
-  - Uses `RiveSprite.transformPointToLocal()` for coordinate conversion
-  - Uses `RiveSprite.getArtboardBounds()` for bounds checking
+- [x] **5.1 Implement hit testing in `RiveSprite`**
+  - [x] `transformPointToLocal()` - invert sprite transform to get local coordinates
+  - [x] `getArtboardBounds()` - return sprite bounds in local space
+  - [x] `hitTest(point)` - check if point is within bounds after transform
 
-- [x] **5.2 Implement pointer event forwarding** ✅ IMPLEMENTED
-  - [x] Add `RiveSprite.pointerDown(point: Offset, pointerID: Int)`
-  - [x] Add `RiveSprite.pointerMove(point: Offset, pointerID: Int)`
-  - [x] Add `RiveSprite.pointerUp(point: Offset, pointerID: Int)`
-  - [x] Add `RiveSprite.pointerExit(pointerID: Int)`
-  - [x] Forward to state machine for interactive elements
-  - [x] Add scene-level convenience methods for pointer routing
-  
-  **Implementation Notes:**
-  
-  **RiveSprite Pointer Methods:**
-  - Transform DrawScope coordinates to local artboard coordinates
-  - Use `Fit.FILL` with matching surface/artboard dimensions for direct coordinate passthrough
-  - Support multi-touch via `pointerID` parameter
-  - Return `Boolean` indicating if event was sent (useful for tracking drag targets)
-  
-  **RiveSpriteScene Convenience Methods:**
-  - `pointerDown(point, pointerID)` - Hit test + forward to topmost sprite
-  - `pointerMove(point, pointerID, targetSprite?)` - Forward to specific or topmost sprite
-  - `pointerUp(point, pointerID, targetSprite?)` - Forward to specific or topmost sprite
-  - `pointerExit(sprite, pointerID)` - Send exit event to specific sprite
-  
-  **Usage Example:**
-  ```kotlin
-  var dragTarget: RiveSprite? = null
-  
-  Canvas(modifier = Modifier
-      .fillMaxSize()
-      .pointerInput(Unit) {
-          detectDragGestures(
-              onDragStart = { offset ->
-                  dragTarget = scene.pointerDown(offset)
-              },
-              onDrag = { change, _ ->
-                  scene.pointerMove(change.position, targetSprite = dragTarget)
-              },
-              onDragEnd = {
-                  dragTarget?.let { scene.pointerUp(it.position, targetSprite = it) }
-                  dragTarget = null
-              }
-          )
-      }
-  ) {
-      drawRiveSprites(scene)
-  }
-  ```
+- [x] **5.2 Implement hit testing in `RiveSpriteScene`**
+  - [x] `hitTest(point)` - iterate sprites in reverse z-order, return first hit
+  - [x] `hitTestAll(point)` - return all hit sprites, sorted top to bottom
 
-### Phase 6: Testing & Documentation
+- [x] **5.3 Implement pointer event forwarding**
+  
+  **RiveSprite methods:**
+  - [x] `pointerDown(point, pointerID)` - transform to local, forward to state machine
+  - [x] `pointerMove(point, pointerID)` - transform to local, forward to state machine
+  - [x] `pointerUp(point, pointerID)` - transform to local, forward to state machine
+  - [x] `pointerExit(pointerID)` - send exit event to state machine
+
+  **RiveSpriteScene convenience methods:**
+  - [x] `pointerDown(point, pointerID)` - hit test + forward to topmost sprite
+  - [x] `pointerMove(point, pointerID, targetSprite?)` - forward to specific or topmost sprite
+  - [x] `pointerUp(point, pointerID, targetSprite?)` - forward to specific or topmost sprite
+  - [x] `pointerExit(sprite, pointerID)` - send exit event to specific sprite
+
+### Phase 6: Testing & Documentation ⏳ PENDING
 
 - [ ] **6.1 Unit tests**
   - [ ] Test transform computation
@@ -545,14 +397,41 @@ For high-performance 60fps scenarios, implement double-buffered async rendering:
   - [ ] Test z-order sorting
 
 - [ ] **6.2 Integration tests**
-  - [ ] Create sample game with multiple sprites
+  - [ ] Create sample with multiple sprites
   - [ ] Test performance with 100+ sprites
   - [ ] Test animation triggering
 
 - [ ] **6.3 Documentation**
-  - [ ] KDoc for all public APIs
+  - [x] KDoc for all public APIs (implemented inline)
   - [ ] Usage example in README
   - [ ] Performance guidelines
+
+---
+
+## Known Limitations & TODOs
+
+### State Machine Input Methods (RiveSprite)
+
+The following methods are stubbed with TODO comments:
+```kotlin
+fun fire(triggerName: String) {
+    // TODO: Implement when CommandQueue.fireStateMachineTrigger is added
+}
+
+fun setBoolean(name: String, value: Boolean) {
+    // TODO: Implement when CommandQueue.setStateMachineBoolean is added
+}
+
+fun setNumber(name: String, value: Float) {
+    // TODO: Implement when CommandQueue.setStateMachineNumber is added
+}
+```
+
+These require additional CommandQueue extensions to forward inputs to the state machine.
+
+### Artboard Size
+
+`RiveSprite.effectiveSize` currently returns a default size (100x100) when `size` is unspecified because querying artboard dimensions requires native support. The actual artboard dimensions are available in the native layer but not yet exposed through the handle system.
 
 ---
 
@@ -563,13 +442,14 @@ For high-performance 60fps scenarios, implement double-buffered async rendering:
 ```kotlin
 @Composable
 fun GameScreen() {
-    val scene = rememberRiveSpriteScene()
+    val commandQueue = rememberCommandQueue()
+    val scene = rememberRiveSpriteScene(commandQueue)
     val enemyFile = rememberRiveFile(R.raw.enemy)
     
     // Create sprites
     val enemies = remember {
         (0 until 50).map { i ->
-            scene.createSprite(enemyFile, stateMachine = "combat").apply {
+            scene.createSprite(enemyFile, stateMachineName = "combat").apply {
                 position = Offset(
                     x = Random.nextFloat() * 1000f,
                     y = Random.nextFloat() * 800f
@@ -659,9 +539,8 @@ sprite.origin = SpriteOrigin.TopLeft
 
 // Custom origin - define any pivot point
 // (0,0) = top-left, (0.5, 0.5) = center, (1,1) = bottom-right
-sprite.origin = SpriteOrigin.Custom(pivotX = 0.5f, pivotY = 1.0f)  // Bottom-center (for feet-based positioning)
-sprite.origin = SpriteOrigin.Custom(pivotX = 0.0f, pivotY = 0.5f)  // Left-center (for side-scrolling alignment)
-sprite.origin = SpriteOrigin.Custom(pivotX = 0.25f, pivotY = 0.75f)  // Any arbitrary pivot point
+sprite.origin = SpriteOrigin.Custom(pivotX = 0.5f, pivotY = 1.0f)  // Bottom-center (feet)
+sprite.origin = SpriteOrigin.Custom(pivotX = 0.0f, pivotY = 0.5f)  // Left-center
 ```
 
 **Use cases for Custom origin:**
@@ -670,47 +549,69 @@ sprite.origin = SpriteOrigin.Custom(pivotX = 0.25f, pivotY = 0.75f)  // Any arbi
 - **Door hinges**: Set pivot at edge `(0.0, 0.5)` for realistic door opening animations
 - **Health bars**: Set pivot at left edge `(0.0, 0.5)` for left-to-right fill animations
 
+### Rendering Modes
+
+```kotlin
+// Default: per-sprite rendering (more compatible)
+drawRiveSprites(scene)
+
+// Batch rendering (better performance for 20+ sprites)
+drawRiveSprites(scene, renderMode = SpriteRenderMode.BATCH)
+```
+
+### Pointer Events for Drag
+
+```kotlin
+var dragTarget: RiveSprite? = null
+
+Canvas(modifier = Modifier
+    .fillMaxSize()
+    .pointerInput(Unit) {
+        detectDragGestures(
+            onDragStart = { offset ->
+                dragTarget = scene.pointerDown(offset)
+            },
+            onDrag = { change, _ ->
+                scene.pointerMove(change.position, targetSprite = dragTarget)
+            },
+            onDragEnd = {
+                dragTarget?.let { scene.pointerUp(it.position, targetSprite = it) }
+                dragTarget = null
+            }
+        )
+    }
+) {
+    drawRiveSprites(scene)
+}
+```
+
 ---
 
-## Performance Considerations
+## Performance Design Goals (not necessarily reached)
 
-1. **Sprite Limits**: Target 200+ sprites at 60fps on mid-range devices
-2. **Batching**: All sprites render in a single GPU draw call per frame
-3. **Dirty Tracking**: Only re-render if sprites changed or animations advanced
-4. **Memory**: Artboards shared across sprites from the same file
-5. **Texture Size**: Match DrawScope size, recreate on resize
+1. **Sprite Limits**: Target 100+ sprites at 60fps on mid-range devices
+2. **Rendering Mode Selection**:
+   - PER_SPRITE: Best for < 5 sprites, debugging, fallback scenarios
+   - BATCH: Best for 5+ sprites, production use
+3. **Buffer Caching**: 
+   - Per-sprite `RenderBuffer` is cached and reused across frames
+   - Composite bitmap is cached in the scene
+   - Shared GPU surface is created once per size
+4. **Dirty Tracking**: Scene tracks dirty state to skip unnecessary re-renders
+5. **Memory Management**:
+   - Artboards can be shared across sprites from the same file
+   - Each sprite caches its own render buffer (recreated on size change)
+   - Composite bitmap is recycled on scene close
+6. **Transform Efficiency**: 
+   - Transforms computed on Kotlin side, passed as flat arrays to native
+   - Native code uses efficient `rive::Mat2D` for GPU rendering
 
 ---
 
-## Open Questions (To Resolve During Implementation)
+## Open Questions (For Future Development)
 
-1. **Texture format**: RGBA_8888 vs RGB_565 for better performance?
+1. **Texture format**: RGBA_8888 vs RGB_565 for better performance on low-end devices?
 2. **Animation batching**: Should we batch `advance()` calls to native code?
-3. **Visibility culling**: Should we skip rendering off-screen sprites?
+3. **Visibility culling**: Should we skip rendering off-screen sprites automatically?
 4. **Sprite pooling**: Should we provide sprite pooling for object creation/destruction?
-
----
-
-## Timeline Estimate
-
-| Phase | Estimated Duration |
-|-------|-------------------|
-| Phase 1: Kotlin structures | 2-3 days |
-| Phase 2: CommandQueue extensions | 1 day |
-| Phase 3: Native implementation | 3-4 days |
-| Phase 4: Compose integration | 2 days |
-| Phase 5: Hit testing | 1-2 days |
-| Phase 6: Testing & docs | 2-3 days |
-| **Total** | **11-15 days** |
-
----
-
-## Contribution Guidelines
-
-This implementation is designed to be contributed back to `rive-android`. Please ensure:
-
-1. All code follows existing project conventions
-2. KDoc comments on all public APIs
-3. Unit tests for new functionality
-4. Integration with existing CI/CD pipeline
-5. Backward compatibility with existing `RiveUI` API
+5. **Artboard dimension query**: Should we add native support to query artboard width/height?
