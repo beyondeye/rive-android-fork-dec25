@@ -295,8 +295,12 @@ class RiveSprite internal constructor(
     /**
      * Set a number property value on the ViewModelInstance.
      *
-     * If the sprite has no ViewModelInstance or the property doesn't exist,
-     * this method does nothing (optionally logs a warning if [logPropertyWarnings] is true).
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * This allows the same API to work with both modern Rive files (with ViewModels)
+     * and legacy Rive files (without ViewModels, using direct state machine inputs).
      *
      * @param prop The property descriptor
      * @param value The value to set
@@ -308,12 +312,20 @@ class RiveSprite internal constructor(
     /**
      * Set a number property value by path.
      *
-     * @param propertyPath The path to the property (slash-delimited for nested)
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param propertyPath The path to the property (slash-delimited for nested) or input name
      * @param value The value to set
      */
     fun setNumber(propertyPath: String, value: Float) {
-        viewModelInstance?.setNumber(propertyPath, value)
-            ?: logPropertyWarning("setNumber", propertyPath)
+        if (viewModelInstance != null) {
+            viewModelInstance.setNumber(propertyPath, value)
+        } else {
+            // Fallback to legacy state machine input mechanism
+            commandQueue.setStateMachineNumberInput(stateMachineHandle, propertyPath, value)
+        }
     }
 
     /**
@@ -337,6 +349,9 @@ class RiveSprite internal constructor(
     /**
      * Set a string property value on the ViewModelInstance.
      *
+     * Note: String properties are only available via ViewModelInstance.
+     * Legacy Rive files without ViewModels do not support string inputs.
+     *
      * @param prop The property descriptor
      * @param value The value to set
      */
@@ -346,6 +361,9 @@ class RiveSprite internal constructor(
 
     /**
      * Set a string property value by path.
+     *
+     * Note: String properties are only available via ViewModelInstance.
+     * Legacy Rive files without ViewModels do not support string inputs.
      *
      * @param propertyPath The path to the property
      * @param value The value to set
@@ -376,6 +394,10 @@ class RiveSprite internal constructor(
     /**
      * Set a boolean property value on the ViewModelInstance.
      *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
      * @param prop The property descriptor
      * @param value The value to set
      */
@@ -386,12 +408,20 @@ class RiveSprite internal constructor(
     /**
      * Set a boolean property value by path.
      *
-     * @param propertyPath The path to the property
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param propertyPath The path to the property (slash-delimited for nested) or input name
      * @param value The value to set
      */
     fun setBoolean(propertyPath: String, value: Boolean) {
-        viewModelInstance?.setBoolean(propertyPath, value)
-            ?: logPropertyWarning("setBoolean", propertyPath)
+        if (viewModelInstance != null) {
+            viewModelInstance.setBoolean(propertyPath, value)
+        } else {
+            // Fallback to legacy state machine input mechanism
+            commandQueue.setStateMachineBooleanInput(stateMachineHandle, propertyPath, value)
+        }
     }
 
     /**
@@ -493,6 +523,10 @@ class RiveSprite internal constructor(
     /**
      * Fire a trigger property on the ViewModelInstance.
      *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
      * Triggers are one-shot events that cause state transitions without
      * maintaining a value. Use for events like "attack", "jump", "die".
      *
@@ -505,11 +539,19 @@ class RiveSprite internal constructor(
     /**
      * Fire a trigger property by path.
      *
-     * @param propertyPath The path to the trigger property
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param propertyPath The path to the trigger property or input name
      */
     fun fireTrigger(propertyPath: String) {
-        viewModelInstance?.fireTrigger(propertyPath)
-            ?: logPropertyWarning("fireTrigger", propertyPath)
+        if (viewModelInstance != null) {
+            viewModelInstance.fireTrigger(propertyPath)
+        } else {
+            // Fallback to legacy state machine input mechanism
+            commandQueue.fireStateMachineTrigger(stateMachineHandle, propertyPath)
+        }
     }
 
     /**

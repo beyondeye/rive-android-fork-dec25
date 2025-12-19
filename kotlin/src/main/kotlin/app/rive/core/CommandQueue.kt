@@ -229,6 +229,36 @@ class CommandQueue(
         deltaTimeNs: Long
     )
 
+    // ===========================================================================
+    // STATE MACHINE INPUT MANIPULATION (Legacy SMI Support for RiveSprite)
+    // ===========================================================================
+    // These methods enable RiveSprite to control animations in legacy Rive files
+    // that use state machine inputs (SMINumber, SMIBoolean, SMITrigger) instead
+    // of the newer ViewModel property binding system.
+    //
+    // The unified API in RiveSprite automatically chooses between ViewModel
+    // properties and these SMI methods based on whether the file has ViewModels.
+
+    private external fun cppSetStateMachineNumberInput(
+        pointer: Long,
+        stateMachineHandle: Long,
+        inputName: String,
+        value: Float
+    )
+
+    private external fun cppSetStateMachineBooleanInput(
+        pointer: Long,
+        stateMachineHandle: Long,
+        inputName: String,
+        value: Boolean
+    )
+
+    private external fun cppFireStateMachineTrigger(
+        pointer: Long,
+        stateMachineHandle: Long,
+        inputName: String
+    )
+
     private external fun cppNamedVMCreateBlankVMI(
         pointer: Long,
         requestID: Long,
@@ -1232,6 +1262,87 @@ class CommandQueue(
         cppPointer.pointer,
         stateMachineHandle.handle,
         deltaTime.inWholeNanoseconds
+    )
+
+    // ===========================================================================
+    // STATE MACHINE INPUT MANIPULATION (Legacy SMI Support)
+    // ===========================================================================
+    // These public methods allow setting state machine inputs directly by name.
+    // This is the legacy mechanism for controlling animations in Rive files
+    // that don't have ViewModel definitions.
+    //
+    // RiveSprite uses these internally when no ViewModelInstance is available.
+
+    /**
+     * Set a number input on a state machine by name.
+     *
+     * This is used for legacy Rive files that use state machine inputs (SMINumber)
+     * instead of ViewModel properties for animation control.
+     *
+     * @param stateMachineHandle The handle of the state machine.
+     * @param inputName The name of the number input (e.g., "Level", "Speed").
+     * @param value The float value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @note If the input is not found or is not a number type, the operation is
+     *       silently ignored (matches RiveFileController behavior).
+     */
+    @Throws(IllegalStateException::class)
+    fun setStateMachineNumberInput(
+        stateMachineHandle: StateMachineHandle,
+        inputName: String,
+        value: Float
+    ) = cppSetStateMachineNumberInput(
+        cppPointer.pointer,
+        stateMachineHandle.handle,
+        inputName,
+        value
+    )
+
+    /**
+     * Set a boolean input on a state machine by name.
+     *
+     * This is used for legacy Rive files that use state machine inputs (SMIBoolean)
+     * instead of ViewModel properties for animation control.
+     *
+     * @param stateMachineHandle The handle of the state machine.
+     * @param inputName The name of the boolean input (e.g., "isActive", "enabled").
+     * @param value The boolean value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @note If the input is not found or is not a boolean type, the operation is
+     *       silently ignored (matches RiveFileController behavior).
+     */
+    @Throws(IllegalStateException::class)
+    fun setStateMachineBooleanInput(
+        stateMachineHandle: StateMachineHandle,
+        inputName: String,
+        value: Boolean
+    ) = cppSetStateMachineBooleanInput(
+        cppPointer.pointer,
+        stateMachineHandle.handle,
+        inputName,
+        value
+    )
+
+    /**
+     * Fire a trigger input on a state machine by name.
+     *
+     * This is used for legacy Rive files that use state machine inputs (SMITrigger)
+     * instead of ViewModel properties for animation control.
+     *
+     * @param stateMachineHandle The handle of the state machine.
+     * @param inputName The name of the trigger input (e.g., "attack", "jump").
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @note If the input is not found or is not a trigger type, the operation is
+     *       silently ignored (matches RiveFileController behavior).
+     */
+    @Throws(IllegalStateException::class)
+    fun fireStateMachineTrigger(
+        stateMachineHandle: StateMachineHandle,
+        inputName: String
+    ) = cppFireStateMachineTrigger(
+        cppPointer.pointer,
+        stateMachineHandle.handle,
+        inputName
     )
 
     /**
