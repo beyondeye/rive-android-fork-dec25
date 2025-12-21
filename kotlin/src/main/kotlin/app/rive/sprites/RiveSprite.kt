@@ -728,11 +728,15 @@ class RiveSprite internal constructor(
     /**
      * Compute the transformation matrix for rendering this sprite.
      *
-     * The matrix combines translation, rotation, and scale in the correct order:
-     * 1. Translate to position
-     * 2. Rotate around origin
-     * 3. Scale around origin
-     * 4. Translate by origin offset (to position the pivot correctly)
+     * The matrix combines translation, rotation, and scale in the correct order
+     * for pivot-based transformations:
+     * 1. Translate pivot to origin (so transforms happen around the pivot point)
+     * 2. Scale around origin (which is now the pivot)
+     * 3. Rotate around origin (which is now the pivot)
+     * 4. Translate to final position
+     *
+     * This ensures that both rotation and scale happen around the sprite's
+     * origin (pivot point), which can be Center, TopLeft, or Custom.
      *
      * @return A [Matrix] representing the full transformation.
      */
@@ -740,25 +744,26 @@ class RiveSprite internal constructor(
         val matrix = Matrix()
 
         val displaySize = effectiveSize
-        val pivotX = origin.pivotX * displaySize.width * scale.scaleX
-        val pivotY = origin.pivotY * displaySize.height * scale.scaleY
+        // Pivot in LOCAL unscaled coordinates
+        val pivotX = origin.pivotX * displaySize.width
+        val pivotY = origin.pivotY * displaySize.height
 
         // Apply transformations in order:
-        // 1. Translate to position
-        matrix.postTranslate(position.x, position.y)
-
-        // 2. Rotate around the position (which is the pivot point)
-        if (rotation != 0f) {
-            matrix.postRotate(rotation, position.x, position.y)
-        }
-
-        // 3. Scale around the position
-        if (scale != SpriteScale.Unscaled) {
-            matrix.postScale(scale.scaleX, scale.scaleY, position.x, position.y)
-        }
-
-        // 4. Offset by pivot to position correctly
+        // 1. Translate pivot to origin (so transforms happen around pivot)
         matrix.postTranslate(-pivotX, -pivotY)
+
+        // 2. Scale around origin (which is now the pivot)
+        if (scale != SpriteScale.Unscaled) {
+            matrix.postScale(scale.scaleX, scale.scaleY)
+        }
+
+        // 3. Rotate around origin (which is now the pivot)
+        if (rotation != 0f) {
+            matrix.postRotate(rotation)
+        }
+
+        // 4. Translate to final position
+        matrix.postTranslate(position.x, position.y)
 
         return matrix
     }
