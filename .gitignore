@@ -33,3 +33,4 @@ local.properties
 # =====
 *.hprof
 tombstones/
+/kotlin/src/main/cpp/out/
