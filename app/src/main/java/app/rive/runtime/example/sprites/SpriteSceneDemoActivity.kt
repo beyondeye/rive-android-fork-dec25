@@ -301,7 +301,7 @@ class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_
 
     companion object {
         // Number of frames to average for FPS calculation
-        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 60
+        const val DEFAULT_FPS_AVERAGE_FRAME_COUNT = 300
 
     }
 }

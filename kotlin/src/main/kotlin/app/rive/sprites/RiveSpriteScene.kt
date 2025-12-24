@@ -353,6 +353,37 @@ class RiveSpriteScene(
 
     // endregion
 
+    // region Sorted Sprite Cache (Optimization)
+
+    /**
+     * Cached sorted sprites list, reused across frames.
+     * Only rebuilt when sprites are added/removed or visibility/z-index changes.
+     */
+    private var cachedSortedSprites: List<RiveSprite>? = null
+    
+    /**
+     * Version counter for cache invalidation.
+     * Incremented whenever the sorted list needs to be rebuilt.
+     */
+    private var sortedSpritesVersion: Int = 0
+    
+    /**
+     * Last known version that was cached.
+     * Used to detect when cache is stale.
+     */
+    private var lastKnownVersion: Int = -1
+
+    /**
+     * Invalidate the sorted sprites cache.
+     * Called when sprites are added/removed or when visibility/z-index changes.
+     */
+    private fun invalidateSortedCache() {
+        sortedSpritesVersion++
+        cachedSortedSprites = null
+    }
+
+    // endregion
+
     /**
      * Read-only view of all sprites in this scene.
      *
@@ -406,6 +437,7 @@ class RiveSpriteScene(
         )
         _sprites.add(sprite)
         markDirty()
+        invalidateSortedCache()
         
         RiveLog.d(SPRITE_SCENE_TAG) { 
             "Created sprite (artboard=${artboardName ?: "default"}, " +
@@ -432,6 +464,7 @@ class RiveSpriteScene(
         
         _sprites.add(sprite)
         markDirty()
+        invalidateSortedCache()
         RiveLog.d(SPRITE_SCENE_TAG) { "Added sprite, total=${_sprites.size}" }
     }
 
@@ -446,6 +479,7 @@ class RiveSpriteScene(
         if (removed) {
             sprite.close()
             markDirty()
+            invalidateSortedCache()
             RiveLog.d(SPRITE_SCENE_TAG) { "Removed sprite, total=${_sprites.size}" }
         }
         return removed
@@ -464,6 +498,7 @@ class RiveSpriteScene(
         val removed = _sprites.remove(sprite)
         if (removed) {
             markDirty()
+            invalidateSortedCache()
             RiveLog.d(SPRITE_SCENE_TAG) { "Detached sprite, total=${_sprites.size}" }
         }
         return removed
@@ -477,6 +512,7 @@ class RiveSpriteScene(
         _sprites.forEach { it.close() }
         _sprites.clear()
         markDirty()
+        invalidateSortedCache()
     }
 
     // endregion
@@ -826,6 +862,12 @@ class RiveSpriteScene(
 
     // region Rendering Support
 
+    fun getSortedSprites_notcached(): List<RiveSprite> {
+        return _sprites
+            .filter { it.isVisible }
+            .sortedBy { it.zIndex }
+    }
+
     /**
      * Get all visible sprites sorted by z-index for rendering.
      *
@@ -835,12 +877,26 @@ class RiveSpriteScene(
      * Sprites with the same z-index maintain their relative insertion order
      * (stable sort).
      *
+     * **Optimization:** This method caches the sorted list and only rebuilds
+     * when sprites are added/removed or visibility/z-index changes. This avoids
+     * creating 2 intermediate lists (filter + sortedBy) every frame.
+     *
      * @return A list of visible sprites sorted by z-index ascending.
      */
     fun getSortedSprites(): List<RiveSprite> {
-        return _sprites
+        // Return cached list if still valid
+        if (cachedSortedSprites != null && lastKnownVersion == sortedSpritesVersion) {
+            return cachedSortedSprites!!
+        }
+
+        // Rebuild sorted list
+        val sorted = _sprites
             .filter { it.isVisible }
             .sortedBy { it.zIndex }
+
+        cachedSortedSprites = sorted
+        lastKnownVersion = sortedSpritesVersion
+        return sorted
     }
 
     /**
