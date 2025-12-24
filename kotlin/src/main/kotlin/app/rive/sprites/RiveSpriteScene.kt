@@ -197,6 +197,22 @@ class RiveSpriteScene(
      */
     private var pixelBuffer: ByteArray? = null
 
+    // endregion
+
+    // region Pre-allocated Arrays for Batch Rendering (Optimization)
+
+    /**
+     * Pre-allocated array of SpriteDrawCommand objects, reused across frames.
+     * Only recreated when the sprite count changes.
+     */
+    private var drawCommandsArray: Array<SpriteDrawCommand?> = emptyArray()
+
+    /**
+     * Pre-allocated transform buffers (one FloatArray per sprite).
+     * Each buffer is 6 elements for affine transform: [scaleX, skewY, skewX, scaleY, tx, ty]
+     */
+    private var transformBuffers: Array<FloatArray> = emptyArray()
+
     /**
      * Get or create the shared GPU surface for batch rendering.
      *
@@ -254,19 +270,52 @@ class RiveSpriteScene(
      * This converts all visible sprites into draw commands that can be passed
      * to [CommandQueue.drawMultiple].
      *
+     * **Optimization:** This method reuses pre-allocated SpriteDrawCommand objects
+     * and transform buffers to avoid allocations on every frame. Commands and buffers
+     * are only recreated when the sprite count changes.
+     *
      * @return List of draw commands, sorted by z-index.
      */
     internal fun buildDrawCommands(): List<SpriteDrawCommand> {
-        return getSortedSprites().map { sprite ->
-            val effectiveSize = sprite.effectiveSize
-            SpriteDrawCommand(
-                artboardHandle = sprite.artboardHandle,
-                stateMachineHandle = sprite.stateMachineHandle,
-                transform = sprite.computeTransformArray(),
-                artboardWidth = effectiveSize.width,
-                artboardHeight = effectiveSize.height
-            )
+        val sortedSprites = getSortedSprites()
+        val count = sortedSprites.size
+
+        // Resize arrays only when sprite count changes
+        if (drawCommandsArray.size != count) {
+            drawCommandsArray = Array(count) { null }
+            transformBuffers = Array(count) { FloatArray(6) }
         }
+
+        // Reuse existing command objects, updating their data
+        sortedSprites.forEachIndexed { index, sprite ->
+            val effectiveSize = sprite.effectiveSize
+            val transformBuffer = transformBuffers[index]
+
+            // Compute transform directly into pre-allocated buffer (zero allocation)
+            sprite.computeTransformArrayInto(transformBuffer)
+
+            val command = drawCommandsArray[index]
+            if (command == null) {
+                // Create new command only once
+                drawCommandsArray[index] = SpriteDrawCommand(
+                    artboardHandle = sprite.artboardHandle,
+                    stateMachineHandle = sprite.stateMachineHandle,
+                    transform = transformBuffer,
+                    artboardWidth = effectiveSize.width,
+                    artboardHeight = effectiveSize.height
+                )
+            } else {
+                // Reuse existing command, update its fields
+                command.artboardHandle = sprite.artboardHandle
+                command.stateMachineHandle = sprite.stateMachineHandle
+                // transform array is already updated in transformBuffer (referenced by command)
+                command.artboardWidth = effectiveSize.width
+                command.artboardHeight = effectiveSize.height
+            }
+        }
+
+        // Return a view of the active commands (filterNotNull handles partial fills)
+        return drawCommandsArray.filterNotNull().take(count)
     }
 
     // endregion

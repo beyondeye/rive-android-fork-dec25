@@ -67,11 +67,11 @@ const val COMMAND_QUEUE_TAG = "Rive/CQ"
  * @param artboardHeight The height of the artboard in pixels (used for scaling calculations).
  */
 data class SpriteDrawCommand(
-    val artboardHandle: ArtboardHandle,
-    val stateMachineHandle: StateMachineHandle,
-    val transform: FloatArray,
-    val artboardWidth: Float,
-    val artboardHeight: Float,
+    var artboardHandle: ArtboardHandle,
+    var stateMachineHandle: StateMachineHandle,
+    val transform: FloatArray,  // Keep as val - it's a reference to pre-allocated buffer
+    var artboardWidth: Float,
+    var artboardHeight: Float,
 ) {
     init {
         require(transform.size == 6) { 

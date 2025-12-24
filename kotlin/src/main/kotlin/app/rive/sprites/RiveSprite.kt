@@ -801,6 +801,52 @@ class RiveSprite internal constructor(
     }
 
     /**
+     * Compute transform array directly into provided buffer (zero allocation).
+     *
+     * This is an optimized version of [computeTransformArray] that writes directly
+     * into a pre-allocated buffer, avoiding repeated FloatArray allocations.
+     *
+     * The affine transformation is computed directly without creating a Matrix object,
+     * which eliminates both object allocation and matrix operation overhead.
+     *
+     * @param outArray The output buffer to write the transform into. Must be size 6.
+     */
+    internal fun computeTransformArrayInto(outArray: FloatArray) {
+        require(outArray.size == 6) { "Transform array must be size 6, got ${outArray.size}" }
+
+        val displaySize = effectiveSize
+        val pivotX = origin.pivotX * displaySize.width
+        val pivotY = origin.pivotY * displaySize.height
+
+        val scaleX = scale.scaleX
+        val scaleY = scale.scaleY
+
+        if (rotation == 0f) {
+            // Fast path for non-rotated sprites (common case)
+            outArray[0] = scaleX
+            outArray[1] = 0f
+            outArray[2] = 0f
+            outArray[3] = scaleY
+            outArray[4] = position.x - pivotX * scaleX
+            outArray[5] = position.y - pivotY * scaleY
+        } else {
+            // Full affine transform with rotation
+            val radians = Math.toRadians(rotation.toDouble())
+            val cos = kotlin.math.cos(radians).toFloat()
+            val sin = kotlin.math.sin(radians).toFloat()
+
+            // Affine matrix: [a, b, c, d, tx, ty]
+            // Combines: translate(-pivot), scale, rotate, translate(position)
+            outArray[0] = scaleX * cos           // a: scaleX
+            outArray[1] = scaleY * sin           // b: skewY  
+            outArray[2] = -scaleX * sin          // c: skewX
+            outArray[3] = scaleY * cos           // d: scaleY
+            outArray[4] = position.x - (pivotX * scaleX * cos - pivotY * scaleX * sin)  // tx
+            outArray[5] = position.y - (pivotX * scaleY * sin + pivotY * scaleY * cos)  // ty
+        }
+    }
+
+    /**
      * Get the axis-aligned bounding box of the sprite in DrawScope coordinates.
      *
      * This accounts for all transformations and returns the smallest rectangle
