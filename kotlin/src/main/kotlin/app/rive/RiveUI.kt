@@ -17,12 +17,20 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerInputFilter
+import androidx.compose.ui.input.pointer.PointerInputModifier
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import app.rive.RivePointerInputMode.Consume
+import app.rive.RivePointerInputMode.Observe
+import app.rive.RivePointerInputMode.PassThrough
 import app.rive.core.RebuggerWrapper
 import app.rive.core.RiveSurface
 import app.rive.runtime.kotlin.core.Alignment
@@ -67,6 +75,22 @@ sealed interface Result<out T> {
 typealias GetBitmapFun = () -> Bitmap
 
 /**
+ * Controls how RiveUI participates in Compose pointer input dispatch.
+ * - [Consume]: RiveUI handles pointer events and consumes them, preventing parent/ancestor gesture
+ *   detectors (e.g., scroll) from also acting.
+ * - [Observe]: RiveUI handles pointer events but does not consume them. Parent/ancestor gesture
+ *   detectors may also react.
+ * - [PassThrough]: RiveUI handles pointer events and also shares them with any sibling composables
+ *   positioned underneath it without consuming. Useful if your Rive file is an overlay with
+ *   transparent sections that should allow pointer events through.
+ */
+enum class RivePointerInputMode {
+    Consume,
+    Observe,
+    PassThrough,
+}
+
+/**
  * The main composable for rendering a Rive file's artboard and state machine.
  *
  * Internally, RiveUI uses a [TextureView] to create and manage a [Surface] for rendering.
@@ -90,7 +114,11 @@ typealias GetBitmapFun = () -> Bitmap
  *    model instance will be bound.
  * @param fit The [Fit] to use for the artboard. Defaults to [Fit.CONTAIN].
  * @param alignment The [Alignment] to use for the artboard. Defaults to [Alignment.CENTER].
+ * @param layoutScaleFactor The scale factor to use when [fit] is set to [Fit.LAYOUT]. Defaults to
+ *    1f. Does not affect other [Fit] modes.
  * @param clearColor The color to clear the surface with before drawing. Defaults to transparent.
+ * @param pointerInputMode Controls how pointer events are handled and consumed by RiveUI. See
+ *    [RivePointerInputMode]. Default is [RivePointerInputMode.Consume].
  * @param onBitmapAvailable Optional callback that is invoked when the first bitmap frame is
  *    available. The callback provides a function to get the current [Bitmap] from the underlying
  *    [TextureView]. This can be used for snapshot testing or storing rendered output. The bitmap
@@ -107,7 +135,9 @@ fun RiveUI(
     viewModelInstance: ViewModelInstance? = null,
     fit: Fit = Fit.CONTAIN,
     alignment: Alignment = Alignment.CENTER,
+    layoutScaleFactor: Float = 1f,
     clearColor: Int = Color.Transparent.toArgb(),
+    pointerInputMode: RivePointerInputMode = Consume,
     onBitmapAvailable: ((getBitmap: GetBitmapFun) -> Unit)? = null,
 ) {
     RiveLog.v(GENERAL_TAG) { "RiveUI Recomposing" }
@@ -116,42 +146,25 @@ fun RiveUI(
     val commandQueue = file.commandQueue
 
     /** Use provided artboard or create a default one. */
-    val artboardToUse = remember(file.fileHandle, artboard) {
-        artboard ?: Artboard.fromFile(file)
-    }
+    val artboardToUse = artboard ?: rememberArtboard(file)
     val artboardHandle = artboardToUse.artboardHandle
 
-    /** Clean up the artboard if we created it internally. */
-    DisposableEffect(artboardToUse) {
-        onDispose {
-            if (artboard == null) {
-                artboardToUse.close()
-            }
-        }
-    }
-
     /** Use provided state machine or create a default one. */
-    val stateMachineToUse = remember(file.fileHandle, artboardHandle, stateMachine) {
-        stateMachine ?: StateMachine.fromArtboard(
-            artboardToUse,
-            null
-        )
-    }
+    val stateMachineToUse = stateMachine ?: rememberStateMachine(artboardToUse)
     val stateMachineHandle = stateMachineToUse.stateMachineHandle
     var isSettled by remember(stateMachineHandle) { mutableStateOf(false) }
-
-    /** Clean up for the state machine if we created it internally. */
-    DisposableEffect(stateMachineToUse) {
-        onDispose {
-            if (stateMachine == null) {
-                stateMachineToUse.close()
-            }
-        }
-    }
 
     var surface by remember { mutableStateOf<RiveSurface?>(null) }
     var surfaceWidth by remember { mutableIntStateOf(0) }
     var surfaceHeight by remember { mutableIntStateOf(0) }
+
+    /** Clean up for the surface. */
+    DisposableEffect(surface) {
+        val nonNullSurface = surface ?: return@DisposableEffect onDispose {}
+        onDispose {
+            commandQueue.destroyRiveSurface(nonNullSurface)
+        }
+    }
 
     val currentOnBitmapAvailable by rememberUpdatedState(onBitmapAvailable)
     var bitmapCallbackSent by remember { mutableStateOf(false) }
@@ -160,15 +173,18 @@ fun RiveUI(
     RebuggerWrapper(
         trackMap = mapOf(
             "file" to file,
+            "playing" to playing,
+            "artboard" to artboard,
             "artboardHandle" to artboardHandle,
+            "stateMachine" to stateMachine,
             "stateMachineHandle" to stateMachineHandle,
-            "surface" to surface,
+            "viewModelInstance" to viewModelInstance,
             "fit" to fit,
             "alignment" to alignment,
+            "layoutScaleFactor" to layoutScaleFactor,
+            "clearColor" to clearColor,
+            "surface" to surface,
             "lifecycleOwner" to lifecycleOwner,
-            "artboard" to artboard,
-            "stateMachine" to stateMachine,
-            "playing" to playing,
         )
     )
 
@@ -185,35 +201,13 @@ fun RiveUI(
             viewModelInstance.instanceHandle
         )
 
-        // Advance to exit the "Entry" state and apply initial values
-        commandQueue.advanceStateMachine(stateMachineHandle, 0.nanoseconds)
-
         // Assigning a view model instance unsettles the state machine
         isSettled = false
-
-        if (!playing) {
-            commandQueue.draw(
-                artboardHandle,
-                stateMachineHandle,
-                fit,
-                alignment,
-                surface!!,
-                clearColor
-            )
-        }
 
         // Subscribe to the instance's dirty flow to unsettle when properties change
         viewModelInstance.dirtyFlow.collect {
             RiveLog.v(VM_INSTANCE_TAG) { "View model instance dirty, unsettling $stateMachineHandle" }
             isSettled = false
-        }
-    }
-
-    /** Clean up for the surface. */
-    DisposableEffect(surface) {
-        val nonNullSurface = surface ?: return@DisposableEffect onDispose {}
-        onDispose {
-            commandQueue.destroyRiveSurface(nonNullSurface)
         }
     }
 
@@ -228,10 +222,28 @@ fun RiveUI(
     }
 
     /**
-     * Changing the fit, alignment, or clear color unsettles the state machine, forcing a re-draw.
+     * Changing the fit, alignment, layout scale factor, or clear color unsettles the state machine,
+     * forcing a re-draw.
      */
-    LaunchedEffect(fit, alignment, clearColor) {
+    LaunchedEffect(fit, alignment, layoutScaleFactor, clearColor) {
+        RiveLog.d(STATE_MACHINE_TAG) {
+            "State machine $stateMachineHandle unsettled due to parameter change"
+        }
         isSettled = false
+    }
+
+    /** Resize artboard based on fit parameter. */
+    LaunchedEffect(fit, surface, surfaceWidth, surfaceHeight, layoutScaleFactor) {
+        if (surface == null) {
+            return@LaunchedEffect
+        }
+        if (fit == Fit.LAYOUT) {
+            RiveLog.d(GENERAL_TAG) { "Resizing artboard to $surfaceWidth x $surfaceHeight" }
+            artboardToUse.resizeArtboard(surface!!, layoutScaleFactor)
+        } else {
+            RiveLog.d(GENERAL_TAG) { "Resetting artboard size" }
+            artboardToUse.resetArtboardSize()
+        }
     }
 
     /** Drawing loop while RESUMED. */
@@ -240,8 +252,10 @@ fun RiveUI(
         surface,
         artboardHandle,
         stateMachineHandle,
+        viewModelInstance,
         fit,
         alignment,
+        layoutScaleFactor,
         clearColor,
         playing,
     ) {
@@ -250,14 +264,20 @@ fun RiveUI(
             return@LaunchedEffect
         }
         if (!playing) {
-            RiveLog.d(DRAW_TAG) { "Playing is false, skipping advancement loop" }
+            RiveLog.d(DRAW_TAG) {
+                "Playing is false. Advancing by 0, drawing once, and skipping advancement loop."
+            }
 
+            //Advance the state machine once to exit the "Entry" state and apply initial values,
+            // including any pending artboard resizes from the fit mode.
+            stateMachineToUse.advance(0.nanoseconds)
             commandQueue.draw(
                 artboardHandle,
                 stateMachineHandle,
+                surface!!,
                 fit,
                 alignment,
-                surface!!,
+                layoutScaleFactor,
                 clearColor
             )
 
@@ -283,9 +303,10 @@ fun RiveUI(
                 commandQueue.draw(
                     artboardHandle,
                     stateMachineHandle,
+                    surface!!,
                     fit,
                     alignment,
-                    surface!!,
+                    layoutScaleFactor,
                     clearColor
                 )
             }
@@ -293,99 +314,136 @@ fun RiveUI(
         }
     }
 
-    AndroidView(
-        factory = { context ->
-            TextureView(context).apply {
-                isOpaque = false
+    /**
+     * A wrapper for the interior AndroidView, since it handles pointer inputs in a non-standard way
+     * by passing through all touch events. This gives us a standard Composable to handle pointer
+     * events. Effectively a Box, but without pulling in the dependency on the Layout lib.
+     */
+    @Composable
+    fun SingleChildLayout(
+        modifier: Modifier = Modifier,
+        content: @Composable () -> Unit
+    ) {
+        Layout(
+            content = content,
+            modifier = modifier
+        ) { measurables, constraints ->
+            val placeable = measurables.single().measure(constraints)
+            layout(placeable.width, placeable.height) {
+                placeable.place(0, 0)
+            }
+        }
+    }
 
-                surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                    override fun onSurfaceTextureAvailable(
-                        newSurfaceTexture: SurfaceTexture,
-                        width: Int,
-                        height: Int
-                    ) {
-                        RiveLog.d(GENERAL_TAG) { "Surface texture available ($width x $height)" }
-                        surface = commandQueue.createRiveSurface(newSurfaceTexture)
-                        surfaceWidth = width
-                        surfaceHeight = height
-                        // Because this is a new surface, we send a fresh callback
-                        bitmapCallbackSent = false
+    val passThroughInputModifier = object : PointerInputModifier {
+        override val pointerInputFilter: PointerInputFilter =
+            object : PointerInputFilter() {
+                override fun onPointerEvent(
+                    pointerEvent: PointerEvent,
+                    pass: PointerEventPass,
+                    bounds: IntSize
+                ) {
+                    // Only handle the main pass so we don't double-dispatch.
+                    if (pass != PointerEventPass.Main) return
+
+                    // Pointer events unsettle the state machine.
+                    isSettled = false
+
+                    val pointerFn = when (pointerEvent.type) {
+                        PointerEventType.Move -> commandQueue::pointerMove
+                        PointerEventType.Release -> commandQueue::pointerUp
+                        PointerEventType.Press -> commandQueue::pointerDown
+                        PointerEventType.Exit -> commandQueue::pointerExit
+                        else -> return // Ignore other pointer events
                     }
 
-                    override fun onSurfaceTextureDestroyed(destroyedSurfaceTexture: SurfaceTexture): Boolean {
-                        RiveLog.d(GENERAL_TAG) { "Surface texture destroyed (final release deferred to RenderContext disposal)" }
-                        surface = null
-                        bitmapCallbackSent = false
-                        // False here means that we are responsible for destroying the surface texture
-                        // This happens in RenderContext::close(), called from CommandQueue::destroyRiveSurface
-                        return false
-                    }
+                    pointerEvent.changes.forEach { change ->
+                        val pointerPosition = change.position
+                        pointerFn(
+                            stateMachineHandle,
+                            fit,
+                            alignment,
+                            layoutScaleFactor,
+                            surfaceWidth.toFloat(),
+                            surfaceHeight.toFloat(),
+                            change.id.value.toInt(),
+                            pointerPosition.x,
+                            pointerPosition.y
+                        )
 
-                    override fun onSurfaceTextureSizeChanged(
-                        surfaceTexture: SurfaceTexture,
-                        width: Int,
-                        height: Int
-                    ) {
-                        RiveLog.d(GENERAL_TAG) { "Surface texture size changed ($width x $height)" }
-                        surfaceWidth = width
-                        surfaceHeight = height
+                        // Only consume in Consume mode. Observe/PassThrough do not consume.
+                        if (pointerInputMode == Consume) {
+                            change.consume()
+                        }
                     }
+                }
 
-                    override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {
-                        // Only dispatch once per surface, and only when a real frame is available
-                        if (!bitmapCallbackSent) {
-                            val bmp = bitmap
-                            if (bmp != null) {
-                                bitmapCallbackSent = true
-                                currentOnBitmapAvailable?.invoke {
-                                    // Getter is safe because we only expose it after first non-null frame
-                                    bitmap
-                                        ?: error("Bitmap no longer available; surface may have been destroyed")
+                override fun onCancel() {}
+                override val shareWithSiblings: Boolean =
+                    pointerInputMode == PassThrough
+            }
+    }
+
+    SingleChildLayout(modifier = modifier.then(passThroughInputModifier)) {
+        AndroidView(
+            factory = { context ->
+                TextureView(context).apply {
+                    isOpaque = false
+
+                    surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                        override fun onSurfaceTextureAvailable(
+                            newSurfaceTexture: SurfaceTexture,
+                            width: Int,
+                            height: Int
+                        ) {
+                            RiveLog.d(GENERAL_TAG) { "Surface texture available ($width x $height)" }
+                            surface = commandQueue.createRiveSurface(newSurfaceTexture)
+                            surfaceWidth = width
+                            surfaceHeight = height
+                            // Because this is a new surface, we send a fresh callback
+                            bitmapCallbackSent = false
+                        }
+
+                        override fun onSurfaceTextureDestroyed(destroyedSurfaceTexture: SurfaceTexture): Boolean {
+                            RiveLog.d(GENERAL_TAG) { "Surface texture destroyed (final release deferred to RenderContext disposal)" }
+                            surface = null
+                            bitmapCallbackSent = false
+                            // False here means that we are responsible for destroying the surface texture
+                            // This happens in RenderContext::close(), called from CommandQueue::destroyRiveSurface
+                            return false
+                        }
+
+                        override fun onSurfaceTextureSizeChanged(
+                            surfaceTexture: SurfaceTexture,
+                            width: Int,
+                            height: Int
+                        ) {
+                            RiveLog.d(GENERAL_TAG) { "Surface texture size changed ($width x $height)" }
+                            surfaceWidth = width
+                            surfaceHeight = height
+                        }
+
+                        override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {
+                            // Only dispatch once per surface, and only when a real frame is available
+                            if (!bitmapCallbackSent) {
+                                val bmp = bitmap
+                                if (bmp != null) {
+                                    bitmapCallbackSent = true
+                                    // Post the callback to the next frame to ensure the bitmap is fully rendered.
+                                    // Prevents race conditions where the callback is invoked before the
+                                    // draw command has completed rendering to the surface.
+                                    post {
+                                        currentOnBitmapAvailable?.invoke {
+                                            // Getter is safe because we only expose it after first non-null frame
+                                            bitmap
+                                                ?: error("Bitmap no longer available; surface may have been destroyed")
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-        },
-        modifier = modifier.then(
-            Modifier.pointerInput(
-                stateMachineHandle,
-                fit,
-                alignment,
-                surfaceWidth,
-                surfaceHeight
-            ) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-
-                        // Pointer events unsettle the state machine
-                        isSettled = false
-
-                        val pointerFn = when (event.type) {
-                            PointerEventType.Move -> commandQueue::pointerMove
-                            PointerEventType.Release -> commandQueue::pointerUp
-                            PointerEventType.Press -> commandQueue::pointerDown
-                            PointerEventType.Exit -> commandQueue::pointerExit
-                            else -> continue // Ignore other pointer events
-                        }
-                        event.changes.forEach { change ->
-                            val pointerPosition = change.position
-                            pointerFn(
-                                stateMachineHandle,
-                                fit,
-                                alignment,
-                                surfaceWidth.toFloat(),
-                                surfaceHeight.toFloat(),
-                                change.id.value.toInt(),
-                                pointerPosition.x,
-                                pointerPosition.y
-                            )
-                        }
-                    }
-                }
-            }
-        )
-    )
+            })
+    }
 }
