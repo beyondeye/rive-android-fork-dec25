@@ -623,11 +623,13 @@ class RiveSprite internal constructor(
 
         // Forward to state machine using artboard coordinates
         // Use FILL fit and artboard size as surface size so coords pass through unchanged
+        // layoutScale is 1f because it only applies to Fit.LAYOUT; for other fit types it's always 1f
         val displaySize = effectiveSize
         commandQueue.pointerDown(
             stateMachineHandle = stateMachineHandle,
             fit = Fit.FILL,
             alignment = Alignment.CENTER,
+            layoutScale = 1f,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -659,6 +661,7 @@ class RiveSprite internal constructor(
             stateMachineHandle = stateMachineHandle,
             fit = Fit.FILL,
             alignment = Alignment.CENTER,
+            layoutScale = 1f,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -689,6 +692,7 @@ class RiveSprite internal constructor(
             stateMachineHandle = stateMachineHandle,
             fit = Fit.FILL,
             alignment = Alignment.CENTER,
+            layoutScale = 1f,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -713,6 +717,7 @@ class RiveSprite internal constructor(
             stateMachineHandle = stateMachineHandle,
             fit = Fit.FILL,
             alignment = Alignment.CENTER,
+            layoutScale = 1f,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,

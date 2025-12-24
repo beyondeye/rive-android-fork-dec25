@@ -423,7 +423,8 @@ private fun renderSpriteToCanvas(
         sprite.stateMachine,
         Fit.FILL,  // Fill the sprite size
         Alignment.CENTER,
-        Color.TRANSPARENT
+        scaleFactor = 1f,
+        clearColor = Color.TRANSPARENT
     )
 
     // Convert to bitmap
