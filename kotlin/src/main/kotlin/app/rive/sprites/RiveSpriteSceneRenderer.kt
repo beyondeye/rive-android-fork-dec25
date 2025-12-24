@@ -373,10 +373,19 @@ private fun DrawScope.drawRiveSpritesBatch(
 }
 
 /**
- * Copy pixels from a BGRA byte buffer to an ARGB_8888 bitmap.
+ * Reusable ByteBuffer for pixel buffer copies (Step 4 optimization).
+ * Cached to avoid creating a wrapper object every frame.
+ */
+private var reusablePixelByteBuffer: java.nio.ByteBuffer? = null
+
+/**
+ * Copy pixels from a BGRA byte buffer to an ARGB_8888 bitmap (OPTIMIZED).
  *
  * The native code outputs BGRA format which matches Android's ARGB_8888 byte order
  * on little-endian systems. This allows direct buffer copy without per-pixel conversion.
+ *
+ * **Optimization (Step 4):** This method reuses a cached ByteBuffer instead of creating
+ * a new wrapper object every frame, reducing allocations and CPU overhead.
  *
  * @param buffer Source buffer in BGRA format (4 bytes per pixel).
  * @param bitmap Destination bitmap in ARGB_8888 format.
@@ -384,6 +393,43 @@ private fun DrawScope.drawRiveSpritesBatch(
  * @param height Height in pixels.
  */
 private fun copyPixelBufferToBitmap(
+    buffer: ByteArray,
+    bitmap: Bitmap,
+    width: Int,
+    height: Int,
+) {
+    // Check if we need to recreate the buffer (size changed)
+    val requiredCapacity = width * height * 4
+    if (reusablePixelByteBuffer?.capacity() != requiredCapacity) {
+        reusablePixelByteBuffer = null
+    }
+    
+    // Get or create the reusable ByteBuffer
+    val byteBuffer = reusablePixelByteBuffer ?: java.nio.ByteBuffer.wrap(buffer).also {
+        reusablePixelByteBuffer = it
+    }
+    
+    // Update buffer contents and copy to bitmap
+    byteBuffer.rewind()
+    byteBuffer.put(buffer)
+    byteBuffer.rewind()
+    bitmap.copyPixelsFromBuffer(byteBuffer)
+}
+
+/**
+ * Original implementation - creates new ByteBuffer wrapper every frame.
+ *
+ * **This method is kept for reference and potential fallback.**
+ * 
+ * @deprecated Use [copyPixelBufferToBitmap] instead for better performance (Step 4 optimization).
+ * The optimized version reuses a cached ByteBuffer to avoid allocations.
+ */
+@Deprecated(
+    message = "Use copyPixelBufferToBitmap instead (optimized version with buffer reuse)",
+    replaceWith = ReplaceWith("copyPixelBufferToBitmap(buffer, bitmap, width, height)")
+)
+@Suppress("UNUSED")
+private fun copyPixelBufferToBitmapOriginal(
     buffer: ByteArray,
     bitmap: Bitmap,
     width: Int,
