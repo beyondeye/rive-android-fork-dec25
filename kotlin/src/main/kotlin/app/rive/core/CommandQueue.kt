@@ -151,6 +151,7 @@ class CommandQueue(
     private val renderContext: RenderContext = RenderContextGL(),
     private val bridge: CommandQueueBridge = CommandQueueJNIBridge(),
 ) : RefCounted {
+    private external fun cppPollMessages(pointer: Long)
     private external fun cppGetArtboardNames(
         pointer: Long,
         requestID: Long,
@@ -438,6 +439,7 @@ class CommandQueue(
         stateMachineHandle: Long,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -450,6 +452,7 @@ class CommandQueue(
         stateMachineHandle: Long,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -462,6 +465,7 @@ class CommandQueue(
         stateMachineHandle: Long,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -474,6 +478,7 @@ class CommandQueue(
         stateMachineHandle: Long,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -481,9 +486,21 @@ class CommandQueue(
         y: Float
     )
 
+    private external fun cppResizeArtboard(
+        pointer: Long,
+        artboardHandle: Long,
+        width: Int,
+        height: Int,
+        scaleFactor: Float
+    )
+
+    private external fun cppResetArtboardSize(
+        pointer: Long,
+        artboardHandle: Long
+    )
+
     private external fun cppCreateRiveRenderTarget(pointer: Long, width: Int, height: Int): Long
     private external fun cppCreateDrawKey(pointer: Long): Long
-    private external fun cppPollMessages(pointer: Long)
     private external fun cppDraw(
         pointer: Long,
         renderContextPointer: Long,
@@ -496,6 +513,7 @@ class CommandQueue(
         height: Int,
         fit: Fit,
         alignment: Alignment,
+        scaleFactor: Float,
         clearColor: Int
     )
 
@@ -511,6 +529,7 @@ class CommandQueue(
         height: Int,
         fit: Fit,
         alignment: Alignment,
+        scaleFactor: Float,
         clearColor: Int,
         buffer: ByteArray
     )
@@ -640,9 +659,15 @@ class CommandQueue(
      * owner's lifecycle reaches DESTROYED. Returns an [AutoCloseable] that can be used to manually
      * release early; calling it is idempotent.
      *
+     * Also manages the audio engine start/stop state by acquiring a reference when the lifecycle is
+     * "resumed" and releasing when "paused" or destroyed.
+     *
      * Typical usage from an Activity or Fragment:
      *
      * val cq = CommandQueue().also { it.withLifecycle(this, "MyActivity") }
+     *
+     * ⚠️ Do not use this with a command queue created with [rememberCommandQueue]. A command queue
+     * created with that method has its lifecycle managed by the Composable's lifecycle.
      *
      * @param owner The LifecycleOwner to tie this CommandQueue's lifetime to, such as an Activity
      *    or Fragment.
@@ -651,16 +676,40 @@ class CommandQueue(
      */
     fun withLifecycle(owner: LifecycleOwner, source: String): AutoCloseable {
         lateinit var onClose: CloseOnce // lateinit to break circular reference
+        var audioAcquired = false
         val observer = object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) {
+                if (!audioAcquired) {
+                    AudioEngine.acquire()
+                    audioAcquired = true
+                }
+            }
+
+            override fun onPause(owner: LifecycleOwner) {
+                if (audioAcquired) {
+                    AudioEngine.release()
+                    audioAcquired = false
+                }
+            }
+
             override fun onDestroy(owner: LifecycleOwner) {
                 onClose.close()
             }
         }
         onClose = CloseOnce("CommandQueue (withLifecycle)") {
             owner.lifecycle.removeObserver(observer)
+            if (audioAcquired) {
+                AudioEngine.release()
+                audioAcquired = false
+            }
             cppPointer.release(source, "Closed by withLifecycle")
         }
         owner.lifecycle.addObserver(observer)
+        // If already RESUMED, acquire immediately since the callback won't fire
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            AudioEngine.acquire()
+            audioAcquired = true
+        }
         return onClose
     }
 
@@ -743,6 +792,47 @@ class CommandQueue(
     init {
         RiveLog.d(COMMAND_QUEUE_TAG) { "Creating command queue" }
     }
+
+    /**
+     * Begin polling the CommandQueue for messages from the CommandServer. Without this, callbacks
+     * and errors will not be delivered. This should typically be called by tying to the lifecycle
+     * scope of the containing activity, fragment, or composable, e.g. with `lifecycleScope.launch`.
+     *
+     * The polling will automatically start and stop based on the lifecycle state, only polling when
+     * the lifecycle is in the RESUMED state.
+     *
+     * @param lifecycle The lifecycle bounding the polling.
+     * @param ticker The frame ticker to use for polling. Defaults to [ChoreographerFrameTicker],
+     *    which uses the Choreographer to sync to the display refresh rate.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    suspend fun beginPolling(
+        lifecycle: Lifecycle,
+        ticker: FrameTicker = ChoreographerFrameTicker
+    ) = lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Starting command queue polling" }
+        while (isActive) {
+            ticker.withFrame {
+                pollMessages()
+            }
+        }
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Stopping command queue polling" }
+    }
+
+    /**
+     * Poll messages from the CommandServer to the CommandQueue. This is the channel that all
+     * callbacks and errors arrive on. Should be called every frame, regardless of whether there is
+     * any advancing or drawing.
+     *
+     * This method represents a single poll operation. To continuously poll, use [beginPolling],
+     * which will handle starting and stopping the polling based on a lifecycle.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @see [beginPolling]
+     */
+    @Throws(IllegalStateException::class)
+    fun pollMessages() = cppPollMessages(cppPointer.pointer)
 
     /**
      * Create a Rive rendering surface for Rive to draw into.
@@ -2251,6 +2341,7 @@ class CommandQueue(
         stateMachineHandle: StateMachineHandle,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -2261,6 +2352,7 @@ class CommandQueue(
         stateMachineHandle.handle,
         fit,
         alignment,
+        layoutScale,
         surfaceWidth,
         surfaceHeight,
         pointerID,
@@ -2278,6 +2370,8 @@ class CommandQueue(
      * @param stateMachineHandle The handle of the state machine to notify.
      * @param fit The fit mode of the artboard.
      * @param alignment The alignment of the artboard.
+     * @param layoutScale The scale factor applied to the artboard when the fit type is Layout
+     *    (otherwise 1f).
      * @param surfaceWidth The width of the surface the artboard is drawn to.
      * @param surfaceHeight The height of the surface the artboard is drawn to.
      * @param pointerX The X coordinate of the pointer in surface space.
@@ -2289,6 +2383,7 @@ class CommandQueue(
         stateMachineHandle: StateMachineHandle,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -2299,6 +2394,7 @@ class CommandQueue(
         stateMachineHandle.handle,
         fit,
         alignment,
+        layoutScale,
         surfaceWidth,
         surfaceHeight,
         pointerID,
@@ -2316,6 +2412,8 @@ class CommandQueue(
      * @param stateMachineHandle The handle of the state machine to notify.
      * @param fit The fit mode of the artboard.
      * @param alignment The alignment of the artboard.
+     * @param layoutScale The scale factor applied to the artboard when the fit type is Layout
+     *    (otherwise 1f).
      * @param surfaceWidth The width of the surface the artboard is drawn to.
      * @param surfaceHeight The height of the surface the artboard is drawn to.
      * @param pointerX The X coordinate of the pointer in surface space.
@@ -2327,6 +2425,7 @@ class CommandQueue(
         stateMachineHandle: StateMachineHandle,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -2337,6 +2436,7 @@ class CommandQueue(
         stateMachineHandle.handle,
         fit,
         alignment,
+        layoutScale,
         surfaceWidth,
         surfaceHeight,
         pointerID,
@@ -2354,6 +2454,8 @@ class CommandQueue(
      * @param stateMachineHandle The handle of the state machine to notify.
      * @param fit The fit mode of the artboard.
      * @param alignment The alignment of the artboard.
+     * @param layoutScale The scale factor applied to the artboard when the fit type is Layout
+     *    (otherwise 1f).
      * @param surfaceWidth The width of the surface the artboard is drawn to.
      * @param surfaceHeight The height of the surface the artboard is drawn to.
      * @param pointerX The X coordinate of the pointer in surface space.
@@ -2365,6 +2467,7 @@ class CommandQueue(
         stateMachineHandle: StateMachineHandle,
         fit: Fit,
         alignment: Alignment,
+        layoutScale: Float,
         surfaceWidth: Float,
         surfaceHeight: Float,
         pointerID: Int,
@@ -2375,6 +2478,7 @@ class CommandQueue(
         stateMachineHandle.handle,
         fit,
         alignment,
+        layoutScale,
         surfaceWidth,
         surfaceHeight,
         pointerID,
@@ -2383,54 +2487,57 @@ class CommandQueue(
     )
 
     /**
-     * Begin polling the CommandQueue for messages from the CommandServer. Without this, callbacks
-     * and errors will not be delivered. This should typically be called by tying to the lifecycle
-     * scope of the containing activity, fragment, or composable, e.g. with `lifecycleScope.launch`.
+     * Resizes an artboard to match the dimensions of the given surface.
      *
-     * The polling will automatically start and stop based on the lifecycle state, only polling when
-     * the lifecycle is in the RESUMED state.
+     * ℹ️ This is required when setting the fit type to [Fit.LAYOUT], where the artboard is expected
+     * to match the dimensions of the surface it is drawn to and layout its children within those
+     * bounds.
      *
-     * @param lifecycle The lifecycle bounding the polling.
-     * @param ticker The frame ticker to use for polling. Defaults to [ChoreographerFrameTicker],
-     *    which uses the Choreographer to sync to the display refresh rate.
+     * @param artboardHandle The handle of the artboard to resize.
+     * @param surface The surface whose width and height will be used to resize the artboard.
+     * @param scaleFactor The scale factor to apply when resizing. The artboard will be resized to
+     *    surface dimensions divided by this factor.
      * @throws IllegalStateException If the CommandQueue has been released.
      */
     @Throws(IllegalStateException::class)
-    suspend fun beginPolling(
-        lifecycle: Lifecycle,
-        ticker: FrameTicker = ChoreographerFrameTicker
-    ) = lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-        RiveLog.d(COMMAND_QUEUE_TAG) { "Starting command queue polling" }
-        while (isActive) {
-            ticker.withFrame {
-                pollMessages()
-            }
-        }
-        RiveLog.d(COMMAND_QUEUE_TAG) { "Stopping command queue polling" }
-    }
+    fun resizeArtboard(
+        artboardHandle: ArtboardHandle,
+        surface: RiveSurface,
+        scaleFactor: Float = 1f
+    ) = cppResizeArtboard(
+        cppPointer.pointer,
+        artboardHandle.handle,
+        surface.width,
+        surface.height,
+        scaleFactor
+    )
 
     /**
-     * Poll messages from the CommandServer to the CommandQueue. This is the channel that all
-     * callbacks and errors arrive on. Should be called every frame, regardless of whether there is
-     * any advancing or drawing.
+     * Resets an artboard to its original dimensions.
      *
-     * This method represents a single poll operation. To continuously poll, use [beginPolling],
-     * which will handle starting and stopping the polling based on a lifecycle.
+     * ℹ️ This should be called if the artboard was previously resized with [resizeArtboard] and you
+     * now have a fit type other than [Fit.LAYOUT], to restore the artboard to its original size.
      *
+     * @param artboardHandle The handle of the artboard to reset.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @see [beginPolling]
      */
     @Throws(IllegalStateException::class)
-    fun pollMessages() = cppPollMessages(cppPointer.pointer)
+    fun resetArtboardSize(
+        artboardHandle: ArtboardHandle
+    ) = cppResetArtboardSize(
+        cppPointer.pointer,
+        artboardHandle.handle
+    )
 
     /**
      * Draw the artboard with the given state machine.
      *
      * @param artboardHandle The handle of the artboard to draw.
      * @param stateMachineHandle The handle of the state machine to use for drawing.
+     * @param surface The surface to draw to.
      * @param fit The fit mode of the artboard.
      * @param alignment The alignment of the artboard.
-     * @param surface The surface to draw to.
+     * @param scaleFactor The scale factor to use when aligning the artboard. Defaults to 1.0.
      * @param clearColor The color to clear the surface with before drawing, in AARRGGBB format.
      * @throws IllegalStateException If the CommandQueue has been released.
      */
@@ -2438,9 +2545,10 @@ class CommandQueue(
     fun draw(
         artboardHandle: ArtboardHandle,
         stateMachineHandle: StateMachineHandle,
+        surface: RiveSurface,
         fit: Fit,
         alignment: Alignment,
-        surface: RiveSurface,
+        scaleFactor: Float = 1f,
         clearColor: Int = Color.TRANSPARENT
     ) = cppDraw(
         cppPointer.pointer,
@@ -2454,7 +2562,8 @@ class CommandQueue(
         surface.height,
         fit,
         alignment,
-        clearColor,
+        scaleFactor,
+        clearColor
     )
 
     /**
@@ -2473,6 +2582,7 @@ class CommandQueue(
      * @param height The height of the buffer to render.
      * @param fit Fit to use when drawing.
      * @param alignment Alignment to use when drawing.
+     * @param scaleFactor The scale factor to use when aligning the artboard. Defaults to 1.0.
      * @param clearColor Clear color used prior to drawing, defaults to transparent.
      * @throws RiveDrawToBufferException If the buffer could not be drawn to for any reason. Further
      *    details can be found in the exception message.
@@ -2488,6 +2598,7 @@ class CommandQueue(
         height: Int,
         fit: Fit = Fit.CONTAIN,
         alignment: Alignment = Alignment.CENTER,
+        scaleFactor: Float = 1f,
         clearColor: Int = Color.TRANSPARENT
     ) = cppDrawToBuffer(
         cppPointer.pointer,
@@ -2501,6 +2612,7 @@ class CommandQueue(
         height,
         fit,
         alignment,
+        scaleFactor,
         clearColor,
         buffer
     )

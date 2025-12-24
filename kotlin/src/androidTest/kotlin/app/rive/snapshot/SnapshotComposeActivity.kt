@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import app.rive.ExperimentalRiveComposeAPI
 import app.rive.Result
@@ -52,7 +51,7 @@ class SnapshotComposeActivity : ComponentActivity(), SnapshotActivityResult {
             context: android.content.Context,
             config: SnapshotActivityConfig
         ): Intent = Intent(context, SnapshotComposeActivity::class.java).apply {
-            SnapshotActivityConfig.intoIntent(this, config)
+            config.applyToIntent(this)
         }
     }
 
@@ -69,13 +68,9 @@ class SnapshotComposeActivity : ComponentActivity(), SnapshotActivityResult {
         val config = SnapshotActivityConfig.fromIntent(intent)
 
         setContent {
-            val context = LocalContext.current
-
             val commandQueue = rememberCommandQueue()
-            val riveFileResult = rememberRiveFile(
-                RiveFileSource.RawRes(R.raw.snapshot_test, context.resources),
-                commandQueue
-            )
+            val riveFileResult =
+                rememberRiveFile(RiveFileSource.RawRes.from(R.raw.snapshot_test), commandQueue)
 
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 when (riveFileResult) {
@@ -131,16 +126,30 @@ class SnapshotComposeActivity : ComponentActivity(), SnapshotActivityResult {
                         }
 
                         val dpSize = with(LocalDensity.current) { 100.toDp() }
+                        val fit = when (config) {
+                            is SnapshotActivityConfig.Layout -> if (config.useLayout) {
+                                Fit.LAYOUT
+                            } else {
+                                Fit.NONE
+                            }
+
+                            else -> Fit.NONE // Default to no layout for other scenarios
+                        }
+                        val layoutScale = when (config) {
+                            is SnapshotActivityConfig.Layout -> config.layoutScale
+                            else -> 1f // Default of 1 for other scenarios
+                        }
 
                         RiveUI(
                             file = riveFile,
+                            modifier = Modifier.requiredSize(dpSize),
                             playing = false,
                             artboard = artboard,
                             stateMachine = stateMachine,
                             viewModelInstance = vmi,
-                            fit = Fit.NONE,
+                            fit = fit,
                             alignment = RiveAlignment.CENTER,
-                            modifier = Modifier.requiredSize(dpSize),
+                            layoutScaleFactor = layoutScale,
                             onBitmapAvailable = { bitmapFn ->
                                 RiveLog.i("SnapshotComposeActivity") { "Bitmap available" }
                                 // Get the bitmap and store it
