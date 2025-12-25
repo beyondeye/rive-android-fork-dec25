@@ -68,19 +68,16 @@ kotlin {
             }
         }
         
-        // iOS source set
-        val iosX64Main by getting
-        val iosArm64Main by getting
-        val iosSimulatorArm64Main by getting
-        val iosMain by creating {
-            dependsOn(commonMain)
-            iosX64Main.dependsOn(this)
-            iosArm64Main.dependsOn(this)
-            iosSimulatorArm64Main.dependsOn(this)
-        }
-        
         // Wasm/JS source set
         val wasmJsMain by getting
+    }
+    
+    // Configure iOS source set (auto-created by default hierarchy template)
+    // Using matching to safely configure the source set if it exists
+    sourceSets.matching { it.name == "iosMain" }.configureEach {
+        dependencies {
+            // Add iOS-specific dependencies here
+        }
     }
 }
 
