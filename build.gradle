@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.android.application) apply false
+    alias(fork.plugins.kotlin.multiplatform) apply false
+    alias(fork.plugins.compose.multiplatform) apply false
+    alias(fork.plugins.compose.compiler) apply false
     id 'base' // For built-in clean task
 }
 

@@ -10,7 +10,7 @@ appcompat = "1.7.1"
 composeBom = "2023.10.00"
 # See the table here for matching Kotlin version with Compose Compiler version
 # https://developer.android.com/jetpack/androidx/releases/compose-kotlin#pre-release_kotlin_compatibility
-composeCompiler = "1.5.15"
+# composeCompiler = "1.5.15"
 constraintlayout = "2.2.1"
 coreKtx = "1.17.0"
 dokka = "2.1.0"
@@ -20,6 +20,7 @@ gradleGitVersion = "4.2.0"
 # noinspection NewerVersionAvailable Last version that supports Kotlin 1.9.x
 kotest = "5.9.1"
 kotlin = "2.2.21"
+composeMultiplatform = "1.7.3"
 # noinspection NewerVersionAvailable Last version that supports Kotlin 1.9.x
 kotlinxCoroutinesTest = "1.8.1"
 leakCanary = "2.14"
@@ -73,8 +74,11 @@ rive-android-preview = { module = "app.rive:rive-android", version = "+" }
 allopen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 git-version = { id = "com.palantir.git-version", version.ref = "gradleGitVersion" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechPublish" }
 dropshots = { id = "com.dropbox.dropshots", version.ref = "dropshots" }

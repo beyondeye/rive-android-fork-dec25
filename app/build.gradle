@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(fork.plugins.compose.compiler) //Starting in kotlin 2.0 he Compose Compiler Gradle plugin is required when compose is enabled  https://d.android.com/r/studio-ui/compose-compiler
 }
 
 android {
