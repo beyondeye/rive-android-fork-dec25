@@ -12,6 +12,11 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
     }
+    versionCatalogs {
+        create("fork") {
+            from(files("gradle/fork.versions.toml"))
+        }
+    }
 }
 
 rootProject.name = "rive-android"
