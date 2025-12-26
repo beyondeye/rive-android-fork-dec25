@@ -1,5 +1,6 @@
 package app.rive.sprites
 
+
 import android.graphics.Matrix
 import androidx.annotation.ColorInt
 import androidx.compose.runtime.getValue
@@ -28,6 +29,348 @@ import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
 private const val RIVE_SPRITE_TAG = "Rive/Sprite"
+
+abstract class IRiveSprite(initialTags: Set<SpriteTag>) : AutoCloseable {
+    // region Transform Properties
+    /**
+     * The position of the sprite's origin in DrawScope coordinates.
+     *
+     * The exact point represented by this position depends on [origin]:
+     * - [SpriteOrigin.Center]: Position is the center of the sprite
+     * - [SpriteOrigin.TopLeft]: Position is the top-left corner
+     * - [SpriteOrigin.Custom]: Position is the custom pivot point
+     */
+    var position: Offset by mutableStateOf(Offset.Zero)
+    /**
+     * The display size of the sprite in DrawScope units.
+     *
+     * The artboard will be scaled to fit within this size. If not set,
+     * defaults to the artboard's natural size.
+     */
+    var size: Size by mutableStateOf(Size.Unspecified)
+    /**
+     * Additional scale factor applied to the sprite.
+     *
+     * This scaling is applied after [size], allowing for dynamic scaling effects
+     * like pulsing, growing, or shrinking animations.
+     *
+     * Supports non-uniform scaling with independent X and Y factors:
+     * - `SpriteScale(2f)` - Uniform 2x scaling
+     * - `SpriteScale(2f, 1f)` - Stretch horizontally only
+     * - `SpriteScale.Unscaled` - No additional scaling (default)
+     */
+    var scale: SpriteScale by mutableStateOf(SpriteScale.Unscaled)
+    /**
+     * Rotation of the sprite in degrees, clockwise.
+     *
+     * The rotation is applied around the [origin] point.
+     */
+    var rotation: Float by mutableFloatStateOf(0f)
+    /**
+     * The origin (pivot point) for positioning, scaling, and rotation.
+     *
+     * Determines which point of the sprite is placed at [position] and
+     * serves as the center for [rotation] and [scale] transformations.
+     *
+     * @see SpriteOrigin
+     */
+    var origin: SpriteOrigin by mutableStateOf(SpriteOrigin.Center)
+    /**
+     * The z-index for rendering order.
+     *
+     * Sprites with higher z-index values are rendered on top of sprites
+     * with lower values. Sprites with the same z-index are rendered in
+     * insertion order.
+     */
+    var zIndex: Int by mutableIntStateOf(0)
+    /**
+     * Whether the sprite is visible and should be rendered.
+     *
+     * Invisible sprites are skipped during rendering but still maintain
+     * their state and can receive [advance] calls.
+     */
+    var isVisible: Boolean by mutableStateOf(true)
+ // endregion
+    // region Tags for Grouping
+
+    /**
+     * Tags assigned to this sprite for grouping and batch operations.
+     *
+     * Tags can be used with [RiveSpriteScene] batch methods to perform
+     * operations on multiple sprites at once.
+     *
+     * @see SpriteTag
+     */
+    var tags: Set<SpriteTag> by mutableStateOf(initialTags)
+    /**
+     * Check if this sprite has a specific tag.
+     *
+     * @param tag The tag to check for
+     * @return True if this sprite has the tag
+     */
+    fun hasTag(tag: SpriteTag): Boolean = tags.contains(tag)
+
+    /**
+     * Check if this sprite has any of the given tags.
+     *
+     * @param checkTags The tags to check for
+     * @return True if this sprite has at least one of the tags
+     */
+    fun hasAnyTag(checkTags: List<SpriteTag>): Boolean = checkTags.any { hasTag(it) }
+
+    /**
+     * Check if this sprite has all of the given tags.
+     *
+     * @param checkTags The tags to check for
+     * @return True if this sprite has all of the tags
+     */
+    fun hasAllTags(checkTags: List<SpriteTag>): Boolean = checkTags.all { hasTag(it) }
+
+    // endregion
+
+    // region ViewModel Property Methods
+
+    /**
+     * Set a number property value on the ViewModelInstance.
+     *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * This allows the same API to work with both modern Rive files (with ViewModels)
+     * and legacy Rive files (without ViewModels, using direct state machine inputs).
+     *
+     * @param prop The property descriptor
+     * @param value The value to set
+     */
+    fun setNumber(prop: SpriteControlProp.Number, value: Float) {
+        setNumber(prop.name, value)
+    }
+
+    /**
+     * Set a number property value by path.
+     *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param propertyPath The path to the property (slash-delimited for nested) or input name
+     * @param value The value to set
+     */
+    abstract fun setNumber(propertyPath: String, value: Float)
+
+    /**
+     * Get a Flow of number property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of Float values, or null if no ViewModelInstance
+     */
+    abstract fun getNumberFlow(prop: SpriteControlProp.Number): Flow<Float>?
+
+    /**
+     * Get a Flow of number property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of Float values, or null if no ViewModelInstance
+     */
+    abstract fun getNumberFlow(propertyPath: String): Flow<Float>?
+
+    /**
+     * Set a string property value on the ViewModelInstance.
+     *
+     * Note: String properties are only available via ViewModelInstance.
+     * Legacy Rive files without ViewModels do not support string inputs.
+     *
+     * @param prop The property descriptor
+     * @param value The value to set
+     */
+    fun setString(prop: SpriteControlProp.Text, value: String) {
+        setString(prop.name, value)
+    }
+
+    /**
+     * Set a string property value by path.
+     *
+     * Note: String properties are only available via ViewModelInstance.
+     * Legacy Rive files without ViewModels do not support string inputs.
+     *
+     * @param propertyPath The path to the property
+     * @param value The value to set
+     */
+    abstract fun setString(propertyPath: String, value: String)
+
+    /**
+     * Get a Flow of string property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    abstract fun getStringFlow(prop: SpriteControlProp.Text): Flow<String>?
+
+    /**
+     * Get a Flow of string property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    abstract fun getStringFlow(propertyPath: String): Flow<String>?
+
+    /**
+     * Set a boolean property value on the ViewModelInstance.
+     *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param prop The property descriptor
+     * @param value The value to set
+     */
+    fun setBoolean(prop: SpriteControlProp.Toggle, value: Boolean) {
+        setBoolean(prop.name, value)
+    }
+
+    /**
+     * Set a boolean property value by path.
+     *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param propertyPath The path to the property (slash-delimited for nested) or input name
+     * @param value The value to set
+     */
+    abstract fun setBoolean(propertyPath: String, value: Boolean)
+
+    /**
+     * Get a Flow of boolean property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of Boolean values, or null if no ViewModelInstance
+     */
+    abstract fun getBooleanFlow(prop: SpriteControlProp.Toggle): Flow<Boolean>?
+
+    /**
+     * Get a Flow of boolean property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of Boolean values, or null if no ViewModelInstance
+     */
+    abstract fun getBooleanFlow(propertyPath: String): Flow<Boolean>?
+
+    /**
+     * Set an enum property value on the ViewModelInstance.
+     *
+     * @param prop The property descriptor
+     * @param value The enum value as a string
+     */
+    fun setEnum(prop: SpriteControlProp.Choice, value: String) {
+        setEnum(prop.name, value)
+    }
+
+    /**
+     * Set an enum property value by path.
+     *
+     * @param propertyPath The path to the property
+     * @param value The enum value as a string
+     */
+    abstract fun setEnum(propertyPath: String, value: String)
+
+    /**
+     * Get a Flow of enum property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    abstract fun getEnumFlow(prop: SpriteControlProp.Choice): Flow<String>?
+    /**
+     * Get a Flow of enum property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of String values, or null if no ViewModelInstance
+     */
+    abstract fun getEnumFlow(propertyPath: String): Flow<String>?
+
+    /**
+     * Set a color property value on the ViewModelInstance.
+     *
+     * @param prop The property descriptor
+     * @param value The color as ARGB integer
+     */
+    fun setColor(prop: SpriteControlProp.Color, @ColorInt value: Int) {
+        setColor(prop.name, value)
+    }
+
+    /**
+     * Set a color property value by path.
+     *
+     * @param propertyPath The path to the property
+     * @param value The color as ARGB integer
+     */
+    abstract fun setColor(propertyPath: String, @ColorInt value: Int)
+
+    /**
+     * Get a Flow of color property values for reactive observation.
+     *
+     * @param prop The property descriptor
+     * @return A Flow of Int (ARGB) values, or null if no ViewModelInstance
+     */
+    abstract fun getColorFlow(prop: SpriteControlProp.Color): Flow<Int>?
+
+    /**
+     * Get a Flow of color property values by path.
+     *
+     * @param propertyPath The path to the property
+     * @return A Flow of Int (ARGB) values, or null if no ViewModelInstance
+     */
+    abstract fun getColorFlow(propertyPath: String): Flow<Int>?
+
+    /**
+     * Fire a trigger property on the ViewModelInstance.
+     *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * Triggers are one-shot events that cause state transitions without
+     * maintaining a value. Use for events like "attack", "jump", "die".
+     *
+     * @param prop The trigger property descriptor
+     */
+    fun fireTrigger(prop: SpriteControlProp.Trigger) {
+        fireTrigger(prop.name)
+    }
+
+    /**
+     * Fire a trigger property by path.
+     *
+     * This method automatically uses the appropriate mechanism:
+     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
+     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
+     *
+     * @param propertyPath The path to the trigger property or input name
+     */
+    abstract fun fireTrigger(propertyPath: String)
+
+    /**
+     * Get a Flow of trigger events for reactive observation.
+     *
+     * @param prop The trigger property descriptor
+     * @return A Flow of Unit values (emits when trigger fires), or null if no ViewModelInstance
+     */
+    abstract fun getTriggerFlow(prop: SpriteControlProp.Trigger): Flow<Unit>?
+
+    /**
+     * Get a Flow of trigger events by path.
+     *
+     * @param propertyPath The path to the trigger property
+     * @return A Flow of Unit values, or null if no ViewModelInstance
+     */
+    abstract fun getTriggerFlow(propertyPath: String): Flow<Unit>?
+
+    // endregion
+
+
+}
 
 /**
  * A Rive sprite that can be positioned, scaled, and rotated within a [RiveSpriteScene].
@@ -100,114 +443,8 @@ class RiveSprite internal constructor(
     private val viewModelInstance: ViewModelInstance? = null,
     initialTags: Set<SpriteTag> = emptySet(),
     private val ownsViewModelInstance: Boolean = true,
-) : AutoCloseable {
+) : IRiveSprite(initialTags) {
 
-    // region Transform Properties
-
-    /**
-     * The position of the sprite's origin in DrawScope coordinates.
-     *
-     * The exact point represented by this position depends on [origin]:
-     * - [SpriteOrigin.Center]: Position is the center of the sprite
-     * - [SpriteOrigin.TopLeft]: Position is the top-left corner
-     * - [SpriteOrigin.Custom]: Position is the custom pivot point
-     */
-    var position: Offset by mutableStateOf(Offset.Zero)
-
-    /**
-     * The display size of the sprite in DrawScope units.
-     *
-     * The artboard will be scaled to fit within this size. If not set,
-     * defaults to the artboard's natural size.
-     */
-    var size: Size by mutableStateOf(Size.Unspecified)
-
-    /**
-     * Additional scale factor applied to the sprite.
-     *
-     * This scaling is applied after [size], allowing for dynamic scaling effects
-     * like pulsing, growing, or shrinking animations.
-     *
-     * Supports non-uniform scaling with independent X and Y factors:
-     * - `SpriteScale(2f)` - Uniform 2x scaling
-     * - `SpriteScale(2f, 1f)` - Stretch horizontally only
-     * - `SpriteScale.Unscaled` - No additional scaling (default)
-     */
-    var scale: SpriteScale by mutableStateOf(SpriteScale.Unscaled)
-
-    /**
-     * Rotation of the sprite in degrees, clockwise.
-     *
-     * The rotation is applied around the [origin] point.
-     */
-    var rotation: Float by mutableFloatStateOf(0f)
-
-    /**
-     * The origin (pivot point) for positioning, scaling, and rotation.
-     *
-     * Determines which point of the sprite is placed at [position] and
-     * serves as the center for [rotation] and [scale] transformations.
-     *
-     * @see SpriteOrigin
-     */
-    var origin: SpriteOrigin by mutableStateOf(SpriteOrigin.Center)
-
-    /**
-     * The z-index for rendering order.
-     *
-     * Sprites with higher z-index values are rendered on top of sprites
-     * with lower values. Sprites with the same z-index are rendered in
-     * insertion order.
-     */
-    var zIndex: Int by mutableIntStateOf(0)
-
-    /**
-     * Whether the sprite is visible and should be rendered.
-     *
-     * Invisible sprites are skipped during rendering but still maintain
-     * their state and can receive [advance] calls.
-     */
-    var isVisible: Boolean by mutableStateOf(true)
-
-    // endregion
-
-    // region Tags for Grouping
-
-    /**
-     * Tags assigned to this sprite for grouping and batch operations.
-     *
-     * Tags can be used with [RiveSpriteScene] batch methods to perform
-     * operations on multiple sprites at once.
-     *
-     * @see SpriteTag
-     */
-    var tags: Set<SpriteTag> by mutableStateOf(initialTags)
-
-    /**
-     * Check if this sprite has a specific tag.
-     *
-     * @param tag The tag to check for
-     * @return True if this sprite has the tag
-     */
-    fun hasTag(tag: SpriteTag): Boolean = tags.contains(tag)
-
-    /**
-     * Check if this sprite has any of the given tags.
-     *
-     * @param checkTags The tags to check for
-     * @return True if this sprite has at least one of the tags
-     */
-    fun hasAnyTag(checkTags: List<SpriteTag>): Boolean = checkTags.any { hasTag(it) }
-
-    /**
-     * Check if this sprite has all of the given tags.
-     *
-     * @param checkTags The tags to check for
-     * @return True if this sprite has all of the tags
-     */
-    fun hasAllTags(checkTags: List<SpriteTag>): Boolean = checkTags.all { hasTag(it) }
-
-    // endregion
 
     // region Render Buffer Cache
 
@@ -293,23 +530,6 @@ class RiveSprite internal constructor(
     // region ViewModel Property Methods
 
     /**
-     * Set a number property value on the ViewModelInstance.
-     *
-     * This method automatically uses the appropriate mechanism:
-     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
-     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
-     *
-     * This allows the same API to work with both modern Rive files (with ViewModels)
-     * and legacy Rive files (without ViewModels, using direct state machine inputs).
-     *
-     * @param prop The property descriptor
-     * @param value The value to set
-     */
-    fun setNumber(prop: SpriteControlProp.Number, value: Float) {
-        setNumber(prop.name, value)
-    }
-
-    /**
      * Set a number property value by path.
      *
      * This method automatically uses the appropriate mechanism:
@@ -319,7 +539,7 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property (slash-delimited for nested) or input name
      * @param value The value to set
      */
-    fun setNumber(propertyPath: String, value: Float) {
+    override fun setNumber(propertyPath: String, value: Float) {
         if (viewModelInstance != null) {
             viewModelInstance.setNumber(propertyPath, value)
         } else {
@@ -334,7 +554,7 @@ class RiveSprite internal constructor(
      * @param prop The property descriptor
      * @return A Flow of Float values, or null if no ViewModelInstance
      */
-    fun getNumberFlow(prop: SpriteControlProp.Number): Flow<Float>? =
+    override fun getNumberFlow(prop: SpriteControlProp.Number): Flow<Float>? =
         viewModelInstance?.getNumberFlow(prop.name)
 
     /**
@@ -343,21 +563,8 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @return A Flow of Float values, or null if no ViewModelInstance
      */
-    fun getNumberFlow(propertyPath: String): Flow<Float>? =
+    override fun getNumberFlow(propertyPath: String): Flow<Float>? =
         viewModelInstance?.getNumberFlow(propertyPath)
-
-    /**
-     * Set a string property value on the ViewModelInstance.
-     *
-     * Note: String properties are only available via ViewModelInstance.
-     * Legacy Rive files without ViewModels do not support string inputs.
-     *
-     * @param prop The property descriptor
-     * @param value The value to set
-     */
-    fun setString(prop: SpriteControlProp.Text, value: String) {
-        setString(prop.name, value)
-    }
 
     /**
      * Set a string property value by path.
@@ -368,7 +575,7 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @param value The value to set
      */
-    fun setString(propertyPath: String, value: String) {
+    override fun setString(propertyPath: String, value: String) {
         viewModelInstance?.setString(propertyPath, value)
             ?: logPropertyWarning("setString", propertyPath)
     }
@@ -379,7 +586,7 @@ class RiveSprite internal constructor(
      * @param prop The property descriptor
      * @return A Flow of String values, or null if no ViewModelInstance
      */
-    fun getStringFlow(prop: SpriteControlProp.Text): Flow<String>? =
+    override fun getStringFlow(prop: SpriteControlProp.Text): Flow<String>? =
         viewModelInstance?.getStringFlow(prop.name)
 
     /**
@@ -388,22 +595,8 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @return A Flow of String values, or null if no ViewModelInstance
      */
-    fun getStringFlow(propertyPath: String): Flow<String>? =
+    override fun getStringFlow(propertyPath: String): Flow<String>? =
         viewModelInstance?.getStringFlow(propertyPath)
-
-    /**
-     * Set a boolean property value on the ViewModelInstance.
-     *
-     * This method automatically uses the appropriate mechanism:
-     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
-     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
-     *
-     * @param prop The property descriptor
-     * @param value The value to set
-     */
-    fun setBoolean(prop: SpriteControlProp.Toggle, value: Boolean) {
-        setBoolean(prop.name, value)
-    }
 
     /**
      * Set a boolean property value by path.
@@ -415,7 +608,7 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property (slash-delimited for nested) or input name
      * @param value The value to set
      */
-    fun setBoolean(propertyPath: String, value: Boolean) {
+    override fun setBoolean(propertyPath: String, value: Boolean) {
         if (viewModelInstance != null) {
             viewModelInstance.setBoolean(propertyPath, value)
         } else {
@@ -430,7 +623,7 @@ class RiveSprite internal constructor(
      * @param prop The property descriptor
      * @return A Flow of Boolean values, or null if no ViewModelInstance
      */
-    fun getBooleanFlow(prop: SpriteControlProp.Toggle): Flow<Boolean>? =
+    override fun getBooleanFlow(prop: SpriteControlProp.Toggle): Flow<Boolean>? =
         viewModelInstance?.getBooleanFlow(prop.name)
 
     /**
@@ -439,18 +632,9 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @return A Flow of Boolean values, or null if no ViewModelInstance
      */
-    fun getBooleanFlow(propertyPath: String): Flow<Boolean>? =
+    override fun getBooleanFlow(propertyPath: String): Flow<Boolean>? =
         viewModelInstance?.getBooleanFlow(propertyPath)
 
-    /**
-     * Set an enum property value on the ViewModelInstance.
-     *
-     * @param prop The property descriptor
-     * @param value The enum value as a string
-     */
-    fun setEnum(prop: SpriteControlProp.Choice, value: String) {
-        setEnum(prop.name, value)
-    }
 
     /**
      * Set an enum property value by path.
@@ -458,7 +642,7 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @param value The enum value as a string
      */
-    fun setEnum(propertyPath: String, value: String) {
+    override fun setEnum(propertyPath: String, value: String) {
         viewModelInstance?.setEnum(propertyPath, value)
             ?: logPropertyWarning("setEnum", propertyPath)
     }
@@ -469,7 +653,7 @@ class RiveSprite internal constructor(
      * @param prop The property descriptor
      * @return A Flow of String values, or null if no ViewModelInstance
      */
-    fun getEnumFlow(prop: SpriteControlProp.Choice): Flow<String>? =
+    override fun getEnumFlow(prop: SpriteControlProp.Choice): Flow<String>? =
         viewModelInstance?.getEnumFlow(prop.name)
 
     /**
@@ -478,18 +662,8 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @return A Flow of String values, or null if no ViewModelInstance
      */
-    fun getEnumFlow(propertyPath: String): Flow<String>? =
+    override fun getEnumFlow(propertyPath: String): Flow<String>? =
         viewModelInstance?.getEnumFlow(propertyPath)
-
-    /**
-     * Set a color property value on the ViewModelInstance.
-     *
-     * @param prop The property descriptor
-     * @param value The color as ARGB integer
-     */
-    fun setColor(prop: SpriteControlProp.Color, @ColorInt value: Int) {
-        setColor(prop.name, value)
-    }
 
     /**
      * Set a color property value by path.
@@ -497,7 +671,7 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @param value The color as ARGB integer
      */
-    fun setColor(propertyPath: String, @ColorInt value: Int) {
+    override fun setColor(propertyPath: String, @ColorInt value: Int) {
         viewModelInstance?.setColor(propertyPath, value)
             ?: logPropertyWarning("setColor", propertyPath)
     }
@@ -508,7 +682,7 @@ class RiveSprite internal constructor(
      * @param prop The property descriptor
      * @return A Flow of Int (ARGB) values, or null if no ViewModelInstance
      */
-    fun getColorFlow(prop: SpriteControlProp.Color): Flow<Int>? =
+    override fun getColorFlow(prop: SpriteControlProp.Color): Flow<Int>? =
         viewModelInstance?.getColorFlow(prop.name)
 
     /**
@@ -517,24 +691,8 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the property
      * @return A Flow of Int (ARGB) values, or null if no ViewModelInstance
      */
-    fun getColorFlow(propertyPath: String): Flow<Int>? =
+    override fun getColorFlow(propertyPath: String): Flow<Int>? =
         viewModelInstance?.getColorFlow(propertyPath)
-
-    /**
-     * Fire a trigger property on the ViewModelInstance.
-     *
-     * This method automatically uses the appropriate mechanism:
-     * - If the sprite has a ViewModelInstance, it uses ViewModel property binding
-     * - If no ViewModelInstance, it falls back to legacy SMI (state machine input) mechanism
-     *
-     * Triggers are one-shot events that cause state transitions without
-     * maintaining a value. Use for events like "attack", "jump", "die".
-     *
-     * @param prop The trigger property descriptor
-     */
-    fun fireTrigger(prop: SpriteControlProp.Trigger) {
-        fireTrigger(prop.name)
-    }
 
     /**
      * Fire a trigger property by path.
@@ -545,7 +703,7 @@ class RiveSprite internal constructor(
      *
      * @param propertyPath The path to the trigger property or input name
      */
-    fun fireTrigger(propertyPath: String) {
+    override fun fireTrigger(propertyPath: String) {
         if (viewModelInstance != null) {
             viewModelInstance.fireTrigger(propertyPath)
         } else {
@@ -560,7 +718,7 @@ class RiveSprite internal constructor(
      * @param prop The trigger property descriptor
      * @return A Flow of Unit values (emits when trigger fires), or null if no ViewModelInstance
      */
-    fun getTriggerFlow(prop: SpriteControlProp.Trigger): Flow<Unit>? =
+    override fun getTriggerFlow(prop: SpriteControlProp.Trigger): Flow<Unit>? =
         viewModelInstance?.getTriggerFlow(prop.name)
 
     /**
@@ -569,7 +727,7 @@ class RiveSprite internal constructor(
      * @param propertyPath The path to the trigger property
      * @return A Flow of Unit values, or null if no ViewModelInstance
      */
-    fun getTriggerFlow(propertyPath: String): Flow<Unit>? =
+    override fun getTriggerFlow(propertyPath: String): Flow<Unit>? =
         viewModelInstance?.getTriggerFlow(propertyPath)
 
     private fun logPropertyWarning(operation: String, propertyPath: String) {
