@@ -1,5 +1,6 @@
 package app.rive.sprites
 
+import android.graphics.Matrix
 import androidx.annotation.ColorInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -7,12 +8,19 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
+import app.rive.sprites.matrix.TransMatrixData
 import app.rive.sprites.props.SpriteControlProp
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
+/**
+ * Type alias for Android Matrix.
+ * When moving to multiplatform, this will be replaced with expect/actual.
+ */
+typealias TransMatrix = Matrix
 abstract class IRiveSprite(initialTags: Set<SpriteTag>) : AutoCloseable {
     // region Transform Properties
     /**
@@ -481,6 +489,175 @@ abstract class IRiveSprite(initialTags: Set<SpriteTag>) : AutoCloseable {
             outArray[5] = position.y - (pivotX * scaleY * sin + pivotY * scaleY * cos)  // ty
         }
     }
+
+    /**
+     * Compute the transformation matrix for rendering this sprite.
+     *
+     * This method uses an optimized single-pass calculation to compute the affine
+     * transformation directly into a 9-element matrix, avoiding multiple matrix
+     * multiplications and intermediate allocations.
+     *
+     * The transformation combines translation, rotation, and scale in the correct order
+     * for pivot-based transformations:
+     * 1. Translate pivot to origin (so transforms happen around the pivot point)
+     * 2. Scale around origin (which is now the pivot)
+     * 3. Rotate around origin (which is now the pivot)
+     * 4. Translate to final position
+     *
+     * This ensures that both rotation and scale happen around the sprite's
+     * origin (pivot point), which can be Center, TopLeft, or Custom.
+     *
+     * @return A [TransMatrixData] representing the full transformation. Use [TransMatrixData.asMatrix]
+     *         to access platform-specific matrix operations when needed.
+     */
+    fun computeTransformMatrixData(): TransMatrixData {
+        /*
+
+        val matrix = Matrix()
+
+        val displaySize = effectiveSize
+        // Pivot in LOCAL unscaled coordinates
+        val pivotX = origin.pivotX * displaySize.width
+        val pivotY = origin.pivotY * displaySize.height
+
+        // Apply transformations in order:
+        // 1. Translate pivot to origin (so transforms happen around pivot)
+        matrix.postTranslate(-pivotX, -pivotY)
+
+        // 2. Scale around origin (which is now the pivot)
+        if (scale != SpriteScale.Unscaled) {
+            matrix.postScale(scale.scaleX, scale.scaleY)
+        }
+
+        // 3. Rotate around origin (which is now the pivot)
+        if (rotation != 0f) {
+            matrix.postRotate(rotation)
+        }
+
+        // 4. Translate to final position
+        matrix.postTranslate(position.x, position.y)
+         */
+
+        // Allocate final 3x3 matrix directly (single allocation)
+        val matrix9 = FloatArray(9)
+
+        val displaySize = effectiveSize
+        val pivotX = origin.pivotX * displaySize.width
+        val pivotY = origin.pivotY * displaySize.height
+
+        val scaleX = scale.scaleX
+        val scaleY = scale.scaleY
+
+        if (rotation == 0f) {
+            // Fast path for non-rotated sprites (common case)
+            // Row 1: [scaleX, skewX, transX]
+            matrix9[0] = scaleX
+            matrix9[1] = 0f
+            matrix9[2] = position.x - pivotX * scaleX
+            // Row 2: [skewY, scaleY, transY]
+            matrix9[3] = 0f
+            matrix9[4] = scaleY
+            matrix9[5] = position.y - pivotY * scaleY
+            // Row 3: [persp0, persp1, persp2] - identity for 2D
+            matrix9[6] = 0f
+            matrix9[7] = 0f
+            matrix9[8] = 1f
+        } else {
+            // Full affine transform with rotation
+            val radians = Math.toRadians(rotation.toDouble())
+            val cos = kotlin.math.cos(radians).toFloat()
+            val sin = kotlin.math.sin(radians).toFloat()
+
+            // Row 1: [scaleX * cos, -scaleX * sin, transX]
+            matrix9[0] = scaleX * cos
+            matrix9[1] = -scaleX * sin
+            matrix9[2] = position.x - (pivotX * scaleX * cos - pivotY * scaleX * sin)
+            // Row 2: [scaleY * sin, scaleY * cos, transY]
+            matrix9[3] = scaleY * sin
+            matrix9[4] = scaleY * cos
+            matrix9[5] = position.y - (pivotX * scaleY * sin + pivotY * scaleY * cos)
+            // Row 3: [persp0, persp1, persp2] - identity for 2D
+            matrix9[6] = 0f
+            matrix9[7] = 0f
+            matrix9[8] = 1f
+        }
+
+        return TransMatrixData(matrix9)
+    }
+
+    /**
+     * Get the axis-aligned bounding box of the sprite in DrawScope coordinates.
+     *
+     * This accounts for all transformations and returns the smallest rectangle
+     * that fully contains the transformed sprite.
+     *
+     * @return The bounding [Rect] in DrawScope coordinates.
+     */
+    fun getBounds(): Rect {
+        val displaySize = effectiveSize
+        val transform = computeTransformMatrixData()
+
+        // Create the four corners of the untransformed sprite
+        val corners = floatArrayOf(
+            0f, 0f,                                    // Top-left
+            displaySize.width, 0f,                     // Top-right
+            displaySize.width, displaySize.height,    // Bottom-right
+            0f, displaySize.height                    // Bottom-left
+        )
+
+        // Transform all corners using lazy-loaded matrix
+        transform.asMatrix().mapPoints(corners)
+
+        // Find the bounding box
+        var minX = corners[0]
+        var maxX = corners[0]
+        var minY = corners[1]
+        var maxY = corners[1]
+
+        for (i in corners.indices step 2) {
+            val x = corners[i]
+            val y = corners[i + 1]
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+        }
+
+        return Rect(minX, minY, maxX, maxY)
+    }
+
+    /**
+     * Transform a point from DrawScope coordinates to local sprite coordinates.
+     *
+     * Used for hit testing - transforms a touch point to see if it falls
+     * within the sprite's bounds.
+     *
+     * @param point The point in DrawScope coordinates.
+     * @return The point in local sprite coordinates, or null if transform fails.
+     */
+    internal fun transformPointToLocal(point: Offset): Offset? {
+        val transform = computeTransformMatrixData()
+        val matrix = transform.asMatrix()
+        val inverseMatrix = TransMatrix()
+
+        if (!matrix.invert(inverseMatrix)) {
+            return null
+        }
+
+        val pts = floatArrayOf(point.x, point.y)
+        inverseMatrix.mapPoints(pts)
+
+        return Offset(pts[0], pts[1])
+    }
+
+    /**
+     * Check if a point in DrawScope coordinates hits this sprite.
+     *
+     * @param point The point to test in DrawScope coordinates.
+     * @return True if the point is within the sprite's bounds.
+     */
+    abstract fun hitTest(point: Offset): Boolean
+
     // endregion
     companion object {
         /**

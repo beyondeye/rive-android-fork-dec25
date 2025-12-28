@@ -526,111 +526,6 @@ class RiveSprite internal constructor(
         )
     }
 
-    // endregion
-
-    // region Transform Methods
-
-    /**
-     * Compute the transformation matrix for rendering this sprite.
-     *
-     * This method uses an optimized single-pass calculation via [computeTransformArrayInto]
-     * to compute the affine transformation directly, avoiding multiple matrix multiplications.
-     * 
-     * The transformation combines translation, rotation, and scale in the correct order
-     * for pivot-based transformations:
-     * 1. Translate pivot to origin (so transforms happen around the pivot point)
-     * 2. Scale around origin (which is now the pivot)
-     * 3. Rotate around origin (which is now the pivot)
-     * 4. Translate to final position
-     *
-     * This ensures that both rotation and scale happen around the sprite's
-     * origin (pivot point), which can be Center, TopLeft, or Custom.
-     *
-     * @return A [TransMatrixData] representing the full transformation. Use [TransMatrixData.asMatrix]
-     *         to access platform-specific matrix operations when needed.
-     */
-    fun computeTransformMatrixData(): TransMatrixData {
-        /*
-
-        val matrix = Matrix()
-
-        val displaySize = effectiveSize
-        // Pivot in LOCAL unscaled coordinates
-        val pivotX = origin.pivotX * displaySize.width
-        val pivotY = origin.pivotY * displaySize.height
-
-        // Apply transformations in order:
-        // 1. Translate pivot to origin (so transforms happen around pivot)
-        matrix.postTranslate(-pivotX, -pivotY)
-
-        // 2. Scale around origin (which is now the pivot)
-        if (scale != SpriteScale.Unscaled) {
-            matrix.postScale(scale.scaleX, scale.scaleY)
-        }
-
-        // 3. Rotate around origin (which is now the pivot)
-        if (rotation != 0f) {
-            matrix.postRotate(rotation)
-        }
-
-        // 4. Translate to final position
-        matrix.postTranslate(position.x, position.y)
-         */
-
-        //TODO this is a temporary buffer: can we avoid allocation?
-        val affine = FloatArray(6)
-        computeTransformArrayInto(affine)
-        // Expand to 3x3 matrix format (row-major order)
-        //TODO can we preallocate a 9 elem float array instead of using floatArrayOf? and fill it? is it more performant?
-        val matrix9 = floatArrayOf(
-            affine[0], affine[2], affine[4],  // row 1: scaleX, skewX, transX
-            affine[1], affine[3], affine[5],  // row 2: skewY, scaleY, transY
-            0f, 0f, 1f                         // row 3: perspective (identity for 2D)
-        )
-        return TransMatrixData(matrix9)
-    }
-
-    /**
-     * Get the axis-aligned bounding box of the sprite in DrawScope coordinates.
-     *
-     * This accounts for all transformations and returns the smallest rectangle
-     * that fully contains the transformed sprite.
-     *
-     * @return The bounding [Rect] in DrawScope coordinates.
-     */
-    fun getBounds(): Rect {
-        val displaySize = effectiveSize
-        val transform = computeTransformMatrixData()
-
-        // Create the four corners of the untransformed sprite
-        val corners = floatArrayOf(
-            0f, 0f,                                    // Top-left
-            displaySize.width, 0f,                     // Top-right
-            displaySize.width, displaySize.height,    // Bottom-right
-            0f, displaySize.height                    // Bottom-left
-        )
-
-        // Transform all corners using lazy-loaded matrix
-        transform.asMatrix().mapPoints(corners)
-
-        // Find the bounding box
-        var minX = corners[0]
-        var maxX = corners[0]
-        var minY = corners[1]
-        var maxY = corners[1]
-
-        for (i in corners.indices step 2) {
-            val x = corners[i]
-            val y = corners[i + 1]
-            if (x < minX) minX = x
-            if (x > maxX) maxX = x
-            if (y < minY) minY = y
-            if (y > maxY) maxY = y
-        }
-
-        return Rect(minX, minY, maxX, maxY)
-    }
-
     /**
      * Get the artboard bounds in local (untransformed) coordinates.
      *
@@ -645,36 +540,12 @@ class RiveSprite internal constructor(
     }
 
     /**
-     * Transform a point from DrawScope coordinates to local sprite coordinates.
-     *
-     * Used for hit testing - transforms a touch point to see if it falls
-     * within the sprite's bounds.
-     *
-     * @param point The point in DrawScope coordinates.
-     * @return The point in local sprite coordinates, or null if transform fails.
-     */
-    internal fun transformPointToLocal(point: Offset): Offset? {
-        val transform = computeTransformMatrixData()
-        val matrix = transform.asMatrix()
-        val inverseMatrix = TransMatrix()
-
-        if (!matrix.invert(inverseMatrix)) {
-            return null
-        }
-
-        val pts = floatArrayOf(point.x, point.y)
-        inverseMatrix.mapPoints(pts)
-
-        return Offset(pts[0], pts[1])
-    }
-
-    /**
      * Check if a point in DrawScope coordinates hits this sprite.
      *
      * @param point The point to test in DrawScope coordinates.
      * @return True if the point is within the sprite's bounds.
      */
-    fun hitTest(point: Offset): Boolean {
+    override fun hitTest(point: Offset): Boolean {
         if (!isVisible) return false
 
         val localPoint = transformPointToLocal(point) ?: return false
@@ -682,6 +553,7 @@ class RiveSprite internal constructor(
 
         return bounds.contains(localPoint)
     }
+
 
     // endregion
 
