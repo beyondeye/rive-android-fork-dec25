@@ -368,6 +368,77 @@ abstract class IRiveSprite(initialTags: Set<SpriteTag>) : AutoCloseable {
     abstract fun getTriggerFlow(propertyPath: String): Flow<Unit>?
 
     // endregion
+    // region Animation Control
+
+    /**
+     * Advance the state machine by the given time delta.
+     *
+     * This progresses all animations and state transitions. Should be called
+     * once per frame with the time elapsed since the last frame.
+     *
+     * @param deltaTime The time to advance by.
+     */
+    abstract fun advance(deltaTime: Duration)
+
+    // endregion
+
+    // region Pointer Events
+
+    /**
+     * Send a pointer down event to the state machine.
+     *
+     * This is used for interactive Rive animations that respond to touch/click.
+     * The point should be in DrawScope coordinates (same as [position]).
+     *
+     * The method transforms the point from DrawScope coordinates to artboard
+     * coordinates before forwarding to the state machine.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return True if the point is within the sprite bounds and the event was sent.
+     */
+    abstract fun pointerDown(point: Offset, pointerID: Int = 0): Boolean
+
+    /**
+     * Send a pointer move event to the state machine.
+     *
+     * This is used for hover effects and drag interactions in Rive animations.
+     * The point should be in DrawScope coordinates (same as [position]).
+     *
+     * The method transforms the point from DrawScope coordinates to artboard
+     * coordinates before forwarding to the state machine.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return True if the event was sent (even if outside bounds, for proper hover exit handling).
+     */
+    abstract fun pointerMove(point: Offset, pointerID: Int = 0): Boolean
+
+    /**
+     * Send a pointer up event to the state machine.
+     *
+     * This is used to complete click/tap interactions in Rive animations.
+     * The point should be in DrawScope coordinates (same as [position]).
+     *
+     * The method transforms the point from DrawScope coordinates to artboard
+     * coordinates before forwarding to the state machine.
+     *
+     * @param point The pointer position in DrawScope coordinates.
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     * @return True if the event was sent.
+     */
+    abstract fun pointerUp(point: Offset, pointerID: Int = 0): Boolean
+    /**
+     * Send a pointer exit event to the state machine.
+     *
+     * This is used when the pointer leaves the sprite's area. Call this when
+     * a pointer that was previously over this sprite moves away.
+     *
+     * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
+     */
+    abstract fun pointerExit(pointerID: Int = 0)
+
+    // endregion
 
 
 }
@@ -750,7 +821,7 @@ class RiveSprite internal constructor(
      *
      * @param deltaTime The time to advance by.
      */
-    fun advance(deltaTime: Duration) {
+    override fun advance(deltaTime: Duration) {
         stateMachine.advance(deltaTime)
     }
 
@@ -771,7 +842,7 @@ class RiveSprite internal constructor(
      * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
      * @return True if the point is within the sprite bounds and the event was sent.
      */
-    fun pointerDown(point: Offset, pointerID: Int = 0): Boolean {
+    override fun pointerDown(point: Offset, pointerID: Int): Boolean {
         val localPoint = transformPointToLocal(point) ?: return false
         val bounds = getArtboardBounds()
 
@@ -810,7 +881,7 @@ class RiveSprite internal constructor(
      * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
      * @return True if the event was sent (even if outside bounds, for proper hover exit handling).
      */
-    fun pointerMove(point: Offset, pointerID: Int = 0): Boolean {
+    override fun pointerMove(point: Offset, pointerID: Int): Boolean {
         val localPoint = transformPointToLocal(point) ?: return false
 
         // Always send move events - the state machine handles in/out transitions
@@ -842,7 +913,7 @@ class RiveSprite internal constructor(
      * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
      * @return True if the event was sent.
      */
-    fun pointerUp(point: Offset, pointerID: Int = 0): Boolean {
+    override fun pointerUp(point: Offset, pointerID: Int): Boolean {
         val localPoint = transformPointToLocal(point) ?: return false
 
         val displaySize = effectiveSize
@@ -868,7 +939,7 @@ class RiveSprite internal constructor(
      *
      * @param pointerID The ID of the pointer (for multi-touch), defaults to 0.
      */
-    fun pointerExit(pointerID: Int = 0) {
+    override fun pointerExit(pointerID: Int) {
         val displaySize = effectiveSize
         // Use a point outside the bounds to signal exit
         commandQueue.pointerExit(
