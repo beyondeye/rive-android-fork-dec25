@@ -447,6 +447,7 @@ abstract class IRiveSprite(initialTags: Set<SpriteTag>) : AutoCloseable {
      * @param outArray The output buffer to write the transform into. Must be size 6.
      */
     internal fun computeTransformArrayInto(outArray: FloatArray) {
+        //TODO: remove require check here for optimization?
         require(outArray.size == 6) { "Transform array must be size 6, got ${outArray.size}" }
 
         val displaySize = effectiveSize

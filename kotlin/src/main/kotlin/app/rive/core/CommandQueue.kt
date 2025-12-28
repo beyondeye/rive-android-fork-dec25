@@ -74,6 +74,7 @@ data class SpriteDrawCommand(
     var artboardHeight: Float,
 ) {
     init {
+        //TODO: remove: require from here for optimization?
         require(transform.size == 6) { 
             "Transform must have exactly 6 elements, got ${transform.size}" 
         }
