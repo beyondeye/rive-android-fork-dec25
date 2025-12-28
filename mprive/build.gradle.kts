@@ -1,6 +1,8 @@
 plugins {
     alias(fork.plugins.kotlin.multiplatform)
     alias(fork.plugins.android.library)
+    alias(fork.plugins.compose.multiplatform)
+    alias(fork.plugins.compose.compiler)
 }
 
 kotlin {
@@ -42,6 +44,15 @@ kotlin {
             dependencies {
                 // Add common dependencies here
                 implementation(fork.logger)
+                
+                // Compose Multiplatform - for @Immutable and @Composable support
+                implementation(compose.runtime)
+                
+                // Coroutines - for suspend functions
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+                
+                // AtomicFU - for atomic operations in multiplatform
+                implementation("org.jetbrains.kotlinx:atomicfu:0.23.2")
             }
         }
         
