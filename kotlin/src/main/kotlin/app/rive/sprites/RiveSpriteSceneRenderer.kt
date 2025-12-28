@@ -478,7 +478,7 @@ private fun renderSpriteToCanvas(
 
     // Apply the sprite's transform and draw to the target canvas
     targetCanvas.save()
-    targetCanvas.concat(sprite.computeTransformMatrix())
+    targetCanvas.concat(sprite.computeTransformMatrixData().asMatrix())
     targetCanvas.drawBitmap(spriteBitmap, 0f, 0f, paint)
     targetCanvas.restore()
 

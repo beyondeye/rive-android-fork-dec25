@@ -1,12 +1,9 @@
 package app.rive.sprites
 
 
-import android.graphics.Matrix
 import androidx.annotation.ColorInt
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.isSpecified
 import app.rive.Artboard
 import app.rive.RenderBuffer
 import app.rive.RiveFile
@@ -19,6 +16,8 @@ import app.rive.core.CommandQueue
 import app.rive.core.StateMachineHandle
 import app.rive.runtime.kotlin.core.Alignment
 import app.rive.runtime.kotlin.core.Fit
+import app.rive.sprites.matrix.TransMatrix
+import app.rive.sprites.matrix.TransMatrixData
 import app.rive.sprites.props.SpriteControlProp
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
@@ -534,7 +533,10 @@ class RiveSprite internal constructor(
     /**
      * Compute the transformation matrix for rendering this sprite.
      *
-     * The matrix combines translation, rotation, and scale in the correct order
+     * This method uses an optimized single-pass calculation via [computeTransformArrayInto]
+     * to compute the affine transformation directly, avoiding multiple matrix multiplications.
+     * 
+     * The transformation combines translation, rotation, and scale in the correct order
      * for pivot-based transformations:
      * 1. Translate pivot to origin (so transforms happen around the pivot point)
      * 2. Scale around origin (which is now the pivot)
@@ -544,9 +546,12 @@ class RiveSprite internal constructor(
      * This ensures that both rotation and scale happen around the sprite's
      * origin (pivot point), which can be Center, TopLeft, or Custom.
      *
-     * @return A [Matrix] representing the full transformation.
+     * @return A [TransMatrixData] representing the full transformation. Use [TransMatrixData.asMatrix]
+     *         to access platform-specific matrix operations when needed.
      */
-    fun computeTransformMatrix(): Matrix {
+    fun computeTransformMatrixData(): TransMatrixData {
+        /*
+
         val matrix = Matrix()
 
         val displaySize = effectiveSize
@@ -570,38 +575,20 @@ class RiveSprite internal constructor(
 
         // 4. Translate to final position
         matrix.postTranslate(position.x, position.y)
+         */
 
-        return matrix
-    }
-
-    /**
-     * Compute the 6-element affine transform array for native rendering.
-     *
-     * The array format is [scaleX, skewY, skewX, scaleY, translateX, translateY],
-     * compatible with the native sprite batch rendering.
-     *
-     * @return A FloatArray with 6 elements representing the affine transform.
-     */
-    fun computeTransformArray(): FloatArray {
-        val matrix = computeTransformMatrix()
-        val values = FloatArray(9)
-        matrix.getValues(values)
-
-        // Matrix values are in row-major order:
-        // [scaleX, skewX, transX]
-        // [skewY, scaleY, transY]
-        // [persp0, persp1, persp2]
-        return floatArrayOf(
-            values[Matrix.MSCALE_X],  // a: scaleX
-            values[Matrix.MSKEW_Y],   // b: skewY
-            values[Matrix.MSKEW_X],   // c: skewX
-            values[Matrix.MSCALE_Y],  // d: scaleY
-            values[Matrix.MTRANS_X],  // tx: translateX
-            values[Matrix.MTRANS_Y]   // ty: translateY
+        //TODO this is a temporary buffer: can we avoid allocation?
+        val affine = FloatArray(6)
+        computeTransformArrayInto(affine)
+        // Expand to 3x3 matrix format (row-major order)
+        //TODO can we preallocate a 9 elem float array instead of using floatArrayOf? and fill it? is it more performant?
+        val matrix9 = floatArrayOf(
+            affine[0], affine[2], affine[4],  // row 1: scaleX, skewX, transX
+            affine[1], affine[3], affine[5],  // row 2: skewY, scaleY, transY
+            0f, 0f, 1f                         // row 3: perspective (identity for 2D)
         )
+        return TransMatrixData(matrix9)
     }
-
-
 
     /**
      * Get the axis-aligned bounding box of the sprite in DrawScope coordinates.
@@ -613,7 +600,7 @@ class RiveSprite internal constructor(
      */
     fun getBounds(): Rect {
         val displaySize = effectiveSize
-        val matrix = computeTransformMatrix()
+        val transform = computeTransformMatrixData()
 
         // Create the four corners of the untransformed sprite
         val corners = floatArrayOf(
@@ -623,8 +610,8 @@ class RiveSprite internal constructor(
             0f, displaySize.height                    // Bottom-left
         )
 
-        // Transform all corners
-        matrix.mapPoints(corners)
+        // Transform all corners using lazy-loaded matrix
+        transform.asMatrix().mapPoints(corners)
 
         // Find the bounding box
         var minX = corners[0]
@@ -667,8 +654,9 @@ class RiveSprite internal constructor(
      * @return The point in local sprite coordinates, or null if transform fails.
      */
     internal fun transformPointToLocal(point: Offset): Offset? {
-        val matrix = computeTransformMatrix()
-        val inverseMatrix = Matrix()
+        val transform = computeTransformMatrixData()
+        val matrix = transform.asMatrix()
+        val inverseMatrix = TransMatrix()
 
         if (!matrix.invert(inverseMatrix)) {
             return null
