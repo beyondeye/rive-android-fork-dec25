@@ -638,33 +638,108 @@ println("Platform: $platform")
 // Output: "Android (JNI, Mobile)" or "Linux (JNI, Desktop)"
 ```
 
-#### Step 2.2: RiveFile Bindings
+#### Step 2.2: RiveFile Bindings ✅ COMPLETED
+
+**Implementation Notes**:
+- Completed on January 1, 2026
+- Native and Kotlin compilation successful for all platforms
 
 **File**: `mprive/src/nativeInterop/cpp/src/bindings/bindings_file.cpp`
+- ✅ Implemented comprehensive JNI methods for RiveFile management
+- ✅ File loading: `nativeLoadFile()` - Load from byte array using `rive::File::import()`
+- ✅ Artboard queries: `nativeGetArtboardCount()` - Get number of artboards
+- ✅ Artboard access: `nativeGetArtboard()` - Get by index
+- ✅ Artboard access: `nativeGetArtboardByName()` - Get by name
+- ✅ Artboard access: `nativeGetDefaultArtboard()` - Get default artboard
+- ✅ Resource cleanup: `nativeRelease()` - Free native resources
+- ✅ Uses `rive::rcp<File>` (reference counted pointer) for file management
+- ✅ Handles raw `Artboard*` pointers from Rive runtime
+- ✅ Proper error handling with `RiveException`
+- ✅ Comprehensive logging for debugging
 
-**JNI Methods**:
-```cpp
-// Load file from bytes
-JNIEXPORT jlong JNICALL
-Java_app_rive_mp_RiveFile_nativeLoadFile(JNIEnv* env, jobject, jbyteArray bytes);
+**File**: `mprive/src/commonMain/kotlin/app/rive/mp/RiveFile.kt`
+- ✅ Defined expect class with core API:
+  - `load(bytes: ByteArray): RiveFile` - Load file from bytes
+  - `artboardCount: Int` - Get number of artboards
+  - `artboard(): Artboard` - Get default artboard
+  - `artboard(index: Int): Artboard` - Get artboard by index
+  - `artboard(name: String): Artboard` - Get artboard by name
+  - `dispose()` - Release resources
 
-// Get artboard count
-JNIEXPORT jint JNICALL
-Java_app_rive_mp_RiveFile_nativeGetArtboardCount(JNIEnv* env, jobject, jlong filePtr);
+**File**: `mprive/src/commonMain/kotlin/app/rive/mp/Artboard.kt`
+- ✅ Created placeholder expect class for Artboard
+- ✅ Minimal interface with `dispose()` method
+- ⏳ Full implementation in Step 2.3
 
-// Get artboard by index
-JNIEXPORT jlong JNICALL
-Java_app_rive_mp_RiveFile_nativeGetArtboard(JNIEnv* env, jobject, jlong filePtr, jint index);
+**Kotlin Actual Implementations**:
+- ✅ `RiveFile.android.kt` - Android implementation with JNI bindings
+- ✅ `RiveFile.desktop.kt` - Desktop implementation with JNI bindings
+- ✅ `RiveFile.ios.kt` - iOS stub (throws NotImplementedError)
+- ✅ `RiveFile.wasmjs.kt` - wasmJS stub (throws NotImplementedError)
+- ✅ `Artboard.android.kt` - Android placeholder
+- ✅ `Artboard.desktop.kt` - Desktop placeholder
+- ✅ `Artboard.ios.kt` - iOS stub
+- ✅ `Artboard.wasmjs.kt` - wasmJS stub
 
-// Release file
-JNIEXPORT void JNICALL
-Java_app_rive_mp_RiveFile_nativeRelease(JNIEnv* env, jobject, jlong filePtr);
-```
+**Build Status**:
+- ✅ Native compilation: SUCCESS (all ABIs: arm64-v8a, armeabi-v7a, x86, x86_64)
+- ✅ Kotlin compilation: SUCCESS (Android Debug)
+- ⚠️ Warnings: Only beta expect/actual class warnings (non-blocking)
 
-- [ ] Implement file loading from byte array
-- [ ] Implement artboard access
-- [ ] Add proper error handling
-- [ ] Add resource cleanup
+**Key Implementation Details**:
+
+1. **Rive API Usage**:
+   - Uses `rive::File::import()` which returns `rcp<File>` (reference counted pointer)
+   - Artboard methods return raw `Artboard*` pointers (except `artboardDefault()` which returns `unique_ptr`)
+   - Manual reference counting via `file->ref()` to keep file alive when returning pointer to Kotlin
+   - Proper memory management with delete in `nativeRelease()`
+
+2. **Error Handling**:
+   - Checks `ImportResult` for file loading errors
+   - Validates artboard indices and names
+   - Throws `RiveException` for all error cases
+   - Comprehensive error messages with context
+
+3. **Logging**:
+   - Uses simple string messages (no format strings)
+   - Logs file size, artboard count, artboard names for debugging
+   - All logging via `LOGD()`, `LOGI()`, `LOGE()`, `LOGW()` macros
+
+**Comparison with kotlin Module**:
+
+⚠️ **Important**: This is a **minimal implementation** compared to the existing kotlin module. 
+
+See detailed comparison: [mprive_vs_kotlin_rivefile_comparison.md](mprive_vs_kotlin_rivefile_comparison.md)
+
+**Implemented in mprive** ✅:
+- File loading from byte array
+- Artboard access (by index, by name, default)
+- Artboard count
+- Basic disposal
+- Direct JNI (simpler than kotlin module's CommandQueue)
+
+**Missing from mprive** ❌ (vs kotlin module):
+- **View Models** (CRITICAL) - Essential for data-driven animations
+- **Enums** - Required for view model properties
+- **getArtboardNames()** query - List all artboard names
+- **AutoCloseable** interface - Standard Kotlin resource management
+- **Async loading** (suspend functions) - Better UX for large files
+- **Result<T>** error handling - More idiomatic than exceptions
+- **RawRes source** support - Convenient for Android resources
+- **Query caching** - Performance optimization
+- **Compose integration** (rememberRiveFile) - Automatic lifecycle
+
+**Recommendations**:
+1. **Before releasing**: Add AutoCloseable, getArtboardNames(), suspend wrapper
+2. **Phase 2+**: Add view model support (critical), enums, Result type
+3. **Phase 3+**: Add Compose integration, query caching
+
+**Trade-offs**:
+- mprive is simpler and multiplatform-friendly
+- kotlin module has more features and better Android/Compose integration
+- Both approaches are valid - depends on use case
+
+This minimal implementation is **acceptable for Phase 2** (basic functionality), but **additional features needed** before production-ready. See comparison document for full feature matrix and recommendations.
 
 #### Step 2.3: Artboard Bindings
 
