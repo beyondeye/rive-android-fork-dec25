@@ -7,11 +7,12 @@
 typedef unsigned int GLuint;
 typedef int GLint;
 
+// Note: We don't forward declare rive::Fit and rive::Alignment here
+// because they are fully defined in rive/math/aabb.hpp which we include anyway.
+// Forward declaring would cause type conflicts.
 namespace rive {
     class Artboard;
     class Renderer;
-    enum class Fit : unsigned char;
-    enum class Alignment : unsigned char;
 }
 
 namespace rive_mp {
@@ -76,16 +77,19 @@ public:
      * 
      * @param artboard The artboard to render (must not be null)
      * @param renderer The renderer to use (must not be null)
-     * @param fit How to fit the artboard in the buffer
-     * @param alignment How to align the artboard in the buffer
+     * @param fitValue How to fit the artboard in the buffer (raw enum value)
+     * @param alignmentValue How to align the artboard in the buffer (raw enum value)
      * 
      * WARNING: This function includes an expensive GPU→CPU copy (glReadPixels).
      * Expect 5-15ms per call on typical hardware.
+     * 
+     * NOTE: We use int parameters instead of rive::Fit/Alignment enums to avoid
+     * including Rive headers in this header file (keeping dependencies minimal).
      */
     void render(rive::Artboard* artboard,
                 rive::Renderer* renderer,
-                rive::Fit fit,
-                rive::Alignment alignment);
+                int fitValue,
+                int alignmentValue);
     
     /**
      * Get the rendered pixel data (RGBA format).

@@ -34,3 +34,5 @@ local.properties
 *.hprof
 tombstones/
 /kotlin/src/main/cpp/out/
+/mprive/src/androidMain/cpp/dependencies
+/mprive/src/androidMain/cpp/out

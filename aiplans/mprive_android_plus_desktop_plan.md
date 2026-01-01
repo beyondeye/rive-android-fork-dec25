@@ -553,6 +553,33 @@ LOGD(msg);
 
 ---
 
+**⚠️ BUILD STATUS & KNOWN ISSUES** (Updated January 1, 2026):
+
+**Compilation Issue Discovered**:
+- **Problem**: Rive's `Alignment` is a **class** (with x,y float members), NOT an enum
+  - Our render() function signature assumed it was an enum: `rive::Alignment alignment`
+  - Actual Rive API: `class Alignment { Alignment(float x, float y); }`
+  - Cannot cast int to `rive::Alignment` - compilation error
+
+**Current Status**:
+- ✅ **render_buffer.cpp EXCLUDED from build** (see CMakeLists.txt line 28-30)
+- ✅ **Native build SUCCESSFUL** without it (`libmprive-android.so` builds for all ABIs)
+- ✅ All other Phase 1 components working correctly
+- ⚠️ RenderBuffer deferred to Phase 2+ when implementing actual Canvas/Bitmap fallback
+
+**Resolution Plan** (Deferred):
+1. Redesign `render()` to accept alignment as separate x,y float parameters
+2. Or create helper to construct `rive::Alignment` from common presets (topLeft, center, etc.)
+3. Re-enable in CMakeLists.txt after API redesign
+4. Test with actual Canvas/Bitmap rendering pipeline
+
+**Impact**: 
+- **Zero impact on current progress** - PLS (Android) and Skia (Desktop) don't use RenderBuffer
+- RenderBuffer is only for Canvas/Bitmap fallback (not primary rendering path)
+- Can proceed with Phase 2 (JNI Bindings) immediately
+
+---
+
 ### Phase 2: Minimal JNI Bindings (Week 1-2)
 
 **Goal**: Implement core JNI methods for file loading, rendering, and basic animation

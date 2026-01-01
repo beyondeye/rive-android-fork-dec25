@@ -152,8 +152,8 @@ void RenderBuffer::destroyFramebuffer()
 void RenderBuffer::render(
     rive::Artboard* artboard,
     rive::Renderer* renderer,
-    rive::Fit fit,
-    rive::Alignment alignment)
+    int fitValue,
+    int alignmentValue)
 {
     if (!isValid()) {
         LOGE("RenderBuffer is not valid");
@@ -193,6 +193,10 @@ void RenderBuffer::render(
     float artboardWidth = artboardBounds.width();
     float artboardHeight = artboardBounds.height();
     
+    // Cast int parameters to Rive enums
+    rive::Fit fit = static_cast<rive::Fit>(fitValue);
+    rive::Alignment alignment = static_cast<rive::Alignment>(alignmentValue);
+    
     // Compute the fit and alignment transform
     // This matches the logic in the existing Rive SDK
     float scaleX = m_width / artboardWidth;
@@ -203,8 +207,7 @@ void RenderBuffer::render(
     switch (fit) {
         case rive::Fit::fill:
             // Stretch to fill (different scale for X and Y)
-            scaleX = scaleX;
-            scaleY = scaleY;
+            // scaleX and scaleY already computed above
             break;
         case rive::Fit::contain:
             // Fit inside (maintain aspect ratio, may have letterboxing)
@@ -242,6 +245,13 @@ void RenderBuffer::render(
                 scaleY = 1.0f;
             }
             break;
+        case rive::Fit::layout:
+            // Layout fit mode - use computed scales
+            // (typically handled by layout system, but we treat like contain)
+            scale = std::min(scaleX, scaleY);
+            scaleX = scale;
+            scaleY = scale;
+            break;
     }
     
     // Calculate translation based on alignment
@@ -251,8 +261,8 @@ void RenderBuffer::render(
     float translateY = 0.0f;
     
     // Horizontal alignment
-    int alignmentValue = static_cast<int>(alignment);
-    int horizontalAlign = alignmentValue % 3; // 0=left, 1=center, 2=right
+    int alignmentInt = static_cast<int>(alignment);
+    int horizontalAlign = alignmentInt % 3; // 0=left, 1=center, 2=right
     
     switch (horizontalAlign) {
         case 0: // Left
@@ -267,7 +277,7 @@ void RenderBuffer::render(
     }
     
     // Vertical alignment
-    int verticalAlign = alignmentValue / 3; // 0=top, 1=center, 2=bottom
+    int verticalAlign = alignmentInt / 3; // 0=top, 1=center, 2=bottom
     
     switch (verticalAlign) {
         case 0: // Top
