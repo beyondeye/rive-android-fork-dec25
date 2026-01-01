@@ -50,13 +50,22 @@ After analyzing the kotlin module's CommandQueue architecture, we've decided to 
 
 ### Impact on Existing Code
 
-**Current Progress (Steps 2.1-2.2):**
-- ✅ Keep: JNI infrastructure (jni_refs, jni_helpers, rive_log)
-- ⚠️ Refactor: RiveFile bindings (convert to handle-based API)
-- ⚠️ Refactor: Kotlin classes (use CommandQueue instead of direct JNI)
-- ➕ Add: CommandQueue C++ server
-- ➕ Add: RenderContext abstraction
-- ➕ Add: Reference counting system
+**Current Progress** (refer to [mprive_android_plus_desktop_plan.md](mprive_android_plus_desktop_plan.md) for original implementation details):
+
+**Completed Steps from Original Plan:**
+- ✅ **Step 1.1-1.4**: JNI infrastructure (jni_refs, jni_helpers, rive_log, platform.hpp) - **KEEP AS IS**
+- ✅ **Step 2.1**: Initialization bindings (bindings_init.cpp, RiveNative.kt) - **WILL BE REFACTORED**
+- ✅ **Step 2.2**: RiveFile bindings (bindings_file.cpp, RiveFile.kt) - **WILL BE REFACTORED**
+
+**Migration Impact:**
+- ✅ **Keep**: JNI infrastructure (jni_refs, jni_helpers, rive_log) from Steps 1.1-1.4
+- ⚠️ **Refactor**: RiveFile bindings from Step 2.2 (convert to handle-based API)
+- ⚠️ **Refactor**: Kotlin classes from Steps 2.1-2.2 (use CommandQueue instead of direct JNI)
+- ➕ **Add**: CommandQueue C++ server (new architecture)
+- ➕ **Add**: RenderContext abstraction (new component)
+- ➕ **Add**: Reference counting system (new component)
+
+**Note**: The original plan's Phase 2 (Steps 2.1-2.7) will be replaced by this CommandQueue architecture. See the original plan for context on what was initially implemented.
 
 ---
 
@@ -622,6 +631,40 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
 
 **Milestone A**: Basic CommandQueue can start/stop thread ✅
 
+#### A.5: Testing (Phase A)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Tests to Implement** (Phase A):
+1. ✅ `MpCommandQueueTest.kt` - Port from `CommandQueueComposeTest.kt`
+   - Reference counting
+   - Lifecycle (removal from Compose tree)
+   - Disposal
+2. ✅ `MpCommandQueueLifecycleTest.kt` - NEW
+   - Constructor increments refCount
+   - Acquire/release operations
+   - Disposal on zero refCount
+   - Double release error handling
+3. ✅ `MpCommandQueueThreadSafetyTest.kt` - NEW
+   - Concurrent acquire/release safety
+   - Thread interleaving tests
+4. ✅ `MpCommandQueueHandleTest.kt` - NEW
+   - Handle uniqueness
+   - Handle incrementing
+   - File handle management
+
+**Test Setup** (do once before Phase A tests):
+- [ ] Create test directory structure (commonTest, androidTest, desktopTest)
+- [ ] Implement `MpTestResources.kt` (expect/actual for resource loading)
+- [ ] Implement `MpTestContext.kt` (expect/actual for platform initialization)
+- [ ] Implement `MpComposeTestUtils.kt` (expect/actual for Compose testing)
+
+**Resources Needed**: None (CommandQueue tests don't use Rive files)
+
+**Coverage Target**: 80%+
+
+**Reference**: [Testing Strategy - Phase A](mprive_testing_strategy.md#phase-a-commandqueue-foundation-week-1-2)
+
 ---
 
 ### Phase B: File & Artboard Operations (Week 2-3)
@@ -717,6 +760,31 @@ int64_t CommandServer::handleCreateDefaultArtboard(int64_t fileHandle) {
 - [ ] Implement artboard deletion
 
 **Milestone B**: Can load file and create artboards ✅
+
+#### B.4: Testing (Phase B)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Tests to Implement** (Phase B):
+1. ✅ `MpRiveFileLoadTest.kt` - Port from `RiveFileLoadTest.kt`
+   - File loading from bytes
+   - Error handling (malformed files, unsupported versions)
+   - Renderer type selection
+2. ✅ `MpRiveArtboardLoadTest.kt` - Port from `RiveArtboardLoadTest.kt`
+   - Artboard queries (count, names)
+   - Artboard access (default, by index, by name)
+   - Error cases (no artboard)
+
+**Resources to Copy** (12 files → `commonTest/resources/rive/`):
+- `flux_capacitor.riv`, `off_road_car_blog.riv`
+- `junk.riv`, `sample6.riv` (error cases)
+- `multipleartboards.riv`, `noartboard.riv`, `noanimation.riv`
+- `long_artboard_name.riv`, `shapes.riv`, `cdn_image.riv`
+- `walle.riv`, `eve.png`
+
+**Coverage Target**: 90%+
+
+**Reference**: [Testing Strategy - Phase B](mprive_testing_strategy.md#phase-b-file--artboard-operations-week-2-3)
 
 ---
 
@@ -821,6 +889,28 @@ void CommandServer::handleDraw(const DrawCommand& cmd) {
 
 **Milestone C**: Can render animations ✅
 
+#### C.3: Testing (Phase C)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Tests to Implement** (Phase C):
+1. ✅ `MpRiveStateMachineLoadTest.kt` - State machine queries, loading
+2. ✅ `MpRiveStateMachineInstanceTest.kt` - SM advancement, inputs
+3. ✅ `MpRiveStateMachineConfigurationsTest.kt` - SM configurations
+4. ✅ `MpRiveEventTest.kt` - Event firing, listeners
+5. ✅ `MpRiveListenerTest.kt` - Event listener patterns
+
+**Resources to Copy** (10 files → `commonTest/resources/rive/`):
+- `multiple_state_machines.riv`, `state_machine_configurations.riv`
+- `state_machine_state_resolution.riv`
+- `events_test.riv`, `layerstatechange.riv`, `nested_settle.riv`
+- `what_a_state.riv`, `blend_state.riv`, `empty_animation_state.riv`
+- `animationconfigurations.riv`
+
+**Coverage Target**: 85%+
+
+**Reference**: [Testing Strategy - Phase C](mprive_testing_strategy.md#phase-c-state-machines--rendering-week-3-4)
+
 ---
 
 ### Phase D: View Models & Properties (Week 4-5)
@@ -889,6 +979,31 @@ void CommandServer::handleSetNumberProperty(const SetNumberPropertyCommand& cmd)
 - [ ] Implement subscription mechanism
 
 **Milestone D**: View models working ✅
+
+#### D.3: Testing (Phase D)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Tests to Implement** (Phase D):
+1. ✅ `MpRiveDataBindingTest.kt` - Port from `RiveDataBindingTest.kt` (**2,044 lines!**)
+   - VM/VMI creation (default, blank, named, by index)
+   - All property types (number, string, boolean, enum, color, trigger, image, artboard)
+   - Nested properties with path syntax
+   - Property flows (coroutines-based subscriptions) ⭐
+   - List properties (add, remove, swap, indexing)
+   - Bindable artboards (lifetimes, references)
+   - Transfer mechanism (moving VMI between files)
+   - Concurrent access patterns
+   - Memory management
+
+**Resources to Copy** (1 file → `commonTest/resources/rive/`):
+- `data_bind_test_impl.riv` (**CRITICAL** - main view model test file)
+
+**Coverage Target**: 90%+ (most complex feature)
+
+**Note**: This is the **LARGEST and most CRITICAL** test. Already uses coroutines, which are multiplatform-compatible!
+
+**Reference**: [Testing Strategy - Phase D](mprive_testing_strategy.md#phase-d-view-models--properties-week-4-5)
 
 ---
 
@@ -1002,6 +1117,25 @@ void CommandServer::handlePointerDown(const PointerDownCommand& cmd) {
 
 **Milestone E**: Full feature parity ✅
 
+#### E.4: Testing (Phase E)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Tests to Implement** (Phase E):
+1. ✅ `MpRiveAssetsTest.kt` - Asset loading, image decoding, audio
+2. ✅ `MpRiveAnimationConfigurationsTest.kt` - Animation mix values, configurations
+3. ✅ `MpRiveMemoryTest.kt` - Memory leaks, resource cleanup
+4. ✅ `MpRiveNestedInputsTest.kt` - Nested input handling
+
+**Resources to Copy** (4 files → `commonTest/resources/rive/`):
+- `asset_load_check.riv`
+- `audio_test.riv`, `table.wav`
+- `nested_inputs_test.riv`
+
+**Coverage Target**: 70%+ (assets), 80%+ (memory)
+
+**Reference**: [Testing Strategy - Phase E](mprive_testing_strategy.md#phase-e-advanced-features-week-5-6)
+
 ---
 
 ### Phase F: Multiplatform Adaptation (Week 6-7)
@@ -1073,6 +1207,30 @@ actual class RenderContextGL : RenderContext {
 
 **Milestone F**: Works on both platforms ✅
 
+#### F.3: Testing (Phase F)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Platform-Specific Tests to Create**:
+
+**Android** (`androidTest/platform/`):
+1. ✅ `AndroidRenderContextTest.kt` - PLS renderer initialization, surface management
+2. ✅ `AndroidResourceLoaderTest.kt` - Test R.raw resource loading
+3. ✅ `AndroidLifecycleTest.kt` - Test Android lifecycle integration
+4. ✅ `TouchEventTest.kt` - Touch event handling (from `RiveMultitouchTest.kt`)
+
+**Desktop** (`desktopTest/platform/`):
+1. ✅ `DesktopRenderContextTest.kt` - Skia renderer initialization
+2. ✅ `DesktopResourceLoaderTest.kt` - Test file resource loading
+3. ✅ `DesktopLifecycleTest.kt` - Test Desktop lifecycle integration
+
+**Resources to Copy** (3 files → platform-specific):
+- `multitouch.riv`, `touchevents.riv`, `touchpassthrough.riv`
+
+**Coverage Target**: 80%+
+
+**Reference**: [Testing Strategy - Phase F](mprive_testing_strategy.md#phase-f-multiplatform-adaptation-week-6-7)
+
 ---
 
 ### Phase G: Testing & Optimization (Week 7)
@@ -1110,6 +1268,25 @@ actual class RenderContextGL : RenderContext {
 - [ ] Large batch rendering
 
 **Milestone G**: Production ready ✅
+
+#### G.5: Testing (Phase G)
+
+See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
+
+**Tests to Implement** (Phase G):
+1. ✅ `MpRiveLifecycleTest.kt` - Component lifecycle
+2. ✅ `MpRiveControllerTest.kt` - Controller lifecycle
+3. ✅ `MpRiveUtilTest.kt` - Utility functions
+
+**Integration Tests to Create**:
+- End-to-end CommandQueue + view model workflow
+- Performance benchmarks (frame times, memory usage)
+- Memory leak detection (long-running tests)
+- Stress tests (many files, artboards, high-frequency updates)
+
+**Coverage Target**: 85%+ (overall)
+
+**Reference**: [Testing Strategy - Phase G](mprive_testing_strategy.md#phase-g-testing--optimization-week-7)
 
 ---
 

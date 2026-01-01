@@ -4,8 +4,39 @@
 **Module**: mprive (Kotlin Multiplatform)  
 **Target Platforms**: Android, Desktop/Linux JVM  
 **Date**: December 31, 2025  
-**Status**: Implementation Phase - In Progress  
+**Status**: ⚠️ **SUPERSEDED BY COMMANDQUEUE ARCHITECTURE**  
+**Superseded By**: [mprive_commandqueue_revised_plan.md](mprive_commandqueue_revised_plan.md) - Full CommandQueue implementation (Option A)  
 **Related Documents**: See [mprenderer.md](mprenderer.md) for detailed multiplatform renderer architecture
+
+---
+
+## ⚠️ IMPORTANT NOTICE
+
+**This plan has been superseded by the CommandQueue architecture approach.**
+
+**Decision Date**: January 1, 2026  
+**New Plan**: [mprive_commandqueue_revised_plan.md](mprive_commandqueue_revised_plan.md)
+
+**What This Means:**
+- **Phase 1 (Steps 1.1-1.4)**: ✅ **COMPLETED** - JNI infrastructure will be reused
+- **Phase 2 (Steps 2.1-2.7)**: ⚠️ **SUPERSEDED** - Being replaced by CommandQueue architecture
+- **Phase 3-8**: ⚠️ **SUPERSEDED** - Architecture changed to use CommandQueue pattern
+
+**Preserved Work:**
+- ✅ Step 1.1-1.4: JNI infrastructure (jni_refs, jni_helpers, rive_log, platform.hpp) - **WILL BE REUSED**
+- ⚠️ Step 2.1-2.2: Initialization and RiveFile bindings - **WILL BE REFACTORED** for CommandQueue
+
+**Why CommandQueue?**
+After analyzing the kotlin module's architecture, we decided to implement full CommandQueue architecture for:
+- Thread safety (dedicated render thread)
+- Production-ready architecture (battle-tested from kotlin module)
+- Better performance (non-blocking UI)
+- Full feature parity with kotlin module
+
+**Next Steps:**
+👉 See [mprive_commandqueue_revised_plan.md](mprive_commandqueue_revised_plan.md) for the active implementation plan
+
+---
 
 ---
 
