@@ -584,40 +584,59 @@ LOGD(msg);
 
 **Goal**: Implement core JNI methods for file loading, rendering, and basic animation
 
-#### Step 2.1: Initialization
+#### Step 2.1: Initialization ✅ COMPLETED
+
+**Implementation Notes**:
+- Completed on January 1, 2026
+- Native libraries build successfully for all ABIs
 
 **File**: `mprive/src/nativeInterop/cpp/src/bindings/bindings_init.cpp`
+- ✅ Implemented RiveNative JNI methods (nativeInit, nativeGetVersion, nativeGetPlatformInfo)
+- ✅ Note: JNI_OnLoad/JNI_OnUnload already exist in mprive_jni.cpp to avoid duplicate symbols
+- ✅ Provides version and platform information for debugging
 
-```cpp
-#include <jni.h>
-#include "jni_refs.hpp"
-#include "rive_log.hpp"
+**File**: `mprive/src/commonMain/kotlin/app/rive/mp/RiveNative.kt`
+- ✅ Created expect object with three methods:
+  - `nativeInit(context: Any)` - Initialize native library
+  - `nativeGetVersion(): String` - Get version string
+  - `nativeGetPlatformInfo(): String` - Get platform details
 
-extern "C" {
+**File**: `mprive/src/androidMain/kotlin/app/rive/mp/RiveNative.android.kt`
+- ✅ Implemented Android actual object with external methods
+- ✅ Automatic library loading in init block (loads "mprive-android")
+- ✅ Error handling for library load failures
 
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
-    rive_mp::g_JVM = vm;
-    return JNI_VERSION_1_6;
-}
+**File**: `mprive/src/desktopMain/kotlin/app/rive/mp/RiveNative.desktop.kt`
+- ✅ Implemented Desktop actual object with external methods
+- ✅ Automatic library loading in init block (loads "mprive-desktop")
+- ✅ Enhanced error reporting with java.library.path information
 
-JNIEXPORT void JNICALL JNI_OnUnload(JavaVM* vm, void* reserved) {
-    rive_mp::g_JVM = nullptr;
-}
+**Key Design Decisions**:
+1. **JNI Lifecycle Separation**: JNI_OnLoad/JNI_OnUnload remain in existing mprive_jni.cpp to avoid duplication
+2. **Platform-Agnostic API**: Common interface in commonMain, platform-specific implementations in androidMain/desktopMain
+3. **Automatic Library Loading**: Native libraries load automatically when RiveNative object is first accessed
+4. **Version Information**: Includes platform name in version string for easy debugging
 
-// Java: app.rive.mp.RiveNative.nativeInit()
-JNIEXPORT void JNICALL
-Java_app_rive_mp_RiveNative_nativeInit(JNIEnv* env, jobject thiz) {
-    rive_mp::InitJNIClassLoader(env, thiz);
-    rive_mp::InitializeRiveLog();
-    // Initialize rive runtime if needed
-}
+**Build Status**:
+- ✅ Native code compiles successfully for all Android ABIs (arm64-v8a, armeabi-v7a, x86, x86_64)
+- ✅ CMakeLists.txt automatically discovers new bindings file via GLOB
+- ⚠️ Kotlin compilation blocked by pre-existing issue in SpriteTag.kt (unrelated to this implementation)
 
-} // extern "C"
+**Usage Example**:
+```kotlin
+// Initialize (optional - happens automatically on first access)
+RiveNative.nativeInit(applicationContext)
+
+// Get version information
+val version = RiveNative.nativeGetVersion()
+println("Native library version: $version")
+// Output: "mprive-1.0.0-android" or "mprive-1.0.0-linux"
+
+// Get platform information
+val platform = RiveNative.nativeGetPlatformInfo()
+println("Platform: $platform")
+// Output: "Android (JNI, Mobile)" or "Linux (JNI, Desktop)"
 ```
-
-- [ ] Implement JNI_OnLoad
-- [ ] Implement initialization method
-- [ ] Add logging for debugging
 
 #### Step 2.2: RiveFile Bindings
 
