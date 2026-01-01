@@ -311,22 +311,141 @@ The existing rive-android `kotlin` module has its own JNI helpers in `kotlin/src
 
 **Design Decision**: Create new, platform-agnostic JNI helpers in `nativeInterop/` that can be shared between Android and Desktop implementations, with clean separation from platform-specific code.
 
-#### Step 1.3: Logging Infrastructure
+#### Step 1.3: Logging Infrastructure ✅ COMPLETED
+
+**Implementation Notes**:
+- Completed on January 1, 2026
+- All files successfully created and implemented
 
 **File**: `mprive/src/nativeInterop/cpp/include/rive_log.hpp`
-```cpp
-#pragma once
+- ✅ Defined logging interface with multiple log levels
+- ✅ RiveLogD() - Debug logging
+- ✅ RiveLogE() - Error logging (always enabled)
+- ✅ RiveLogI() - Info logging
+- ✅ RiveLogW() - Warning logging
+- ✅ InitializeRiveLog() - Initialize logging system
 
-namespace rive_mp {
-    void RiveLogD(const char* tag, const char* message);
-    void RiveLogE(const char* tag, const char* message);
-    void InitializeRiveLog();
-}
-```
+**File**: `mprive/src/nativeInterop/cpp/include/platform.hpp` (NEW)
+- ✅ Created comprehensive platform detection header
+- ✅ Detects all major platforms: Android, iOS, macOS, Linux, Windows, wasmJS, tvOS, watchOS
+- ✅ Platform macros: `RIVE_PLATFORM_ANDROID`, `RIVE_PLATFORM_IOS`, `RIVE_PLATFORM_LINUX`, etc.
+- ✅ Category macros: `RIVE_PLATFORM_MOBILE`, `RIVE_PLATFORM_DESKTOP`, `RIVE_PLATFORM_WEB`
+- ✅ Technology macros: `RIVE_PLATFORM_JNI`, `RIVE_PLATFORM_NO_JNI`
+- ✅ Helper functions: `GetPlatformName()`, `IsMobilePlatform()`, etc.
+- ✅ Compile-time assertions to ensure exactly one platform is defined
+- ✅ Comprehensive documentation and usage examples
 
 **File**: `mprive/src/nativeInterop/cpp/src/jni_common/rive_log.cpp`
-- [ ] Implement logging via JNI callback to Kotlin
-- [ ] Platform-specific logging (logcat for Android, stdout for Desktop)
+- ✅ Implemented platform-agnostic logging using `platform.hpp`
+- ✅ Android: Uses `__android_log_print()` from `<android/log.h>`
+- ✅ iOS: Uses `NSLog()` for Apple's unified logging (ready for future iOS support)
+- ✅ Desktop: Uses `printf()` for stdout, `fprintf(stderr)` for errors
+- ✅ wasmJS: Uses `emscripten_log()` for browser console (ready for future wasmJS support)
+- ✅ Platform detection via comprehensive `platform.hpp` header (replaces simple `__ANDROID__` check)
+- ✅ Logging enable/disable flag (`g_LoggingEnabled`)
+- ✅ Null safety checks for all log functions
+- ✅ Errors always logged regardless of enable flag
+- ✅ Platform name included in initialization message via `GetPlatformName()`
+
+**File**: `docs/mprive_platform_support.md` (NEW)
+- ✅ Created comprehensive platform support documentation
+- ✅ Documents platform detection strategies for all platforms
+- ✅ Logging implementation details for each platform
+- ✅ Platform-specific requirements (Android, iOS, Desktop, wasmJS)
+- ✅ Future platform support checklist
+- ✅ Code examples and best practices
+
+**Key Features**:
+- Platform-agnostic design (works on Android and Desktop)
+- No external dependencies beyond standard library and platform APIs
+- Errors go to stderr on Desktop for proper error stream handling
+- Comprehensive null checks prevent crashes from invalid input
+- Logging can be enabled/disabled at runtime
+- Clear log formatting with tag and level indicators
+
+**Platform Detection Architecture**:
+- **Centralized Detection**: All platform detection in `platform.hpp` header
+- **Future-Proof Design**: Easy to add new platforms (iOS, wasmJS, etc.)
+- **Compile-Time Safety**: Static assertions ensure exactly one platform is defined
+- **Category Macros**: Group platforms by type (mobile, desktop, web)
+- **Technology Macros**: Identify JNI vs non-JNI platforms
+
+**Platform-Specific Behavior**:
+- **Android**: Logs to Android logcat with appropriate priority levels (`ANDROID_LOG_*`)
+- **iOS**: Logs to Apple's unified logging system via `NSLog()` (ready for future support)
+- **Desktop** (Linux/macOS/Windows): Logs to console with formatted output (e.g., `[tag] [LEVEL] message`)
+- **wasmJS**: Logs to browser console via `emscripten_log()` (ready for future support)
+- **Error handling**: Errors always printed even if logging disabled (safety feature)
+- **Platform identification**: Uses `GetPlatformName()` from `platform.hpp` in initialization message
+
+**Migration from Simple Platform Detection**:
+- **Before**: Used simple `#if defined(__ANDROID__)` check
+- **After**: Uses comprehensive `platform.hpp` with `RIVE_PLATFORM_*` macros
+- **Benefits**: 
+  - Supports all future platforms (iOS, wasmJS, Windows, etc.)
+  - Clearer, more maintainable code
+  - Compile-time validation
+  - Consistent detection mechanism across all native code
+
+**Logging API Design**:
+
+mprive provides a **two-layer logging API** combining the benefits of compile-time optimization (macros) and multiplatform implementation (functions):
+
+1. **Macros (Recommended)**: `LOGD()`, `LOGE()`, `LOGI()`, `LOGW()`
+   - Compile-time controlled (enabled only in DEBUG or LOG builds)
+   - Zero overhead in release builds (completely removed by preprocessor)
+   - Same API as kotlin module for familiarity and easy migration
+   - Use for 99% of logging needs
+   - Default tag: `"rive-mp"`
+
+2. **Functions (Advanced)**: `rive_mp::RiveLogD()`, etc.
+   - Always available (in both debug and release builds)
+   - Provide the multiplatform implementation
+   - Support custom tags for better log organization
+   - Use only for critical errors that must be logged in production
+
+**Usage Example**:
+```cpp
+#include "rive_log.hpp"
+
+// Initialize once during startup
+rive_mp::InitializeRiveLog();
+
+// Standard logging (debug builds only - zero overhead in release)
+LOGD("Frame rendered");
+LOGI("Animation started");
+LOGW("Performance warning");
+LOGE("Non-critical error");
+
+// Advanced: Custom tag (debug builds only)
+#if defined(DEBUG) || defined(LOG)
+    rive_mp::RiveLogD("rive-renderer", "Custom tag message");
+#endif
+
+// Critical errors (always logged, even in release builds)
+rive_mp::RiveLogE("critical", "Fatal error - cannot recover");
+```
+
+**Performance**:
+- **Debug builds**: Macros call underlying functions (minimal overhead)
+- **Release builds**: Macros expand to nothing (zero overhead, no function calls)
+- **Functions**: Always available if needed (use sparingly in production code)
+
+**Migration from kotlin module**:
+```cpp
+// Old (kotlin module)
+LOGD("Loading file: %s", filename);
+LOGE("Error: %d", errorCode);
+
+// New (mprive) - same macro names!
+LOGD("Loading file");  // Simple message
+LOGE("Error occurred");
+
+// For formatted messages (if needed)
+char msg[256];
+snprintf(msg, sizeof(msg), "Loading file: %s", filename);
+LOGD(msg);
+```
 
 #### Step 1.4: Render Buffer (for Canvas/Bitmap approach)
 
