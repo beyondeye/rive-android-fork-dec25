@@ -4,7 +4,7 @@
 **Module**: mprive (Kotlin Multiplatform)  
 **Target Platforms**: Android, Desktop/Linux JVM  
 **Date**: December 31, 2025  
-**Status**: Planning Phase  
+**Status**: Implementation Phase - In Progress  
 **Related Documents**: See [mprenderer.md](mprenderer.md) for detailed multiplatform renderer architecture
 
 ---
@@ -224,59 +224,92 @@ mprive/
 
 **Goal**: Create shared C++ infrastructure for JNI bindings
 
-#### Step 1.1: Create Directory Structure
-- [ ] Create `mprive/src/nativeInterop/cpp/include/`
-- [ ] Create `mprive/src/nativeInterop/cpp/src/jni_common/`
-- [ ] Create `mprive/src/nativeInterop/cpp/src/bindings/`
+#### Step 1.1: Create Directory Structure ✅ COMPLETED
+- [x] Create `mprive/src/nativeInterop/cpp/include/`
+- [x] Create `mprive/src/nativeInterop/cpp/src/jni_common/`
+- [x] Create `mprive/src/nativeInterop/cpp/src/bindings/`
 
-#### Step 1.2: JNI Common Utilities
+**Implementation Notes**:
+- Directory structure created on January 1, 2026
+- All three required directories successfully created using `mkdir -p`
+- Verified structure matches the planned layout
+- Ready for Step 1.2: JNI Common Utilities implementation
+
+#### Step 1.2: JNI Common Utilities ✅ COMPLETED
+
+**Implementation Notes**:
+- Completed on January 1, 2026
+- All files successfully created and implemented
 
 **File**: `mprive/src/nativeInterop/cpp/include/jni_refs.hpp`
-```cpp
-#pragma once
-#include <jni.h>
-
-namespace rive_mp {
-    // Global JVM pointer
-    extern JavaVM* g_JVM;
-    
-    // JNI class loader
-    void InitJNIClassLoader(JNIEnv* env, jobject contextObject);
-    
-    // Helper to get JNIEnv in any thread
-    JNIEnv* GetJNIEnv();
-}
-```
+- ✅ Defined JNI reference management interface
+- ✅ Global JVM pointer declaration
+- ✅ Class loader initialization function
+- ✅ Thread-safe JNIEnv access function
 
 **File**: `mprive/src/nativeInterop/cpp/src/jni_common/jni_refs.cpp`
-- [ ] Implement global JVM storage
-- [ ] Implement class loader initialization
-- [ ] Implement thread-safe JNIEnv access
+- ✅ Implemented global JVM storage
+- ✅ Implemented class loader initialization with fallback handling
+- ✅ Implemented thread-safe JNIEnv access with automatic thread attachment
 
 **File**: `mprive/src/nativeInterop/cpp/include/jni_helpers.hpp`
-```cpp
-#pragma once
-#include <jni.h>
-#include <string>
-#include <vector>
-
-namespace rive_mp {
-    // Type conversions
-    std::string JStringToStdString(JNIEnv* env, jstring jstr);
-    jstring StdStringToJString(JNIEnv* env, const std::string& str);
-    
-    // Array conversions
-    std::vector<uint8_t> JByteArrayToVector(JNIEnv* env, jbyteArray arr);
-    jbyteArray VectorToJByteArray(JNIEnv* env, const std::vector<uint8_t>& vec);
-    
-    // Error handling
-    void ThrowRiveException(JNIEnv* env, const char* message);
-}
-```
+- ✅ Defined type conversion utilities
+- ✅ String conversion functions (Java ↔ C++)
+- ✅ Byte array conversion functions (Java ↔ C++)
+- ✅ Exception handling utilities
+- ✅ Added CheckAndClearException helper function
 
 **File**: `mprive/src/nativeInterop/cpp/src/jni_common/jni_helpers.cpp`
-- [ ] Implement all helper functions
-- [ ] Add error checking and logging
+- ✅ Implemented JStringToStdString with null safety
+- ✅ Implemented StdStringToJString
+- ✅ Implemented JByteArrayToVector with efficient memory handling
+- ✅ Implemented VectorToJByteArray
+- ✅ Implemented ThrowRiveException with multiple exception class fallbacks
+- ✅ Implemented CheckAndClearException with detailed error logging
+- ✅ Added comprehensive error checking throughout
+- ✅ Memory-safe implementations with proper JNI reference cleanup
+
+**Key Features**:
+- Thread-safe JNIEnv access with automatic thread attachment
+- Efficient byte array conversions using memcpy
+- Fallback exception handling (tries app.rive.mp, then app.rive.runtime.kotlin, then java.lang)
+- Comprehensive null checks and error handling
+- Ready for use by JNI binding implementations
+
+**Comparison with Existing kotlin Module**:
+
+The existing rive-android `kotlin` module has its own JNI helpers in `kotlin/src/main/cpp/`, but they serve different purposes:
+
+| Aspect | kotlin Module | mprive Module |
+|--------|---------------|---------------|
+| **Primary Purpose** | Android Canvas rendering | Multiplatform JNI foundation |
+| **File: jni_refs.hpp** | Caches Android Canvas API refs (Paint, Path, Bitmap, etc.) | JVM/JNIEnv management utilities |
+| **File: general.hpp** | Android-specific utilities + basic JNI helpers | (Not used - we have jni_helpers.hpp) |
+| **Platform Scope** | Android-only | Android + Desktop (shared code) |
+| **Rendering Focus** | Canvas API (software fallback) | PLS/Skia renderers (GPU-accelerated) |
+| **Organization** | Utilities spread across multiple files | Consolidated in nativeInterop/cpp/ |
+
+**Feature Overlap**:
+- Both have `extern JavaVM* g_JVM;` - Global JVM pointer
+- Both have `GetJNIEnv()` - Get JNI environment
+- Both have `JStringToString()` - Basic string conversion
+
+**mprive Enhancements** (not in kotlin module):
+- ✅ Automatic thread attachment in `GetJNIEnv()`
+- ✅ Class loader initialization (`InitJNIClassLoader()`)
+- ✅ Byte array conversions (`JByteArrayToVector`, `VectorToJByteArray`)
+- ✅ Multi-level exception fallback strategy
+- ✅ `CheckAndClearException()` utility
+- ✅ Enhanced null safety throughout
+- ✅ Platform-agnostic design (no Android-specific dependencies)
+
+**Why We Couldn't Reuse kotlin Module Code**:
+1. Tightly coupled to Android Canvas API (not needed for PLS/Skia renderers)
+2. Not designed for multiplatform code sharing (Android-only assumptions)
+3. Missing features required for multiplatform support (byte array conversions, enhanced error handling)
+4. Different architectural goals (single-platform vs. multiplatform)
+
+**Design Decision**: Create new, platform-agnostic JNI helpers in `nativeInterop/` that can be shared between Android and Desktop implementations, with clean separation from platform-specific code.
 
 #### Step 1.3: Logging Infrastructure
 
