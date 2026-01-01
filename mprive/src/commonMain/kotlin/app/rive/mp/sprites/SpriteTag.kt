@@ -1,5 +1,7 @@
 package app.rive.mp.sprites
 
+import kotlin.jvm.JvmInline
+
 /**
  * A tag that can be assigned to sprites for grouping and batch operations.
  *
@@ -51,7 +53,7 @@ package app.rive.mp.sprites
  *
  * @property value The tag string value (case-sensitive)
  */
-// @JvmInline
+@JvmInline
 value class SpriteTag(val value: String) {
     init {
         require(value.isNotBlank()) { "SpriteTag value cannot be blank" }
