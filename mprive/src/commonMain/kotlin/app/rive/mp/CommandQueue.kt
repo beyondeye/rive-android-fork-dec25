@@ -1,0 +1,192 @@
+package app.rive.mp
+
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.cancellation.CancellationException
+
+const val COMMAND_QUEUE_TAG = "Rive/CQ"
+
+/**
+ * A [CommandQueue] is the worker that runs Rive in a thread. It holds all of the state,
+ * including assets, Rive files, artboards, state machines, and view model instances.
+ *
+ * Instances of the command queue are reference counted. At initialization, the command queue has a
+ * ref count of 1. Call [acquire] to increment the ref count, and [release] to decrement it. When
+ * the ref count reaches 0, the command queue is disposed, and its resources are released.
+ *
+ * For Phase A, this is a minimal implementation focused on thread lifecycle management.
+ *
+ * @param renderContext The [RenderContext] to use for rendering. The CommandQueue takes ownership.
+ * @throws IllegalStateException If the command queue cannot be created.
+ */
+class CommandQueue(
+    private val renderContext: RenderContext = createDefaultRenderContext()
+) : RefCounted {
+    
+    // External JNI method declarations
+    private external fun cppConstructor(renderContextPtr: Long): Long
+    private external fun cppDelete(ptr: Long)
+    private external fun cppPollMessages(ptr: Long)
+    
+    // Phase B methods (to be implemented)
+    private external fun cppLoadFile(ptr: Long, requestID: Long, bytes: ByteArray)
+    private external fun cppDeleteFile(ptr: Long, requestID: Long, fileHandle: Long)
+    
+    companion object {
+        /**
+         * Maximum number of concurrent subscribers that can safely use this CommandQueue.
+         */
+        const val MAX_CONCURRENT_SUBSCRIBERS = 32
+    }
+    
+    /**
+     * The native pointer to the CommandServer C++ object, held in a reference-counted pointer.
+     */
+    private val cppPointer = RCPointer(
+        cppConstructor(renderContext.nativeObjectPointer),
+        COMMAND_QUEUE_TAG,
+        ::dispose
+    )
+    
+    /**
+     * Cleanup to be performed when the ref count reaches 0.
+     *
+     * Any pending continuations are cancelled to avoid callers hanging indefinitely.
+     */
+    private fun dispose(cppPointer: Long) {
+        cppDelete(cppPointer)
+        renderContext.close()
+        
+        // Cancel and clear any pending JNI continuations so callers don't hang.
+        pendingContinuations.values.toList().forEach { cont ->
+            cont.cancel(CancellationException("CommandQueue was released before operation could complete."))
+        }
+        pendingContinuations.clear()
+    }
+    
+    // Implement the RefCounted interface by delegating to cppPointer
+    override fun acquire(source: String) = cppPointer.acquire(source)
+    override fun release(source: String, reason: String) = cppPointer.release(source, reason)
+    override val refCount: Int
+        get() = cppPointer.refCount
+    override val isDisposed: Boolean
+        get() = cppPointer.isDisposed
+    
+    /**
+     * Flow that emits when a state machine has settled.
+     * For Phase A, this is just a placeholder.
+     */
+    private val _settledFlow = MutableSharedFlow<StateMachineHandle>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    val settledFlow: SharedFlow<StateMachineHandle> = _settledFlow
+    
+    init {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Creating command queue" }
+    }
+    
+    /**
+     * Poll messages from the CommandServer to the CommandQueue. This is the channel that all
+     * callbacks and errors arrive on. Should be called every frame.
+     *
+     * For Phase A, this is a basic implementation.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun pollMessages() = cppPollMessages(cppPointer.pointer)
+    
+    /**
+     * Create a Rive rendering surface for Rive to draw into.
+     * Phase A stub - to be implemented in Phase C.
+     */
+    fun createRiveSurface(drawKey: DrawKey): RiveSurface =
+        renderContext.createSurface(drawKey, this)
+    
+    /**
+     * Create an off-screen image surface for rendering to a buffer.
+     * Phase A stub - to be implemented in Phase C.
+     */
+    fun createImageSurface(width: Int, height: Int, drawKey: DrawKey): RiveSurface =
+        renderContext.createImageSurface(width, height, drawKey, this)
+    
+    /**
+     * Destroy a Rive rendering surface.
+     * Phase A stub - to be implemented in Phase C.
+     */
+    fun destroyRiveSurface(surface: RiveSurface) {
+        // For Phase A, just close directly
+        // In Phase C, this will run on command server thread
+        surface.close()
+    }
+    
+    /**
+     * Creates a Rive render target on the command server thread.
+     * Phase A stub - to be implemented in Phase C.
+     */
+    fun createRiveRenderTarget(width: Int, height: Int): Long {
+        // Placeholder for Phase A
+        return 0L
+    }
+    
+    // =============================================================================
+    // Async Request Infrastructure
+    // =============================================================================
+    
+    /**
+     * The map of all pending continuations, keyed by request ID. Entries are added when a suspend
+     * request is made, and removed when the request is completed.
+     */
+    private val pendingContinuations = mutableMapOf<Long, CancellableContinuation<Any>>()
+    
+    /**
+     * A monotonically increasing request ID used to identify JNI requests.
+     */
+    private val nextRequestID = atomic(0L)
+    
+    /**
+     * Make a JNI request that returns a value of type [T], split across a callback.
+     * Phase A stub - basic implementation for future use.
+     */
+    @Throws(CancellationException::class)
+    private suspend inline fun <reified T> suspendNativeRequest(
+        crossinline nativeFn: (Long) -> Unit
+    ): T = suspendCancellableCoroutine { cont ->
+        val requestID = nextRequestID.getAndIncrement()
+        
+        // Store the continuation
+        @Suppress("UNCHECKED_CAST")
+        pendingContinuations[requestID] = cont as CancellableContinuation<Any>
+        
+        cont.invokeOnCancellation {
+            pendingContinuations.remove(requestID)
+        }
+        
+        nativeFn(requestID)
+    }
+    
+    // =============================================================================
+    // Phase B: File Operations (stubs for Phase A)
+    // =============================================================================
+    
+    /**
+     * Load a Rive file into the command queue.
+     * Phase A stub - to be implemented in Phase B.
+     */
+    suspend fun loadFile(bytes: ByteArray): FileHandle {
+        TODO("Phase B: File loading not yet implemented")
+    }
+    
+    /**
+     * Delete a file and free its resources.
+     * Phase A stub - to be implemented in Phase B.
+     */
+    fun deleteFile(fileHandle: FileHandle) {
+        TODO("Phase B: File deletion not yet implemented")
+    }
+}
