@@ -4,7 +4,7 @@
 **Decision**: Full CommandQueue Architecture (Option A)  
 **Scope**: Complete feature parity with kotlin module's CommandQueue  
 **Estimated Timeline**: 4-7 weeks  
-**Status**: Phase A Implementation - Core Complete (78%)
+**Status**: Phase A Implementation - Core Complete (85%)
 
 ---
 
@@ -404,10 +404,12 @@ value class DrawKey(val handle: Long)
 **Remaining for Phase A:**
 - ⏳ Testing infrastructure setup
 - ⏳ Platform-specific implementations (expect/actual)
-- ⏳ Port core utility classes from kotlin module:
-  - CheckableAutoCloseable interface
-  - CloseOnce class (with multiplatform atomics)
-  - UniquePointer class
+
+**Recently Completed:**
+- ✅ Port core utility classes from kotlin module:
+  - ✅ CheckableAutoCloseable interface
+  - ✅ CloseOnce class (with multiplatform atomics)
+  - ✅ UniquePointer class
 
 #### A.1: Project Structure Setup
 
@@ -448,9 +450,9 @@ mprive/src/
 - [x] Create directory structure (all files created)
 - [x] Set up CMake to build command server (GLOB auto-includes new files)
 - [x] Add dependencies (threading already included)
-- [ ] Port CheckableAutoCloseable from kotlin module to mprive/core
-- [ ] Port CloseOnce from kotlin module to mprive/core (replace AtomicBoolean with atomicfu)
-- [ ] Port UniquePointer from kotlin module to mprive/core
+- [x] Port CheckableAutoCloseable from kotlin module to mprive/core
+- [x] Port CloseOnce from kotlin module to mprive/core (replace AtomicBoolean with atomicfu)
+- [x] Port UniquePointer from kotlin module to mprive/core
 
 **Porting Implementation Notes:**
 
