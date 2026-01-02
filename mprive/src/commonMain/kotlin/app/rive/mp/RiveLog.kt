@@ -2,20 +2,36 @@ package app.rive.mp
 
 import kotlin.concurrent.Volatile
 
+/**
+ * Internal log level enum with support for all standard levels including Verbose.
+ */
+internal enum class LogLevel(val weight: Int, val short: Char) {
+    Verbose(5, 'V'),
+    Debug(10, 'D'),
+    Info(20, 'I'),
+    Warning(30, 'W'),
+    Error(40, 'E'),
+}
+
+/**
+ * Platform-specific print function.
+ * Each platform implements this to use the native logging mechanism.
+ */
+internal expect fun platformLog(level: LogLevel, tag: String, message: String, throwable: Throwable?)
 
 /**
  * RiveLog allows configuring logging within Rive.
  *
  * By default, it uses `NoOpLogger`, which does nothing. You can set your own logger by assigning an
- * instance of `Logger` to `RiveLog.logger`. For basic logging, you can use `RiveLog.MultiplatformLogger`
- * to log using the multiplatform logger.
+ * instance of `Logger` to `RiveLog.logger`. For basic logging, you can use `RiveLog.PlatformLogger`
+ * to log using the platform's native logging mechanism.
  */
 object RiveLog {
     /**
      * The current logging implementation. Apps can override this to provide their own logging. For
      * example, in your application initialization:
      * ```kotlin
-     * if (DEBUG) { RiveLog.logger = RiveLog.MultiplatformLogger() }
+     * if (DEBUG) { RiveLog.logger = RiveLog.PlatformLogger() }
      * ```
      *
      * Marked as `@Volatile` to ensure immediate visibility across threads.
@@ -85,36 +101,38 @@ object RiveLog {
     fun logE(tag: String, msg: String) = logger.e(tag, null) { msg }
 
     /**
-     * Implementation that uses the multiplatform logger library with lazy `msg()` evaluation.
-     * This adapter wraps the de.halfbit:logger library to work with RiveLog's Logger interface.
+     * Platform-native logger implementation with lazy message evaluation.
+     * Uses the platform's native logging mechanism:
+     * - Android: android.util.Log
+     * - iOS: NSLog
+     * - Desktop/Wasm: println with formatted output
      */
-    class MultiplatformLogger : Logger {
+    class PlatformLogger : Logger {
         override fun v(tag: String, msg: () -> String) {
-            //TODO v log level not supported by halfbit logger: add it to halfbit logger and fix this
-            de.halfbit.logger.i(tag) { msg() }
+            platformLog(LogLevel.Verbose, tag, msg(), null)
         }
 
         override fun d(tag: String, msg: () -> String) {
-            de.halfbit.logger.d(tag){ msg() }
+            platformLog(LogLevel.Debug, tag, msg(), null)
         }
 
         override fun i(tag: String, msg: () -> String) {
-            de.halfbit.logger.i(tag) { msg() }
+            platformLog(LogLevel.Info, tag, msg(), null)
         }
 
         override fun w(tag: String, msg: () -> String) {
-            de.halfbit.logger.w(tag) {  msg() }
+            platformLog(LogLevel.Warning, tag, msg(), null)
         }
 
         override fun e(tag: String, t: Throwable?, msg: () -> String) {
-            if(t!=null) {
-                de.halfbit.logger.e(tag,t){msg()}
-            } else {
-                de.halfbit.logger.e(tag){msg()}
-            }
+            platformLog(LogLevel.Error, tag, msg(), t)
         }
     }
 
     /** Implementation that logs nothing. Used by default. */
     object NoOpLogger : Logger
+
+    // Keep MultiplatformLogger as deprecated alias for backward compatibility
+    @Deprecated("Use PlatformLogger instead", ReplaceWith("PlatformLogger()"))
+    class MultiplatformLogger : Logger by PlatformLogger()
 }

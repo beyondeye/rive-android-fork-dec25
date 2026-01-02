@@ -42,9 +42,6 @@ kotlin {
         // Common source set
         val commonMain by getting {
             dependencies {
-                // Add common dependencies here
-                implementation(fork.logger)
-                
                 // Compose Multiplatform - for @Immutable and @Composable support
                 implementation(compose.runtime)
                 
