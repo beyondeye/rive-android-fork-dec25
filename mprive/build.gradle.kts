@@ -46,16 +46,18 @@ kotlin {
                 implementation(compose.runtime)
                 
                 // Coroutines - for suspend functions
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+                implementation(fork.kotlinx.coroutines.core)
                 
                 // AtomicFU - for atomic operations in multiplatform
-                implementation("org.jetbrains.kotlinx:atomicfu:0.23.2")
+                implementation(fork.atomicfu)
             }
         }
         
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation(fork.kotlinx.coroutines.test)
+                implementation(compose.runtime)
             }
         }
         
@@ -66,10 +68,31 @@ kotlin {
             }
         }
         
+        // Android test source set
+        val androidInstrumentedTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(fork.androidx.core)
+                implementation(fork.androidx.junit.v115)
+                implementation(fork.androidx.runner.v152)
+                implementation(fork.androidx.ui.test.junit4)
+                implementation(fork.activity.compose)
+            }
+        }
+        
         // Desktop JVM source set
         val desktopMain by getting {
             dependencies {
                 // Desktop-specific dependencies
+            }
+        }
+        
+        // Desktop test source set
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(compose.desktop.currentOs)
+                implementation(compose.desktop.uiTestJUnit4)
             }
         }
         

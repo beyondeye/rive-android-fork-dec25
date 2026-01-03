@@ -374,8 +374,8 @@ value class DrawKey(val handle: Long)
 
 ### Phase A: CommandQueue Foundation (Week 1-2)
 
-**Status**: ✅ **CORE IMPLEMENTATION COMPLETE** (78%)  
-**Milestone A**: ✅ **ACHIEVED** - Basic CommandQueue can start/stop thread
+**Status**: ✅ **COMPILATION & TESTING INFRASTRUCTURE COMPLETE** (90%)  
+**Milestone A**: ⏳ **IN PROGRESS** - Basic CommandQueue compiles, tests created (C++ implementation pending)
 
 #### Implementation Summary
 
@@ -718,10 +718,26 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
    - File handle management
 
 **Test Setup** (do once before Phase A tests):
-- [ ] Create test directory structure (commonTest, androidTest, desktopTest)
-- [ ] Implement `MpTestResources.kt` (expect/actual for resource loading)
-- [ ] Implement `MpTestContext.kt` (expect/actual for platform initialization)
-- [ ] Implement `MpComposeTestUtils.kt` (expect/actual for Compose testing)
+- [x] Create test directory structure (commonTest, androidTest, desktopTest)
+- [ ] Implement `MpTestResources.kt` (expect/actual for resource loading) - **Deferred to Phase B** (not needed for Phase A)
+- [x] Implement `MpTestContext.kt` (expect/actual for platform initialization)
+- [ ] Implement `MpComposeTestUtils.kt` (expect/actual for Compose testing) - **Deferred to Phase B** (not needed for Phase A)
+
+**Implementation Status (January 2, 2026):**
+- ✅ **Compilation errors fixed**: Added `closed` property to `RCPointer` and `CommandQueue`
+- ✅ **Platform stubs created**: Android and Desktop `createDefaultRenderContext()` implementations
+- ✅ **Test dependencies added**: `kotlin.test`, coroutines-test, Compose runtime for commonTest
+- ✅ **Test infrastructure created**: `MpTestContext` with Android & Desktop actual implementations
+- ✅ **Tests implemented**: `MpCommandQueueLifecycleTest.kt` (7 tests), `MpCommandQueueThreadSafetyTest.kt` (3 tests)
+- ✅ **Tests compile successfully**: `BUILD SUCCESSFUL` on Desktop
+- ⏳ **Tests fail at runtime**: Expected - JNI bindings not fully implemented yet (C++ CommandServer pending)
+
+**Next Steps for Milestone A:**
+1. Implement C++ CommandServer (command_server.cpp)
+2. Implement JNI bindings (bindings_commandqueue.cpp)
+3. Build native library and link to tests
+4. Verify tests pass on Desktop
+5. Verify tests pass on Android
 
 **Resources Needed**: None (CommandQueue tests don't use Rive files)
 

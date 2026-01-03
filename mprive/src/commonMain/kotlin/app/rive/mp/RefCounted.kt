@@ -70,6 +70,10 @@ class RCPointer(
     private val disposed = atomic(false)
     override val isDisposed: Boolean
         get() = disposed.value
+    
+    /** Alias for [isDisposed] to satisfy [CheckableAutoCloseable] interface. */
+    override val closed: Boolean
+        get() = isDisposed
 
     /**
      * The native pointer address.

@@ -75,6 +75,10 @@ class CommandQueue(
     override val isDisposed: Boolean
         get() = cppPointer.isDisposed
     
+    /** Alias for [isDisposed] to satisfy [CheckableAutoCloseable] interface. */
+    override val closed: Boolean
+        get() = isDisposed
+    
     /**
      * Flow that emits when a state machine has settled.
      * For Phase A, this is just a placeholder.
