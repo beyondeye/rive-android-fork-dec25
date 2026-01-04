@@ -10,8 +10,11 @@
 #include <queue>
 #include <thread>
 #include "jni_refs.hpp"
+#include "rive_log.hpp"
 
 namespace rive_android {
+
+using rive_mp::GlobalRef;
 
 // Forward declarations
 class RenderContext;
@@ -119,7 +122,7 @@ private:
     std::atomic<bool> m_running{false};
     
     // JNI reference to the Java CommandQueue object (for callbacks in Phase B+)
-    GlobalRef<jobject> m_commandQueueRef;
+    rive_mp::GlobalRef<jobject> m_commandQueueRef;
     
     // Render context (for Phase C+)
     void* m_renderContext;

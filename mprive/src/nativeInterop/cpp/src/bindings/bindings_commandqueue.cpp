@@ -4,6 +4,7 @@
 #include "rive_log.hpp"
 
 using namespace rive_android;
+using namespace rive_mp;
 
 extern "C" {
 
@@ -23,19 +24,13 @@ Java_app_rive_mp_CommandQueue_cppConstructor(
     jobject thiz,
     jlong renderContextPtr
 ) {
-    try {
-        RIVE_LOG_INFO("CommandQueue JNI: Creating CommandServer");
-        
-        void* renderContext = reinterpret_cast<void*>(renderContextPtr);
-        auto* server = new CommandServer(env, thiz, renderContext);
-        
-        RIVE_LOG_INFO("CommandQueue JNI: CommandServer created successfully");
-        return reinterpret_cast<jlong>(server);
-    } catch (const std::exception& e) {
-        RIVE_LOG_ERROR("CommandQueue JNI: Failed to create CommandServer: %s", e.what());
-        // In Phase B+, we'll throw a Java exception here
-        return 0;
-    }
+    LOGI("CommandQueue JNI: Creating CommandServer");
+    
+    void* renderContext = reinterpret_cast<void*>(renderContextPtr);
+    auto* server = new CommandServer(env, thiz, renderContext);
+    
+    LOGI("CommandQueue JNI: CommandServer created successfully");
+    return reinterpret_cast<jlong>(server);
 }
 
 /**
@@ -53,18 +48,14 @@ Java_app_rive_mp_CommandQueue_cppDelete(
     jobject thiz,
     jlong ptr
 ) {
-    try {
-        RIVE_LOG_INFO("CommandQueue JNI: Deleting CommandServer");
-        
-        auto* server = reinterpret_cast<CommandServer*>(ptr);
-        if (server != nullptr) {
-            delete server;
-            RIVE_LOG_INFO("CommandQueue JNI: CommandServer deleted successfully");
-        } else {
-            RIVE_LOG_WARN("CommandQueue JNI: Attempted to delete null CommandServer");
-        }
-    } catch (const std::exception& e) {
-        RIVE_LOG_ERROR("CommandQueue JNI: Failed to delete CommandServer: %s", e.what());
+    LOGI("CommandQueue JNI: Deleting CommandServer");
+    
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server != nullptr) {
+        delete server;
+        LOGI("CommandQueue JNI: CommandServer deleted successfully");
+    } else {
+        LOGW("CommandQueue JNI: Attempted to delete null CommandServer");
     }
 }
 
@@ -83,15 +74,11 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
     jobject thiz,
     jlong ptr
 ) {
-    try {
-        auto* server = reinterpret_cast<CommandServer*>(ptr);
-        if (server != nullptr) {
-            server->pollMessages();
-        } else {
-            RIVE_LOG_WARN("CommandQueue JNI: Attempted to poll messages on null CommandServer");
-        }
-    } catch (const std::exception& e) {
-        RIVE_LOG_ERROR("CommandQueue JNI: Failed to poll messages: %s", e.what());
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server != nullptr) {
+        server->pollMessages();
+    } else {
+        LOGW("CommandQueue JNI: Attempted to poll messages on null CommandServer");
     }
 }
 
