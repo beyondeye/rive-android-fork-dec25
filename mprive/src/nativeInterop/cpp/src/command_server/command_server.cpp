@@ -8,26 +8,26 @@ CommandServer::CommandServer(JNIEnv* env, jobject commandQueue, void* renderCont
     : m_commandQueueRef(env, commandQueue)
     , m_renderContext(renderContext)
 {
-    RIVE_LOG_INFO("CommandServer: Constructing");
+    LOGI("CommandServer: Constructing");
     start();
 }
 
 CommandServer::~CommandServer()
 {
-    RIVE_LOG_INFO("CommandServer: Destructing");
+    LOGI("CommandServer: Destructing");
     stop();
 }
 
 void CommandServer::start()
 {
-    RIVE_LOG_INFO("CommandServer: Starting worker thread");
+    LOGI("CommandServer: Starting worker thread");
     m_running.store(true);
     m_thread = std::thread(&CommandServer::commandLoop, this);
 }
 
 void CommandServer::stop()
 {
-    RIVE_LOG_INFO("CommandServer: Stopping worker thread");
+    LOGI("CommandServer: Stopping worker thread");
     
     // Signal the thread to stop
     {
@@ -38,9 +38,9 @@ void CommandServer::stop()
     
     // Wait for the thread to finish
     if (m_thread.joinable()) {
-        RIVE_LOG_INFO("CommandServer: Waiting for worker thread to finish");
+        LOGI("CommandServer: Waiting for worker thread to finish");
         m_thread.join();
-        RIVE_LOG_INFO("CommandServer: Worker thread finished");
+        LOGI("CommandServer: Worker thread finished");
     }
 }
 
@@ -55,7 +55,7 @@ void CommandServer::enqueueCommand(Command cmd)
 
 void CommandServer::commandLoop()
 {
-    RIVE_LOG_INFO("CommandServer: Worker thread started");
+    LOGI("CommandServer: Worker thread started");
     
     // Phase C+: Initialize OpenGL context here
     // m_renderContext->initialize();
@@ -73,7 +73,7 @@ void CommandServer::commandLoop()
             
             // Check if we should stop
             if (!m_running.load() && m_commandQueue.empty()) {
-                RIVE_LOG_INFO("CommandServer: Worker thread stopping");
+                LOGI("CommandServer: Worker thread stopping");
                 break;
             }
             
@@ -93,7 +93,7 @@ void CommandServer::commandLoop()
     // Phase C+: Cleanup OpenGL context here
     // m_renderContext->destroy();
     
-    RIVE_LOG_INFO("CommandServer: Worker thread stopped");
+    LOGI("CommandServer: Worker thread stopped");
 }
 
 void CommandServer::executeCommand(const Command& cmd)
@@ -104,7 +104,7 @@ void CommandServer::executeCommand(const Command& cmd)
             break;
             
         case CommandType::Stop:
-            RIVE_LOG_INFO("CommandServer: Received Stop command");
+            LOGI("CommandServer: Received Stop command");
             // The stop logic is handled in commandLoop
             break;
             
@@ -114,8 +114,8 @@ void CommandServer::executeCommand(const Command& cmd)
         //     break;
         
         default:
-            RIVE_LOG_WARN("CommandServer: Unknown command type: %d", 
-                         static_cast<int>(cmd.type));
+            LOGW("CommandServer: Unknown command type: %d", 
+                 static_cast<int>(cmd.type));
             break;
     }
 }
