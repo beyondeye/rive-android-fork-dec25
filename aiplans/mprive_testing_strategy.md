@@ -4,8 +4,83 @@
 **Module**: mprive (Kotlin Multiplatform)  
 **Based on**: kotlin module Android tests (`kotlin/src/androidTest`)  
 **Date**: January 1, 2026  
+**Updated**: January 4, 2026  
 **Note**: mprive uses `androidInstrumentedTest` directory (KMP Source Set Layout V2)
-**Status**: Planning Complete - Ready for Implementation
+**Status**: Phase A & B Partially Implemented
+
+---
+
+## 📊 Implementation Status (January 4, 2026)
+
+### Completed ✅
+
+**Phase A: CommandQueue Foundation (75% Complete)**
+- ✅ `MpCommandQueueLifecycleTest.kt` - 8 test methods (reference counting, acquire/release, disposal)
+- ✅ `MpCommandQueueThreadSafetyTest.kt` - 3 test methods (concurrent operations)
+- ✅ `MpCommandQueueHandleTest.kt` - 8 test methods (handle uniqueness, incrementing, validation)
+- ⏸️ `MpCommandQueueTest.kt` - **DEFERRED** (requires Compose integration: `rememberCommandQueue()`, `MpComposeTestUtils`)
+
+**Phase B: File & Artboard Operations (100% Complete)**
+- ✅ `MpRiveFileLoadTest.kt` - 6 test methods (file loading, error handling, handle uniqueness)
+- ✅ `MpRiveArtboardLoadTest.kt` - 10 test methods (artboard queries, creation, edge cases)
+
+**Test Infrastructure (100% Complete)**
+- ✅ `MpTestContext.kt` - Platform-agnostic test context (common + Android + Desktop + iOS)
+- ✅ `MpTestResources.kt` - Resource loading abstraction (common + Android + Desktop)
+- ✅ `MpCommandQueueTestUtil.kt` - Automatic message polling utility
+
+**Test Resources (Phase B Complete)**
+- ✅ 11 .riv files copied to `commonTest/resources/rive/`
+- ✅ 1 .png asset file (eve.png)
+
+### In Progress / Pending 🔄
+
+**Phase A Blocker**
+- ⏸️ **Compose Integration Not Implemented**
+  - Missing: `rememberCommandQueue()` composable function
+  - Missing: `MpComposeTestUtils.kt` and platform implementations
+  - Impact: Cannot test Compose-based CommandQueue lifecycle
+  - Recommendation: Defer until Compose integration is ready
+
+**Phases C-G: Not Started ❌**
+- Phase C: State Machines & Rendering (0 of 5 tests)
+- Phase D: View Models & Properties (0 of 1 test - the massive 2,044-line test!)
+- Phase E: Advanced Features (0 of 4 tests)
+- Phase F: Platform-Specific Tests (0 of 7 tests)
+- Phase G: Integration & Optimization (0 of 5 tests)
+
+### Summary Statistics
+
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| **Tests Implemented** | 28 | 5 | 18% ✅ |
+| **Phase A** | 4 tests | 3 tests | 75% ⏸️ (1 deferred) |
+| **Phase B** | 2 tests | 2 tests | 100% ✅ |
+| **Phases C-G** | 22 tests | 0 tests | 0% ❌ |
+| **Test Resources** | 37 files | 12 files | 32% ✅ |
+
+### Test Execution Commands
+
+**Run All Tests:**
+```bash
+# Android (requires connected device/emulator)
+./gradlew :mprive:connectedAndroidTest
+
+# Desktop
+./gradlew :mprive:desktopTest
+
+# Both platforms
+./gradlew :mprive:connectedAndroidTest :mprive:desktopTest
+```
+
+**Run Specific Test Suites:**
+```bash
+# CommandQueue tests only
+./gradlew :mprive:desktopTest --tests "*CommandQueue*"
+
+# File/Artboard tests only
+./gradlew :mprive:desktopTest --tests "*File*" --tests "*Artboard*"
+```
 
 ---
 
