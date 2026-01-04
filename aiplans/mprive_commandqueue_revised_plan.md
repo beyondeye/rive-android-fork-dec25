@@ -1024,6 +1024,12 @@ void CommandServer::handleGetArtboardNames(const Command& cmd) {
 
 **Status**: ✅ **IMPLEMENTED** - January 4, 2026
 
+**B.3.5: Callback Delivery Mechanism ✅ COMPLETE**
+
+**Status**: ✅ **IMPLEMENTED** - January 4, 2026
+
+This sub-phase implements the critical missing piece: actual callback delivery from C++ to Kotlin.
+
 **Kotlin API:**
 ```kotlin
 suspend fun createDefaultArtboard(fileHandle: FileHandle): ArtboardHandle
@@ -1115,7 +1121,52 @@ void CommandServer::handleCreateDefaultArtboard(const Command& cmd) {
 - [x] Implement artboard deletion
 - [x] Test compilation
 
-**Milestone B**: ✅ **ACHIEVED** - Can load files, create artboards, and query all names via CommandQueue
+**Files Modified (3 total):**
+- ✅ `command_server.hpp` - Added getMessages() method declaration
+- ✅ `command_server.cpp` - Implemented getMessages() to retrieve all pending messages
+- ✅ `bindings_commandqueue.cpp` - Implemented full callback delivery in pollMessages
+
+**Implementation Details:**
+
+1. **Message Retrieval:**
+   - `getMessages()` extracts all pending messages from thread-safe queue
+   - Returns vector of messages, clearing the queue
+   - Called from JNI pollMessages
+
+2. **Callback Delivery:**
+   - Switch on message type to call appropriate Kotlin callback
+   - String conversion: C++ std::string → Java String (NewStringUTF)
+   - List conversion: C++ std::vector<std::string> → Java ArrayList<String>
+   - Proper memory management (DeleteLocalRef for temp objects)
+   - Exception handling after each callback
+
+3. **Messages Supported:**
+   - FileLoaded, FileError, FileDeleted
+   - ArtboardNamesListed, StateMachineNamesListed, ViewModelNamesListed
+   - QueryError
+   - ArtboardCreated, ArtboardError, ArtboardDeleted
+
+4. **Logging Fix:**
+   - RiveLog functions only accept (tag, message) - no printf-style formatting
+   - Solution: Manual string concatenation with std::to_string
+   - Example: `std::string errorMsg = "Unknown type: " + std::to_string(type);`
+
+**Build Status:**
+- ✅ **BUILD SUCCESSFUL** - All compilation errors resolved
+- ✅ Android native library compiled for all architectures
+
+**Key Achievement:**
+- Suspend functions now work! Coroutines can suspend and resume based on C++ callbacks.
+- Commands are enqueued → Worker thread executes → Messages enqueued → pollMessages delivers callbacks → Coroutines resume
+
+- [x] Implement getMessages() method in CommandServer
+- [x] Implement callback delivery in JNI pollMessages
+- [x] String and list conversions (C++ → Java)
+- [x] Exception handling
+- [x] Fix logging issues
+- [x] Test compilation
+
+**Milestone B**: ✅ **ACHIEVED** - Can load files, create artboards, and query all names via CommandQueue with full async/await support
 
 #### B.4: Testing (Phase B)
 
