@@ -1,6 +1,7 @@
 #include "command_server.hpp"
 #include "rive_log.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <cassert>
 
 namespace rive_android {
@@ -139,6 +140,22 @@ void CommandServer::executeCommand(const Command& cmd)
             
         case CommandType::DeleteArtboard:
             handleDeleteArtboard(cmd);
+            break;
+            
+        case CommandType::CreateDefaultStateMachine:
+            handleCreateDefaultStateMachine(cmd);
+            break;
+            
+        case CommandType::CreateStateMachineByName:
+            handleCreateStateMachineByName(cmd);
+            break;
+            
+        case CommandType::AdvanceStateMachine:
+            handleAdvanceStateMachine(cmd);
+            break;
+            
+        case CommandType::DeleteStateMachine:
+            handleDeleteStateMachine(cmd);
             break;
         
         default:
@@ -538,6 +555,193 @@ void CommandServer::handleDeleteArtboard(const Command& cmd)
         // Send error message
         Message msg(MessageType::ArtboardError, cmd.requestID);
         msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+    }
+}
+
+void CommandServer::createDefaultStateMachine(int64_t requestID, int64_t artboardHandle)
+{
+    LOGI("CommandServer: Enqueuing CreateDefaultStateMachine command (requestID=%lld, artboardHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(artboardHandle));
+    
+    Command cmd(CommandType::CreateDefaultStateMachine, requestID);
+    cmd.handle = artboardHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::createStateMachineByName(int64_t requestID, int64_t artboardHandle, const std::string& name)
+{
+    LOGI("CommandServer: Enqueuing CreateStateMachineByName command (requestID=%lld, artboardHandle=%lld, name=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(artboardHandle), name.c_str());
+    
+    Command cmd(CommandType::CreateStateMachineByName, requestID);
+    cmd.handle = artboardHandle;
+    cmd.name = name;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::advanceStateMachine(int64_t requestID, int64_t smHandle, float deltaTime)
+{
+    LOGI("CommandServer: Enqueuing AdvanceStateMachine command (requestID=%lld, smHandle=%lld, deltaTime=%f)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), deltaTime);
+    
+    Command cmd(CommandType::AdvanceStateMachine, requestID);
+    cmd.handle = smHandle;
+    cmd.deltaTime = deltaTime;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::deleteStateMachine(int64_t requestID, int64_t smHandle)
+{
+    LOGI("CommandServer: Enqueuing DeleteStateMachine command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle));
+    
+    Command cmd(CommandType::DeleteStateMachine, requestID);
+    cmd.handle = smHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::handleCreateDefaultStateMachine(const Command& cmd)
+{
+    LOGI("CommandServer: Handling CreateDefaultStateMachine command (requestID=%lld, artboardHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_artboards.find(cmd.handle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Create the default state machine
+    auto sm = it->second->defaultStateMachine();
+    if (!sm) {
+        LOGW("CommandServer: Failed to create default state machine");
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "Failed to create default state machine";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the state machine
+    m_stateMachines[handle] = std::move(sm);
+    
+    LOGI("CommandServer: State machine created successfully (handle=%lld)", 
+         static_cast<long long>(handle));
+    
+    // Send success message
+    Message msg(MessageType::StateMachineCreated, cmd.requestID);
+    msg.handle = handle;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleCreateStateMachineByName(const Command& cmd)
+{
+    LOGI("CommandServer: Handling CreateStateMachineByName command (requestID=%lld, artboardHandle=%lld, name=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.name.c_str());
+    
+    auto it = m_artboards.find(cmd.handle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Create the state machine by name
+    auto sm = it->second->stateMachineNamed(cmd.name);
+    if (!sm) {
+        LOGW("CommandServer: Failed to create state machine with name: %s", cmd.name.c_str());
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "State machine not found: " + cmd.name;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the state machine
+    m_stateMachines[handle] = std::move(sm);
+    
+    LOGI("CommandServer: State machine created successfully (handle=%lld, name=%s)", 
+         static_cast<long long>(handle), cmd.name.c_str());
+    
+    // Send success message
+    Message msg(MessageType::StateMachineCreated, cmd.requestID);
+    msg.handle = handle;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleAdvanceStateMachine(const Command& cmd)
+{
+    LOGI("CommandServer: Handling AdvanceStateMachine command (requestID=%lld, smHandle=%lld, deltaTime=%f)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.deltaTime);
+    
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Advance the state machine
+    it->second->advance(cmd.deltaTime);
+    
+    // Check if the state machine has settled
+    bool settled = !it->second->needsAdvance();
+    
+    LOGI("CommandServer: State machine advanced (handle=%lld, settled=%d)", 
+         static_cast<long long>(cmd.handle), settled);
+    
+    // If settled, send settled message
+    if (settled) {
+        Message msg(MessageType::StateMachineSettled, cmd.requestID);
+        msg.handle = cmd.handle;
+        enqueueMessage(std::move(msg));
+    }
+}
+
+void CommandServer::handleDeleteStateMachine(const Command& cmd)
+{
+    LOGI("CommandServer: Handling DeleteStateMachine command (requestID=%lld, handle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it != m_stateMachines.end()) {
+        m_stateMachines.erase(it);
+        
+        LOGI("CommandServer: State machine deleted successfully (handle=%lld)", 
+             static_cast<long long>(cmd.handle));
+        
+        // Send success message
+        Message msg(MessageType::StateMachineDeleted, cmd.requestID);
+        msg.handle = cmd.handle;
+        enqueueMessage(std::move(msg));
+    } else {
+        LOGW("CommandServer: Attempted to delete non-existent state machine (handle=%lld)",
+             static_cast<long long>(cmd.handle));
+        
+        // Send error message
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
         enqueueMessage(std::move(msg));
     }
 }

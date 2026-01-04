@@ -16,6 +16,7 @@
 
 // Rive headers
 #include "rive/file.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 namespace rive_android {
 
@@ -40,7 +41,12 @@ enum class CommandType {
     CreateDefaultArtboard,
     CreateArtboardByName,
     DeleteArtboard,
-    // Phase C+: State machine operations, etc.
+    // Phase C: State machine operations
+    CreateDefaultStateMachine,
+    CreateStateMachineByName,
+    AdvanceStateMachine,
+    DeleteStateMachine,
+    // Phase D+: View models, etc.
 };
 
 /**
@@ -53,7 +59,8 @@ struct Command {
     // Command-specific data
     std::vector<uint8_t> bytes;  // For LoadFile
     int64_t handle = 0;          // For DeleteFile, etc.
-    std::string name;            // For CreateArtboardByName
+    std::string name;            // For CreateArtboardByName, CreateStateMachineByName
+    float deltaTime = 0.0f;      // For AdvanceStateMachine (in seconds)
     
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -78,6 +85,11 @@ enum class MessageType {
     ArtboardCreated,
     ArtboardError,
     ArtboardDeleted,
+    // State machine operations
+    StateMachineCreated,
+    StateMachineError,
+    StateMachineDeleted,
+    StateMachineSettled,
 };
 
 /**
@@ -216,6 +228,40 @@ public:
      */
     void deleteArtboard(int64_t requestID, int64_t artboardHandle);
     
+    /**
+     * Enqueues a CreateDefaultStateMachine command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param artboardHandle The handle of the artboard to create state machine from.
+     */
+    void createDefaultStateMachine(int64_t requestID, int64_t artboardHandle);
+    
+    /**
+     * Enqueues a CreateStateMachineByName command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param artboardHandle The handle of the artboard to create state machine from.
+     * @param name The name of the state machine to create.
+     */
+    void createStateMachineByName(int64_t requestID, int64_t artboardHandle, const std::string& name);
+    
+    /**
+     * Enqueues an AdvanceStateMachine command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine to advance.
+     * @param deltaTime The time delta in seconds.
+     */
+    void advanceStateMachine(int64_t requestID, int64_t smHandle, float deltaTime);
+    
+    /**
+     * Enqueues a DeleteStateMachine command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine to delete.
+     */
+    void deleteStateMachine(int64_t requestID, int64_t smHandle);
+    
 private:
     /**
      * The main loop for the worker thread.
@@ -287,6 +333,34 @@ private:
     void handleDeleteArtboard(const Command& cmd);
     
     /**
+     * Handles a CreateDefaultStateMachine command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleCreateDefaultStateMachine(const Command& cmd);
+    
+    /**
+     * Handles a CreateStateMachineByName command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleCreateStateMachineByName(const Command& cmd);
+    
+    /**
+     * Handles an AdvanceStateMachine command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleAdvanceStateMachine(const Command& cmd);
+    
+    /**
+     * Handles a DeleteStateMachine command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleDeleteStateMachine(const Command& cmd);
+    
+    /**
      * Enqueues a message to be sent to Kotlin.
      * Thread-safe.
      * 
@@ -326,8 +400,8 @@ private:
     std::map<int64_t, std::unique_ptr<rive::ArtboardInstance>> m_artboards;
     std::atomic<int64_t> m_nextHandle{1};
     
-    // Phase C+: More resource maps
-    // std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;
+    // Phase C: State machine resource map
+    std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;
 };
 
 } // namespace rive_android

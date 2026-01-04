@@ -311,6 +311,79 @@ class CommandQueue(
     }
     
     // =============================================================================
+    // Phase C: State Machine Operations
+    // =============================================================================
+    
+    // External JNI methods for state machines
+    private external fun cppCreateDefaultStateMachine(ptr: Long, requestID: Long, artboardHandle: Long)
+    private external fun cppCreateStateMachineByName(ptr: Long, requestID: Long, artboardHandle: Long, name: String)
+    private external fun cppAdvanceStateMachine(ptr: Long, requestID: Long, smHandle: Long, deltaTimeSeconds: Float)
+    private external fun cppDeleteStateMachine(ptr: Long, requestID: Long, smHandle: Long)
+    
+    /**
+     * Create the default state machine from an artboard.
+     * 
+     * @param artboardHandle The handle of the artboard to create state machine from.
+     * @return A handle to the created state machine.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the artboard handle is invalid or state machine creation fails.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createDefaultStateMachine(artboardHandle: ArtboardHandle): StateMachineHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateDefaultStateMachine(cppPointer.pointer, requestID, artboardHandle.handle)
+        }
+    }
+    
+    /**
+     * Create a state machine by name from an artboard.
+     * 
+     * @param artboardHandle The handle of the artboard to create state machine from.
+     * @param name The name of the state machine to create.
+     * @return A handle to the created state machine.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the artboard handle is invalid or state machine not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createStateMachineByName(artboardHandle: ArtboardHandle, name: String): StateMachineHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateStateMachineByName(cppPointer.pointer, requestID, artboardHandle.handle, name)
+        }
+    }
+    
+    /**
+     * Advance a state machine by a time delta.
+     * 
+     * Note: This is a synchronous operation (fire-and-forget). It does not wait for the state machine to settle.
+     * If you need to be notified when the state machine settles, subscribe to [settledFlow].
+     * 
+     * @param smHandle The handle of the state machine to advance.
+     * @param deltaTimeSeconds The time delta in seconds.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun advanceStateMachine(smHandle: StateMachineHandle, deltaTimeSeconds: Float) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppAdvanceStateMachine(cppPointer.pointer, requestID, smHandle.handle, deltaTimeSeconds)
+    }
+    
+    /**
+     * Delete a state machine and free its resources.
+     * 
+     * @param smHandle The handle of the state machine to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteStateMachine(smHandle: StateMachineHandle) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppDeleteStateMachine(cppPointer.pointer, requestID, smHandle.handle)
+    }
+    
+    // =============================================================================
     // JNI Callbacks (called from C++)
     // =============================================================================
     
@@ -509,5 +582,73 @@ class CommandQueue(
     @Suppress("unused")  // Called from JNI
     private fun onArtboardDeleted(requestID: Long, artboardHandle: Long) {
         RiveLog.d(COMMAND_QUEUE_TAG) { "Artboard deleted: handle=$artboardHandle" }
+    }
+    
+    /**
+     * Called from C++ when a state machine has been successfully created.
+     * This resumes the suspended coroutine waiting for the state machine.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param smHandle The handle to the created state machine.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStateMachineCreated(requestID: Long, smHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<StateMachineHandle>
+            typedCont.resume(StateMachineHandle(smHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received state machine created callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when a state machine creation has failed.
+     * This resumes the suspended coroutine with an error.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStateMachineError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<StateMachineHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("State machine operation failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received state machine error callback for unknown requestID: $requestID - $error" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when a state machine has been deleted.
+     * 
+     * @param requestID The request ID (currently unused for delete operations).
+     * @param smHandle The handle of the deleted state machine.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStateMachineDeleted(requestID: Long, smHandle: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "State machine deleted: handle=$smHandle" }
+    }
+    
+    /**
+     * Called from C++ when a state machine has settled.
+     * This emits to the settledFlow.
+     * 
+     * @param requestID The request ID (currently unused).
+     * @param smHandle The handle of the settled state machine.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStateMachineSettled(requestID: Long, smHandle: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "State machine settled: handle=$smHandle" }
+        _settledFlow.tryEmit(StateMachineHandle(smHandle))
     }
 }
