@@ -144,6 +144,14 @@ public:
     void pollMessages();
     
     /**
+     * Gets all pending messages from the message queue.
+     * Returns the messages and clears the queue.
+     * 
+     * @return A vector of pending messages.
+     */
+    std::vector<Message> getMessages();
+    
+    /**
      * Enqueues a LoadFile command.
      * 
      * @param requestID The request ID for async completion.

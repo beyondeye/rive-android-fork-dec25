@@ -171,12 +171,117 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
     initCallbackMethodIDs(env, thiz);
     
     // Get messages from the server
-    // For Phase B.1, we'll implement a proper polling mechanism
-    // For now, pollMessages just logs the messages
-    server->pollMessages();
+    auto messages = server->getMessages();
     
-    // TODO: In a future iteration, we'll extract messages from the server
-    // and call the appropriate Kotlin callbacks here
+    // Deliver messages to Kotlin by calling the appropriate callbacks
+    for (const auto& msg : messages) {
+        switch (msg.type) {
+            case rive_android::MessageType::FileLoaded:
+                env->CallVoidMethod(thiz, g_onFileLoadedMethodID, 
+                    static_cast<jlong>(msg.requestID), 
+                    static_cast<jlong>(msg.handle));
+                break;
+                
+            case rive_android::MessageType::FileError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onFileErrorMethodID, 
+                        static_cast<jlong>(msg.requestID), 
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+                
+            case rive_android::MessageType::FileDeleted:
+                env->CallVoidMethod(thiz, g_onFileDeletedMethodID, 
+                    static_cast<jlong>(msg.requestID), 
+                    static_cast<jlong>(msg.handle));
+                break;
+                
+            case rive_android::MessageType::ArtboardNamesListed:
+            case rive_android::MessageType::StateMachineNamesListed:
+            case rive_android::MessageType::ViewModelNamesListed:
+                {
+                    // Convert std::vector<std::string> to Java List<String>
+                    jclass arrayListClass = env->FindClass("java/util/ArrayList");
+                    jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+                    jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+                    
+                    jobject arrayList = env->NewObject(arrayListClass, arrayListConstructor);
+                    
+                    for (const auto& name : msg.stringList) {
+                        jstring nameStr = env->NewStringUTF(name.c_str());
+                        env->CallBooleanMethod(arrayList, arrayListAdd, nameStr);
+                        env->DeleteLocalRef(nameStr);
+                    }
+                    
+                    // Call the appropriate callback based on message type
+                    if (msg.type == rive_android::MessageType::ArtboardNamesListed) {
+                        env->CallVoidMethod(thiz, g_onArtboardNamesListedMethodID, 
+                            static_cast<jlong>(msg.requestID), arrayList);
+                    } else if (msg.type == rive_android::MessageType::StateMachineNamesListed) {
+                        env->CallVoidMethod(thiz, g_onStateMachineNamesListedMethodID, 
+                            static_cast<jlong>(msg.requestID), arrayList);
+                    } else if (msg.type == rive_android::MessageType::ViewModelNamesListed) {
+                        env->CallVoidMethod(thiz, g_onViewModelNamesListedMethodID, 
+                            static_cast<jlong>(msg.requestID), arrayList);
+                    }
+                    
+                    env->DeleteLocalRef(arrayList);
+                    env->DeleteLocalRef(arrayListClass);
+                }
+                break;
+                
+            case rive_android::MessageType::QueryError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onQueryErrorMethodID, 
+                        static_cast<jlong>(msg.requestID), 
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+                
+            case rive_android::MessageType::ArtboardCreated:
+                env->CallVoidMethod(thiz, g_onArtboardCreatedMethodID, 
+                    static_cast<jlong>(msg.requestID), 
+                    static_cast<jlong>(msg.handle));
+                break;
+                
+            case rive_android::MessageType::ArtboardError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onArtboardErrorMethodID, 
+                        static_cast<jlong>(msg.requestID), 
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+                
+            case rive_android::MessageType::ArtboardDeleted:
+                env->CallVoidMethod(thiz, g_onArtboardDeletedMethodID, 
+                    static_cast<jlong>(msg.requestID), 
+                    static_cast<jlong>(msg.handle));
+                break;
+                
+            default:
+                {
+                    std::string errorMsg = "CommandQueue JNI: Unknown message type: " + 
+                                          std::to_string(static_cast<int>(msg.type));
+                    LOGW(errorMsg.c_str());
+                }
+                break;
+        }
+        
+        // Check for JNI exceptions after each callback
+        if (env->ExceptionCheck()) {
+            std::string errorMsg = "CommandQueue JNI: Exception occurred during callback for message type: " + 
+                                  std::to_string(static_cast<int>(msg.type));
+            LOGE(errorMsg.c_str());
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        }
+    }
 }
 
 /**

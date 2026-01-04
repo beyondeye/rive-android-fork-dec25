@@ -152,6 +152,16 @@ void CommandServer::pollMessages()
     // Poll messages from the command server and send them to Kotlin
     // This is called from the main thread (Kotlin side)
     
+    // This method is deprecated in favor of getMessages()
+    // But kept for backward compatibility
+    LOGI("CommandServer: pollMessages() called (deprecated)");
+}
+
+std::vector<Message> CommandServer::getMessages()
+{
+    // Get all pending messages from the message queue
+    // This is called from the main thread (Kotlin side)
+    
     std::vector<Message> messages;
     
     {
@@ -162,15 +172,7 @@ void CommandServer::pollMessages()
         }
     }
     
-    // Deliver messages to Kotlin
-    // For Phase B.1, we'll implement callbacks in the JNI bindings
-    // For now, this is a placeholder
-    for (const auto& msg : messages) {
-        LOGI("CommandServer: Message polled - type=%d, requestID=%lld, handle=%lld",
-             static_cast<int>(msg.type), 
-             static_cast<long long>(msg.requestID),
-             static_cast<long long>(msg.handle));
-    }
+    return messages;
 }
 
 void CommandServer::loadFile(int64_t requestID, const std::vector<uint8_t>& bytes)
