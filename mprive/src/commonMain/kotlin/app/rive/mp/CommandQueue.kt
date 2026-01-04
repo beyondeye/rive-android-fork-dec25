@@ -39,6 +39,9 @@ class CommandQueue(
     private external fun cppGetArtboardNames(ptr: Long, requestID: Long, fileHandle: Long)
     private external fun cppGetStateMachineNames(ptr: Long, requestID: Long, artboardHandle: Long)
     private external fun cppGetViewModelNames(ptr: Long, requestID: Long, fileHandle: Long)
+    private external fun cppCreateDefaultArtboard(ptr: Long, requestID: Long, fileHandle: Long)
+    private external fun cppCreateArtboardByName(ptr: Long, requestID: Long, fileHandle: Long, name: String)
+    private external fun cppDeleteArtboard(ptr: Long, requestID: Long, artboardHandle: Long)
     
     companion object {
         /**
@@ -261,6 +264,52 @@ class CommandQueue(
         }
     }
     
+    /**
+     * Create the default artboard from a file.
+     * 
+     * @param fileHandle The handle of the file to create artboard from.
+     * @return A handle to the created artboard.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid or artboard creation fails.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createDefaultArtboard(fileHandle: FileHandle): ArtboardHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateDefaultArtboard(cppPointer.pointer, requestID, fileHandle.handle)
+        }
+    }
+    
+    /**
+     * Create an artboard by name from a file.
+     * 
+     * @param fileHandle The handle of the file to create artboard from.
+     * @param name The name of the artboard to create.
+     * @return A handle to the created artboard.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid or artboard not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createArtboardByName(fileHandle: FileHandle, name: String): ArtboardHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateArtboardByName(cppPointer.pointer, requestID, fileHandle.handle, name)
+        }
+    }
+    
+    /**
+     * Delete an artboard and free its resources.
+     * 
+     * @param artboardHandle The handle of the artboard to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteArtboard(artboardHandle: ArtboardHandle) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppDeleteArtboard(cppPointer.pointer, requestID, artboardHandle.handle)
+    }
+    
     // =============================================================================
     // JNI Callbacks (called from C++)
     // =============================================================================
@@ -405,5 +454,60 @@ class CommandQueue(
                 "Received query error callback for unknown requestID: $requestID - $error" 
             }
         }
+    }
+    
+    /**
+     * Called from C++ when an artboard has been successfully created.
+     * This resumes the suspended coroutine waiting for the artboard.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param artboardHandle The handle to the created artboard.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onArtboardCreated(requestID: Long, artboardHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ArtboardHandle>
+            typedCont.resume(ArtboardHandle(artboardHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received artboard created callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when an artboard creation has failed.
+     * This resumes the suspended coroutine with an error.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onArtboardError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ArtboardHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Artboard operation failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received artboard error callback for unknown requestID: $requestID - $error" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when an artboard has been deleted.
+     * 
+     * @param requestID The request ID (currently unused for delete operations).
+     * @param artboardHandle The handle of the deleted artboard.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onArtboardDeleted(requestID: Long, artboardHandle: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Artboard deleted: handle=$artboardHandle" }
     }
 }

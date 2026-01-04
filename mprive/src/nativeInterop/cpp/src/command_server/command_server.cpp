@@ -127,6 +127,18 @@ void CommandServer::executeCommand(const Command& cmd)
         case CommandType::GetViewModelNames:
             handleGetViewModelNames(cmd);
             break;
+            
+        case CommandType::CreateDefaultArtboard:
+            handleCreateDefaultArtboard(cmd);
+            break;
+            
+        case CommandType::CreateArtboardByName:
+            handleCreateArtboardByName(cmd);
+            break;
+            
+        case CommandType::DeleteArtboard:
+            handleDeleteArtboard(cmd);
+            break;
         
         default:
             LOGW("CommandServer: Unknown command type: %d", 
@@ -324,36 +336,31 @@ void CommandServer::handleGetStateMachineNames(const Command& cmd)
     LOGI("CommandServer: Handling GetStateMachineNames command (requestID=%lld, artboardHandle=%lld)",
          static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
     
-    // Note: This will be fully functional in Phase B.3 when artboards are implemented
-    // For now, we'll send an error message
-    LOGW("CommandServer: Artboard operations not yet implemented (Phase B.3)");
+    auto it = m_artboards.find(cmd.handle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
     
-    Message msg(MessageType::QueryError, cmd.requestID);
-    msg.error = "Artboard operations not yet implemented";
+    std::vector<std::string> names;
+    auto& artboard = it->second;
+    
+    for (size_t i = 0; i < artboard->stateMachineCount(); i++) {
+        auto sm = artboard->stateMachine(i);
+        if (sm) {
+            names.push_back(sm->name());
+        }
+    }
+    
+    LOGI("CommandServer: Found %zu state machine names", names.size());
+    
+    Message msg(MessageType::StateMachineNamesListed, cmd.requestID);
+    msg.stringList = std::move(names);
     enqueueMessage(std::move(msg));
-    
-    // Phase B.3 implementation will look like this:
-    // auto it = m_artboards.find(cmd.handle);
-    // if (it == m_artboards.end()) {
-    //     Message msg(MessageType::QueryError, cmd.requestID);
-    //     msg.error = "Invalid artboard handle";
-    //     enqueueMessage(std::move(msg));
-    //     return;
-    // }
-    // 
-    // std::vector<std::string> names;
-    // auto& artboard = it->second;
-    // 
-    // for (size_t i = 0; i < artboard->stateMachineCount(); i++) {
-    //     auto sm = artboard->stateMachine(i);
-    //     if (sm) {
-    //         names.push_back(sm->name());
-    //     }
-    // }
-    // 
-    // Message msg(MessageType::StateMachineNamesListed, cmd.requestID);
-    // msg.stringList = std::move(names);
-    // enqueueMessage(std::move(msg));
 }
 
 void CommandServer::handleGetViewModelNames(const Command& cmd)
@@ -387,6 +394,149 @@ void CommandServer::handleGetViewModelNames(const Command& cmd)
     Message msg(MessageType::ViewModelNamesListed, cmd.requestID);
     msg.stringList = std::move(names);
     enqueueMessage(std::move(msg));
+}
+
+void CommandServer::createDefaultArtboard(int64_t requestID, int64_t fileHandle)
+{
+    LOGI("CommandServer: Enqueuing CreateDefaultArtboard command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle));
+    
+    Command cmd(CommandType::CreateDefaultArtboard, requestID);
+    cmd.handle = fileHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::createArtboardByName(int64_t requestID, int64_t fileHandle, const std::string& name)
+{
+    LOGI("CommandServer: Enqueuing CreateArtboardByName command (requestID=%lld, fileHandle=%lld, name=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle), name.c_str());
+    
+    Command cmd(CommandType::CreateArtboardByName, requestID);
+    cmd.handle = fileHandle;
+    cmd.name = name;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::deleteArtboard(int64_t requestID, int64_t artboardHandle)
+{
+    LOGI("CommandServer: Enqueuing DeleteArtboard command (requestID=%lld, artboardHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(artboardHandle));
+    
+    Command cmd(CommandType::DeleteArtboard, requestID);
+    cmd.handle = artboardHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::handleCreateDefaultArtboard(const Command& cmd)
+{
+    LOGI("CommandServer: Handling CreateDefaultArtboard command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::ArtboardError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Create the default artboard
+    auto artboard = it->second->artboardDefault();
+    if (!artboard) {
+        LOGW("CommandServer: Failed to create default artboard");
+        
+        Message msg(MessageType::ArtboardError, cmd.requestID);
+        msg.error = "Failed to create default artboard";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the artboard
+    m_artboards[handle] = std::move(artboard);
+    
+    LOGI("CommandServer: Artboard created successfully (handle=%lld)", 
+         static_cast<long long>(handle));
+    
+    // Send success message
+    Message msg(MessageType::ArtboardCreated, cmd.requestID);
+    msg.handle = handle;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleCreateArtboardByName(const Command& cmd)
+{
+    LOGI("CommandServer: Handling CreateArtboardByName command (requestID=%lld, fileHandle=%lld, name=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.name.c_str());
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::ArtboardError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Create the artboard by name
+    auto artboard = it->second->artboard(cmd.name);
+    if (!artboard) {
+        LOGW("CommandServer: Failed to create artboard with name: %s", cmd.name.c_str());
+        
+        Message msg(MessageType::ArtboardError, cmd.requestID);
+        msg.error = "Artboard not found: " + cmd.name;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the artboard
+    m_artboards[handle] = std::move(artboard);
+    
+    LOGI("CommandServer: Artboard created successfully (handle=%lld, name=%s)", 
+         static_cast<long long>(handle), cmd.name.c_str());
+    
+    // Send success message
+    Message msg(MessageType::ArtboardCreated, cmd.requestID);
+    msg.handle = handle;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleDeleteArtboard(const Command& cmd)
+{
+    LOGI("CommandServer: Handling DeleteArtboard command (requestID=%lld, handle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_artboards.find(cmd.handle);
+    if (it != m_artboards.end()) {
+        m_artboards.erase(it);
+        
+        LOGI("CommandServer: Artboard deleted successfully (handle=%lld)", 
+             static_cast<long long>(cmd.handle));
+        
+        // Send success message
+        Message msg(MessageType::ArtboardDeleted, cmd.requestID);
+        msg.handle = cmd.handle;
+        enqueueMessage(std::move(msg));
+    } else {
+        LOGW("CommandServer: Attempted to delete non-existent artboard (handle=%lld)",
+             static_cast<long long>(cmd.handle));
+        
+        // Send error message
+        Message msg(MessageType::ArtboardError, cmd.requestID);
+        msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+    }
 }
 
 } // namespace rive_android

@@ -15,6 +15,9 @@ static jmethodID g_onArtboardNamesListedMethodID = nullptr;
 static jmethodID g_onStateMachineNamesListedMethodID = nullptr;
 static jmethodID g_onViewModelNamesListedMethodID = nullptr;
 static jmethodID g_onQueryErrorMethodID = nullptr;
+static jmethodID g_onArtboardCreatedMethodID = nullptr;
+static jmethodID g_onArtboardErrorMethodID = nullptr;
+static jmethodID g_onArtboardDeletedMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -67,6 +70,24 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onQueryError",
         "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+    
+    g_onArtboardCreatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onArtboardCreated",
+        "(JJ)V"  // (requestID: Long, artboardHandle: Long) -> Unit
+    );
+    
+    g_onArtboardErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onArtboardError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+    
+    g_onArtboardDeletedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onArtboardDeleted",
+        "(JJ)V"  // (requestID: Long, artboardHandle: Long) -> Unit
     );
     
     env->DeleteLocalRef(commandQueueClass);
@@ -311,8 +332,99 @@ Java_app_rive_mp_CommandQueue_cppGetViewModelNames(
     server->getViewModelNames(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle));
 }
 
-// Phase B+: Add more JNI bindings here
-// - cppCreateDefaultArtboard
+/**
+ * Creates the default artboard from a file.
+ * 
+ * JNI signature: cppCreateDefaultArtboard(ptr: Long, requestID: Long, fileHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to create artboard from.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateDefaultArtboard(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to create default artboard on null CommandServer");
+        return;
+    }
+    
+    server->createDefaultArtboard(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle));
+}
+
+/**
+ * Creates an artboard by name from a file.
+ * 
+ * JNI signature: cppCreateArtboardByName(ptr: Long, requestID: Long, fileHandle: Long, name: String): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to create artboard from.
+ * @param name The name of the artboard to create.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateArtboardByName(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jstring name
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to create artboard by name on null CommandServer");
+        return;
+    }
+    
+    // Convert Java string to C++ string
+    const char* nameChars = env->GetStringUTFChars(name, nullptr);
+    std::string artboardName(nameChars);
+    env->ReleaseStringUTFChars(name, nameChars);
+    
+    server->createArtboardByName(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), artboardName);
+}
+
+/**
+ * Deletes an artboard.
+ * 
+ * JNI signature: cppDeleteArtboard(ptr: Long, requestID: Long, artboardHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param artboardHandle The handle of the artboard to delete.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppDeleteArtboard(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong artboardHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to delete artboard on null CommandServer");
+        return;
+    }
+    
+    server->deleteArtboard(static_cast<int64_t>(requestID), static_cast<int64_t>(artboardHandle));
+}
+
+// Phase C+: Add more JNI bindings here
+// - cppCreateDefaultStateMachine
 // - etc.
 
 } // extern "C"

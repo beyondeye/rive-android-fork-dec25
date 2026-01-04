@@ -36,7 +36,11 @@ enum class CommandType {
     GetArtboardNames,
     GetStateMachineNames,
     GetViewModelNames,
-    // Phase B+: CreateArtboard, etc.
+    // Phase B.3: Artboard operations
+    CreateDefaultArtboard,
+    CreateArtboardByName,
+    DeleteArtboard,
+    // Phase C+: State machine operations, etc.
 };
 
 /**
@@ -49,6 +53,7 @@ struct Command {
     // Command-specific data
     std::vector<uint8_t> bytes;  // For LoadFile
     int64_t handle = 0;          // For DeleteFile, etc.
+    std::string name;            // For CreateArtboardByName
     
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -69,6 +74,10 @@ enum class MessageType {
     StateMachineNamesListed,
     ViewModelNamesListed,
     QueryError,
+    // Artboard operations
+    ArtboardCreated,
+    ArtboardError,
+    ArtboardDeleted,
 };
 
 /**
@@ -174,6 +183,31 @@ public:
      */
     void getViewModelNames(int64_t requestID, int64_t fileHandle);
     
+    /**
+     * Enqueues a CreateDefaultArtboard command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to create artboard from.
+     */
+    void createDefaultArtboard(int64_t requestID, int64_t fileHandle);
+    
+    /**
+     * Enqueues a CreateArtboardByName command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to create artboard from.
+     * @param name The name of the artboard to create.
+     */
+    void createArtboardByName(int64_t requestID, int64_t fileHandle, const std::string& name);
+    
+    /**
+     * Enqueues a DeleteArtboard command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param artboardHandle The handle of the artboard to delete.
+     */
+    void deleteArtboard(int64_t requestID, int64_t artboardHandle);
+    
 private:
     /**
      * The main loop for the worker thread.
@@ -224,6 +258,27 @@ private:
     void handleGetViewModelNames(const Command& cmd);
     
     /**
+     * Handles a CreateDefaultArtboard command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleCreateDefaultArtboard(const Command& cmd);
+    
+    /**
+     * Handles a CreateArtboardByName command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleCreateArtboardByName(const Command& cmd);
+    
+    /**
+     * Handles a DeleteArtboard command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleDeleteArtboard(const Command& cmd);
+    
+    /**
      * Enqueues a message to be sent to Kotlin.
      * Thread-safe.
      * 
@@ -260,10 +315,11 @@ private:
     
     // Phase B: Resource maps
     std::map<int64_t, rive::rcp<rive::File>> m_files;
+    std::map<int64_t, std::unique_ptr<rive::Artboard>> m_artboards;
     std::atomic<int64_t> m_nextHandle{1};
     
-    // Phase B.3+: More resource maps (will be uncommented in B.3)
-    // std::map<int64_t, std::unique_ptr<rive::Artboard>> m_artboards;
+    // Phase C+: More resource maps
+    // std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;
 };
 
 } // namespace rive_android
