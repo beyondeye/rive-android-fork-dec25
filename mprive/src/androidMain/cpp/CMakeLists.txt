@@ -30,6 +30,9 @@ list(REMOVE_ITEM NATIVE_INTEROP_JNI_COMMON
 file(GLOB NATIVE_INTEROP_BINDINGS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/../../nativeInterop/cpp/src/bindings/*.cpp"
 )
+file(GLOB NATIVE_INTEROP_COMMAND_SERVER CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../nativeInterop/cpp/src/command_server/*.cpp"
+)
 
 # Find Android-specific sources
 file(GLOB ANDROID_SOURCES CONFIGURE_DEPENDS
@@ -40,12 +43,14 @@ file(GLOB ANDROID_SOURCES CONFIGURE_DEPENDS
 set(ALL_SOURCES
         ${NATIVE_INTEROP_JNI_COMMON}
         ${NATIVE_INTEROP_BINDINGS}
+        ${NATIVE_INTEROP_COMMAND_SERVER}
         ${ANDROID_SOURCES}
 )
 
 # Debug: Print discovered files (visible during build)
 message(STATUS "Native Interop JNI Common files: ${NATIVE_INTEROP_JNI_COMMON}")
 message(STATUS "Native Interop Bindings files: ${NATIVE_INTEROP_BINDINGS}")
+message(STATUS "Native Interop Command Server files: ${NATIVE_INTEROP_COMMAND_SERVER}")
 message(STATUS "Android-specific files: ${ANDROID_SOURCES}")
 message(STATUS "Total source files: ${ALL_SOURCES}")
 
