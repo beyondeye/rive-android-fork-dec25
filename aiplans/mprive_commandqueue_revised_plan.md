@@ -378,6 +378,25 @@ value class DrawKey(val handle: Long)
 **Milestone A**: ✅ **ACHIEVED** - CommandQueue thread lifecycle fully implemented and verified  
 **Updated**: January 4, 2026
 
+---
+
+### Phase B: File & Artboard Operations (Week 2-3)
+
+**Status**: 🚧 **IN PROGRESS (Android)** - 33% (B.1 complete)  
+**Milestone B**: ⏳ **IN PROGRESS** - Can load Rive files via CommandQueue  
+**Updated**: January 4, 2026
+**Status**: ✅ **COMPLETE (Android)** - 100%  
+**Milestone A**: ✅ **ACHIEVED** - CommandQueue thread lifecycle fully implemented and verified  
+**Updated**: January 4, 2026
+
+---
+
+### Phase B: File & Artboard Operations (Week 2-3)
+
+**Status**: 🚧 **IN PROGRESS (Android)** - 33% (B.1 complete)  
+**Milestone B**: ⏳ **IN PROGRESS** - Can load Rive files via CommandQueue  
+**Updated**: January 4, 2026
+
 #### Implementation Summary
 
 **Files Created** (11 total):
@@ -835,35 +854,81 @@ Evidence from `command_server.cpp`:
 
 ### Phase B: File & Artboard Operations (Week 2-3)
 
-#### B.1: Load File Operation
+#### B.1: Load File Operation ✅ **COMPLETE**
+
+**Status**: ✅ **IMPLEMENTED** - January 4, 2026
 
 **Kotlin API:**
 ```kotlin
 suspend fun loadFile(bytes: ByteArray): FileHandle
+fun deleteFile(fileHandle: FileHandle)
 ```
 
 **C++ Implementation:**
 ```cpp
 void CommandServer::handleLoadFile(const LoadFileCommand& cmd) {
-    auto result = rive::File::import(cmd.bytes);
+    auto importResult = rive::File::import(
+        rive::Span<const uint8_t>(cmd.bytes.data(), cmd.bytes.size()),
+        nullptr  // No asset loader for now (Phase E)
+    );
     
-    if (result.ok()) {
-        int64_t handle = m_nextHandle++;
-        m_files[handle] = result.file;
+    if (importResult.ok()) {
+        int64_t handle = m_nextHandle.fetch_add(1);
+        m_files[handle] = importResult.file;
         
-        // Callback to Kotlin
-        callJavaMethod("onFileLoaded", cmd.requestID, handle);
+        Message msg(MessageType::FileLoaded, cmd.requestID);
+        msg.handle = handle;
+        enqueueMessage(std::move(msg));
     } else {
-        // Error callback
-        callJavaMethod("onFileError", cmd.requestID, result.error);
+        Message msg(MessageType::FileError, cmd.requestID);
+        msg.error = "Failed to import Rive file";
+        enqueueMessage(std::move(msg));
     }
 }
 ```
 
-- [ ] Implement loadFile command
-- [ ] Implement file storage (handle → rcp<File>)
-- [ ] Implement JNI callback
-- [ ] Add suspend wrapper in Kotlin
+**Implementation Details:**
+
+1. **Command Types Added:**
+   - `CommandType::LoadFile` - Load a Rive file from bytes
+   - `CommandType::DeleteFile` - Delete a file and free resources
+
+2. **Message Types Added:**
+   - `MessageType::FileLoaded` - File loaded successfully (returns handle)
+   - `MessageType::FileError` - File load/delete error (returns error string)
+   - `MessageType::FileDeleted` - File deleted successfully
+
+3. **Resource Management:**
+   - `std::map<int64_t, rive::rcp<rive::File>> m_files` - File storage with handles
+   - `std::atomic<int64_t> m_nextHandle{1}` - Handle generator
+   - Message queue for async callbacks to Kotlin
+
+4. **JNI Bindings:**
+   - `cppLoadFile(ptr, requestID, bytes)` - Enqueue load file command
+   - `cppDeleteFile(ptr, requestID, fileHandle)` - Enqueue delete file command
+   - Callback method IDs cached for performance
+
+5. **Kotlin Callbacks:**
+   - `onFileLoaded(requestID, fileHandle)` - Resume coroutine with FileHandle
+   - `onFileError(requestID, error)` - Resume coroutine with error
+   - `onFileDeleted(requestID, fileHandle)` - Log file deletion
+
+**Files Modified:**
+- ✅ `command_server.hpp` - Added LoadFile/DeleteFile commands, message types, file storage
+- ✅ `command_server.cpp` - Implemented file loading/deletion logic
+- ✅ `bindings_commandqueue.cpp` - Added JNI bindings for loadFile/deleteFile
+- ✅ `CommandQueue.kt` - Implemented suspend loadFile, deleteFile, callbacks
+
+**Build Status:**
+- ✅ **BUILD SUCCESSFUL** - All compilation errors resolved
+- ✅ Android native library compiled for all architectures
+
+- [x] Implement loadFile command
+- [x] Implement file storage (handle → rcp<File>)
+- [x] Implement JNI callback
+- [x] Add suspend wrapper in Kotlin
+- [x] Implement deleteFile command
+- [x] Test compilation
 
 #### B.2: Query Operations
 

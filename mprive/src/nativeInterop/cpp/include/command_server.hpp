@@ -9,8 +9,13 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <vector>
+#include <string>
 #include "jni_refs.hpp"
 #include "rive_log.hpp"
+
+// Rive headers
+#include "rive/file.hpp"
 
 namespace rive_android {
 
@@ -21,24 +26,54 @@ class RenderContext;
 
 /**
  * Command types that can be sent to the CommandServer.
- * For Phase A, we only need minimal command types for thread lifecycle.
  */
 enum class CommandType {
     None,
     Stop,
-    // Phase B+: LoadFile, DeleteFile, CreateArtboard, etc.
+    // Phase B: File operations
+    LoadFile,
+    DeleteFile,
+    // Phase B+: CreateArtboard, etc.
 };
 
 /**
  * A command to be executed by the CommandServer.
- * For Phase A, this is a minimal structure.
  */
 struct Command {
     CommandType type = CommandType::None;
     int64_t requestID = 0;
     
+    // Command-specific data
+    std::vector<uint8_t> bytes;  // For LoadFile
+    int64_t handle = 0;          // For DeleteFile, etc.
+    
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
+        : type(t), requestID(reqID) {}
+};
+
+/**
+ * Message types that can be sent from CommandServer to Kotlin.
+ */
+enum class MessageType {
+    None,
+    // File operations
+    FileLoaded,
+    FileError,
+    FileDeleted,
+};
+
+/**
+ * A message to be sent from CommandServer to Kotlin.
+ */
+struct Message {
+    MessageType type = MessageType::None;
+    int64_t requestID = 0;
+    int64_t handle = 0;
+    std::string error;
+    
+    Message() = default;
+    explicit Message(MessageType t, int64_t reqID = 0) 
         : type(t), requestID(reqID) {}
 };
 
@@ -86,9 +121,25 @@ public:
     
     /**
      * Polls for messages from the command server.
-     * For Phase A, this is a no-op. Phase B+ will implement message polling.
+     * Delivers pending messages to Kotlin via JNI callbacks.
      */
     void pollMessages();
+    
+    /**
+     * Enqueues a LoadFile command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param bytes The Rive file bytes.
+     */
+    void loadFile(int64_t requestID, const std::vector<uint8_t>& bytes);
+    
+    /**
+     * Enqueues a DeleteFile command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to delete.
+     */
+    void deleteFile(int64_t requestID, int64_t fileHandle);
     
 private:
     /**
@@ -103,6 +154,28 @@ private:
      * @param cmd The command to execute.
      */
     void executeCommand(const Command& cmd);
+    
+    /**
+     * Handles a LoadFile command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleLoadFile(const Command& cmd);
+    
+    /**
+     * Handles a DeleteFile command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleDeleteFile(const Command& cmd);
+    
+    /**
+     * Enqueues a message to be sent to Kotlin.
+     * Thread-safe.
+     * 
+     * @param msg The message to enqueue.
+     */
+    void enqueueMessage(Message msg);
     
     /**
      * Starts the worker thread.
@@ -127,10 +200,16 @@ private:
     // Render context (for Phase C+)
     void* m_renderContext;
     
-    // Phase B+: Resource maps
-    // std::map<int64_t, rive::rcp<rive::File>> m_files;
+    // Message queue for callbacks to Kotlin
+    std::queue<Message> m_messageQueue;
+    std::mutex m_messageMutex;
+    
+    // Phase B: Resource maps
+    std::map<int64_t, rive::rcp<rive::File>> m_files;
+    std::atomic<int64_t> m_nextHandle{1};
+    
+    // Phase B+: More resource maps
     // std::map<int64_t, std::unique_ptr<rive::Artboard>> m_artboards;
-    // std::atomic<int64_t> m_nextHandle{1};
 };
 
 } // namespace rive_android

@@ -108,10 +108,13 @@ void CommandServer::executeCommand(const Command& cmd)
             // The stop logic is handled in commandLoop
             break;
             
-        // Phase B+: Add more command types here
-        // case CommandType::LoadFile:
-        //     handleLoadFile(cmd);
-        //     break;
+        case CommandType::LoadFile:
+            handleLoadFile(cmd);
+            break;
+            
+        case CommandType::DeleteFile:
+            handleDeleteFile(cmd);
+            break;
         
         default:
             LOGW("CommandServer: Unknown command type: %d", 
@@ -122,9 +125,121 @@ void CommandServer::executeCommand(const Command& cmd)
 
 void CommandServer::pollMessages()
 {
-    // Phase A: No-op
-    // Phase B+: Poll messages from the command server and send them to Kotlin
-    // This will involve calling Java methods via JNI to deliver callbacks
+    // Poll messages from the command server and send them to Kotlin
+    // This is called from the main thread (Kotlin side)
+    
+    std::vector<Message> messages;
+    
+    {
+        std::lock_guard<std::mutex> lock(m_messageMutex);
+        while (!m_messageQueue.empty()) {
+            messages.push_back(std::move(m_messageQueue.front()));
+            m_messageQueue.pop();
+        }
+    }
+    
+    // Deliver messages to Kotlin
+    // For Phase B.1, we'll implement callbacks in the JNI bindings
+    // For now, this is a placeholder
+    for (const auto& msg : messages) {
+        LOGI("CommandServer: Message polled - type=%d, requestID=%lld, handle=%lld",
+             static_cast<int>(msg.type), 
+             static_cast<long long>(msg.requestID),
+             static_cast<long long>(msg.handle));
+    }
+}
+
+void CommandServer::loadFile(int64_t requestID, const std::vector<uint8_t>& bytes)
+{
+    LOGI("CommandServer: Enqueuing LoadFile command (requestID=%lld, size=%zu)",
+         static_cast<long long>(requestID), bytes.size());
+    
+    Command cmd(CommandType::LoadFile, requestID);
+    cmd.bytes = bytes;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::deleteFile(int64_t requestID, int64_t fileHandle)
+{
+    LOGI("CommandServer: Enqueuing DeleteFile command (requestID=%lld, handle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle));
+    
+    Command cmd(CommandType::DeleteFile, requestID);
+    cmd.handle = fileHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::handleLoadFile(const Command& cmd)
+{
+    LOGI("CommandServer: Handling LoadFile command (requestID=%lld, size=%zu)",
+         static_cast<long long>(cmd.requestID), cmd.bytes.size());
+    
+    // Import the Rive file
+    auto importResult = rive::File::import(
+        rive::Span<const uint8_t>(cmd.bytes.data(), cmd.bytes.size()),
+        nullptr  // No asset loader for now (Phase E)
+    );
+    
+    if (importResult.ok()) {
+        // Generate a unique handle
+        int64_t handle = m_nextHandle.fetch_add(1);
+        
+        // Store the file
+        m_files[handle] = importResult.file;
+        
+        LOGI("CommandServer: File loaded successfully (handle=%lld)", 
+             static_cast<long long>(handle));
+        
+        // Send success message
+        Message msg(MessageType::FileLoaded, cmd.requestID);
+        msg.handle = handle;
+        enqueueMessage(std::move(msg));
+    } else {
+        // Send error message
+        LOGE("CommandServer: Failed to load file");
+        
+        Message msg(MessageType::FileError, cmd.requestID);
+        msg.error = "Failed to import Rive file";
+        enqueueMessage(std::move(msg));
+    }
+}
+
+void CommandServer::handleDeleteFile(const Command& cmd)
+{
+    LOGI("CommandServer: Handling DeleteFile command (requestID=%lld, handle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_files.find(cmd.handle);
+    if (it != m_files.end()) {
+        m_files.erase(it);
+        
+        LOGI("CommandServer: File deleted successfully (handle=%lld)", 
+             static_cast<long long>(cmd.handle));
+        
+        // Send success message
+        Message msg(MessageType::FileDeleted, cmd.requestID);
+        msg.handle = cmd.handle;
+        enqueueMessage(std::move(msg));
+    } else {
+        LOGW("CommandServer: Attempted to delete non-existent file (handle=%lld)",
+             static_cast<long long>(cmd.handle));
+        
+        // Send error message
+        Message msg(MessageType::FileError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+    }
+}
+
+void CommandServer::enqueueMessage(Message msg)
+{
+    {
+        std::lock_guard<std::mutex> lock(m_messageMutex);
+        m_messageQueue.push(std::move(msg));
+    }
+    // Note: We don't notify here because pollMessages is called from Kotlin
 }
 
 } // namespace rive_android

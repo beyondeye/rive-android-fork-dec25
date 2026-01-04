@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 const val COMMAND_QUEUE_TAG = "Rive/CQ"
 
@@ -180,17 +182,90 @@ class CommandQueue(
     
     /**
      * Load a Rive file into the command queue.
-     * Phase A stub - to be implemented in Phase B.
+     * 
+     * @param bytes The Rive file bytes to load.
+     * @return A handle to the loaded file.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file cannot be loaded (e.g., malformed file).
      */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun loadFile(bytes: ByteArray): FileHandle {
-        TODO("Phase B: File loading not yet implemented")
+        return suspendNativeRequest { requestID ->
+            cppLoadFile(cppPointer.pointer, requestID, bytes)
+        }
     }
     
     /**
      * Delete a file and free its resources.
-     * Phase A stub - to be implemented in Phase B.
+     * 
+     * @param fileHandle The handle of the file to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
      */
+    @Throws(IllegalStateException::class)
     fun deleteFile(fileHandle: FileHandle) {
-        TODO("Phase B: File deletion not yet implemented")
+        // For Phase B.1, we use a requestID but don't wait for completion
+        // In the future, this could be made async if needed
+        val requestID = nextRequestID.getAndIncrement()
+        cppDeleteFile(cppPointer.pointer, requestID, fileHandle.handle)
+    }
+    
+    // =============================================================================
+    // JNI Callbacks (called from C++)
+    // =============================================================================
+    
+    /**
+     * Called from C++ when a file has been successfully loaded.
+     * This resumes the suspended coroutine waiting for the file load.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param fileHandle The handle to the loaded file.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onFileLoaded(requestID: Long, fileHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<FileHandle>
+            typedCont.resume(FileHandle(fileHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received file loaded callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when a file load has failed.
+     * This resumes the suspended coroutine with an error.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onFileError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<FileHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Failed to load file: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received file error callback for unknown requestID: $requestID - $error" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when a file has been deleted.
+     * 
+     * @param requestID The request ID (currently unused for delete operations).
+     * @param fileHandle The handle of the deleted file.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onFileDeleted(requestID: Long, fileHandle: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "File deleted: handle=$fileHandle" }
     }
 }
