@@ -17,4 +17,17 @@ actual class MpTestContext {
     }
     
     actual fun getPlatformName(): String = "iOS (stub)"
+    
+    actual companion object {
+        /**
+         * Initialize the platform once for all tests.
+         * iOS tests are not implemented, so this throws an exception.
+         */
+        actual fun initPlatform() {
+            throw UnsupportedOperationException(
+                "iOS tests are not implemented. " +
+                "This is a stub to satisfy the compiler for Android/Desktop-only testing."
+            )
+        }
+    }
 }

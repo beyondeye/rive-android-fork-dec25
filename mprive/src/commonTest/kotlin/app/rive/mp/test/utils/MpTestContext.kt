@@ -16,4 +16,13 @@ expect class MpTestContext() {
      * Get platform name for debugging.
      */
     fun getPlatformName(): String
+    
+    companion object {
+        /**
+         * Initialize the platform once for all tests.
+         * This is called from test class init blocks to ensure Rive is initialized
+         * before any tests run.
+         */
+        fun initPlatform()
+    }
 }
