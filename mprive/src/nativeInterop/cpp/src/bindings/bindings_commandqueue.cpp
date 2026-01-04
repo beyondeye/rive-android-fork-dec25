@@ -268,7 +268,7 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
                 {
                     std::string errorMsg = "CommandQueue JNI: Unknown message type: " + 
                                           std::to_string(static_cast<int>(msg.type));
-                    LOGW(errorMsg.c_str());
+                    LOGW_STR(errorMsg.c_str());
                 }
                 break;
         }
@@ -277,7 +277,7 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
         if (env->ExceptionCheck()) {
             std::string errorMsg = "CommandQueue JNI: Exception occurred during callback for message type: " + 
                                   std::to_string(static_cast<int>(msg.type));
-            LOGE(errorMsg.c_str());
+            LOGE_STR(errorMsg.c_str());
             env->ExceptionDescribe();
             env->ExceptionClear();
         }

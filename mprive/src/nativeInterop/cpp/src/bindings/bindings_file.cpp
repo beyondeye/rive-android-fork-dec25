@@ -58,7 +58,7 @@ Java_app_rive_mp_RiveFile_00024Companion_nativeLoadFile(
     
     char msg[256];
     snprintf(msg, sizeof(msg), "Loading Rive file from byte array (size: %zu bytes)", fileData.size());
-    LOGD(msg);
+    LOGD_STR(msg);
     
     // Import Rive file
     rive::ImportResult result;
@@ -74,7 +74,7 @@ Java_app_rive_mp_RiveFile_00024Companion_nativeLoadFile(
         snprintf(errorMsg, sizeof(errorMsg), 
                 "Failed to import Rive file (error code: %d)", 
                 static_cast<int>(result));
-        LOGE(errorMsg);
+        LOGE_STR(errorMsg);
         rive_mp::ThrowRiveException(env, errorMsg);
         return 0;
     }
@@ -86,7 +86,7 @@ Java_app_rive_mp_RiveFile_00024Companion_nativeLoadFile(
     }
     
     snprintf(msg, sizeof(msg), "Rive file loaded successfully (artboards: %zu)", file->artboardCount());
-    LOGI(msg);
+    LOGI_STR(msg);
     
     // Return pointer as jlong (file is rcp, need to increment ref count to keep alive)
     file->ref();  // Increment reference count on the File object
@@ -146,7 +146,7 @@ Java_app_rive_mp_RiveFile_nativeGetArtboard(
 ) {
     char msg[256];
     snprintf(msg, sizeof(msg), "nativeGetArtboard called (index: %d)", index);
-    LOGD(msg);
+    LOGD_STR(msg);
     
     if (filePtr == 0) {
         rive_mp::ThrowRiveException(env, "Invalid file pointer (null)");
@@ -161,7 +161,7 @@ Java_app_rive_mp_RiveFile_nativeGetArtboard(
         snprintf(errorMsg, sizeof(errorMsg),
                 "Artboard index out of bounds: %d (count: %zu)",
                 index, file->artboardCount());
-        LOGE(errorMsg);
+        LOGE_STR(errorMsg);
         rive_mp::ThrowRiveException(env, errorMsg);
         return 0;
     }
@@ -173,14 +173,14 @@ Java_app_rive_mp_RiveFile_nativeGetArtboard(
         char errorMsg[256];
         snprintf(errorMsg, sizeof(errorMsg),
                 "Failed to get artboard at index %d", index);
-        LOGE(errorMsg);
+        LOGE_STR(errorMsg);
         rive_mp::ThrowRiveException(env, errorMsg);
         return 0;
     }
     
     snprintf(msg, sizeof(msg), "Artboard retrieved successfully (index: %d, name: %s)", 
              index, artboard->name().c_str());
-    LOGD(msg);
+    LOGD_STR(msg);
     
     // Return pointer as jlong (artboard is already a raw pointer)
     return reinterpret_cast<jlong>(artboard);
@@ -223,7 +223,7 @@ Java_app_rive_mp_RiveFile_nativeGetArtboardByName(
     
     char msg[256];
     snprintf(msg, sizeof(msg), "nativeGetArtboardByName called (name: %s)", artboardName.c_str());
-    LOGD(msg);
+    LOGD_STR(msg);
     
     // Get artboard instance by name (returns raw pointer, need to manage lifetime)
     rive::Artboard* artboard = file->artboard(artboardName);
@@ -232,13 +232,13 @@ Java_app_rive_mp_RiveFile_nativeGetArtboardByName(
         char errorMsg[256];
         snprintf(errorMsg, sizeof(errorMsg),
                 "Artboard not found: %s", artboardName.c_str());
-        LOGE(errorMsg);
+        LOGE_STR(errorMsg);
         rive_mp::ThrowRiveException(env, errorMsg);
         return 0;
     }
     
     snprintf(msg, sizeof(msg), "Artboard retrieved successfully (name: %s)", artboardName.c_str());
-    LOGD(msg);
+    LOGD_STR(msg);
     
     // Return pointer as jlong (artboard is already a raw pointer)
     return reinterpret_cast<jlong>(artboard);
@@ -284,7 +284,7 @@ Java_app_rive_mp_RiveFile_nativeGetDefaultArtboard(
     
     char msg[256];
     snprintf(msg, sizeof(msg), "Default artboard retrieved successfully (name: %s)", artboard->name().c_str());
-    LOGD(msg);
+    LOGD_STR(msg);
     
     // Return pointer as jlong
     return reinterpret_cast<jlong>(artboard.release());

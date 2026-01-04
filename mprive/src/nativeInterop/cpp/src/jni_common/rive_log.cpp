@@ -1,6 +1,7 @@
 #include "rive_log.hpp"
 #include "platform.hpp"
 #include <cstdio>
+#include <cstdarg>
 
 // Platform-specific headers
 #if RIVE_PLATFORM_ANDROID
@@ -10,6 +11,9 @@
 #elif RIVE_PLATFORM_WASM
     #include <emscripten.h>
 #endif
+
+// Buffer size for formatted log messages
+#define LOG_BUFFER_SIZE 1024
 
 namespace rive_mp {
     // Logging enabled flag
@@ -29,67 +33,91 @@ namespace rive_mp {
         #endif
     }
 
-    void RiveLogD(const char* tag, const char* message) {
-        if (!g_LoggingEnabled || tag == nullptr || message == nullptr) {
+    void RiveLogD(const char* tag, const char* format, ...) {
+        if (!g_LoggingEnabled || tag == nullptr || format == nullptr) {
             return;
         }
         
+        char buffer[LOG_BUFFER_SIZE];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buffer, LOG_BUFFER_SIZE, format, args);
+        va_end(args);
+        
         #if RIVE_PLATFORM_ANDROID
-            __android_log_print(ANDROID_LOG_DEBUG, tag, "%s", message);
+            __android_log_print(ANDROID_LOG_DEBUG, tag, "%s", buffer);
         #elif RIVE_PLATFORM_IOS
-            NSLog(@"[%s] [DEBUG] %s", tag, message);
+            NSLog(@"[%s] [DEBUG] %s", tag, buffer);
         #elif RIVE_PLATFORM_WASM
-            emscripten_log(EM_LOG_CONSOLE, "[%s] [DEBUG] %s", tag, message);
+            emscripten_log(EM_LOG_CONSOLE, "[%s] [DEBUG] %s", tag, buffer);
         #else // Desktop platforms
-            printf("[%s] [DEBUG] %s\n", tag, message);
+            printf("[%s] [DEBUG] %s\n", tag, buffer);
         #endif
     }
 
-    void RiveLogE(const char* tag, const char* message) {
-        if (tag == nullptr || message == nullptr) {
+    void RiveLogE(const char* tag, const char* format, ...) {
+        if (tag == nullptr || format == nullptr) {
             return;
         }
         
+        char buffer[LOG_BUFFER_SIZE];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buffer, LOG_BUFFER_SIZE, format, args);
+        va_end(args);
+        
         #if RIVE_PLATFORM_ANDROID
-            __android_log_print(ANDROID_LOG_ERROR, tag, "%s", message);
+            __android_log_print(ANDROID_LOG_ERROR, tag, "%s", buffer);
         #elif RIVE_PLATFORM_IOS
-            NSLog(@"[%s] [ERROR] %s", tag, message);
+            NSLog(@"[%s] [ERROR] %s", tag, buffer);
         #elif RIVE_PLATFORM_WASM
-            emscripten_log(EM_LOG_ERROR, "[%s] [ERROR] %s", tag, message);
+            emscripten_log(EM_LOG_ERROR, "[%s] [ERROR] %s", tag, buffer);
         #else // Desktop platforms
-            fprintf(stderr, "[%s] [ERROR] %s\n", tag, message);
+            fprintf(stderr, "[%s] [ERROR] %s\n", tag, buffer);
         #endif
     }
 
-    void RiveLogI(const char* tag, const char* message) {
-        if (!g_LoggingEnabled || tag == nullptr || message == nullptr) {
+    void RiveLogI(const char* tag, const char* format, ...) {
+        if (!g_LoggingEnabled || tag == nullptr || format == nullptr) {
             return;
         }
         
+        char buffer[LOG_BUFFER_SIZE];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buffer, LOG_BUFFER_SIZE, format, args);
+        va_end(args);
+        
         #if RIVE_PLATFORM_ANDROID
-            __android_log_print(ANDROID_LOG_INFO, tag, "%s", message);
+            __android_log_print(ANDROID_LOG_INFO, tag, "%s", buffer);
         #elif RIVE_PLATFORM_IOS
-            NSLog(@"[%s] [INFO] %s", tag, message);
+            NSLog(@"[%s] [INFO] %s", tag, buffer);
         #elif RIVE_PLATFORM_WASM
-            emscripten_log(EM_LOG_CONSOLE, "[%s] [INFO] %s", tag, message);
+            emscripten_log(EM_LOG_CONSOLE, "[%s] [INFO] %s", tag, buffer);
         #else // Desktop platforms
-            printf("[%s] [INFO] %s\n", tag, message);
+            printf("[%s] [INFO] %s\n", tag, buffer);
         #endif
     }
 
-    void RiveLogW(const char* tag, const char* message) {
-        if (!g_LoggingEnabled || tag == nullptr || message == nullptr) {
+    void RiveLogW(const char* tag, const char* format, ...) {
+        if (!g_LoggingEnabled || tag == nullptr || format == nullptr) {
             return;
         }
         
+        char buffer[LOG_BUFFER_SIZE];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buffer, LOG_BUFFER_SIZE, format, args);
+        va_end(args);
+        
         #if RIVE_PLATFORM_ANDROID
-            __android_log_print(ANDROID_LOG_WARN, tag, "%s", message);
+            __android_log_print(ANDROID_LOG_WARN, tag, "%s", buffer);
         #elif RIVE_PLATFORM_IOS
-            NSLog(@"[%s] [WARN] %s", tag, message);
+            NSLog(@"[%s] [WARN] %s", tag, buffer);
         #elif RIVE_PLATFORM_WASM
-            emscripten_log(EM_LOG_WARN, "[%s] [WARN] %s", tag, message);
+            emscripten_log(EM_LOG_WARN, "[%s] [WARN] %s", tag, buffer);
         #else // Desktop platforms
-            printf("[%s] [WARN] %s\n", tag, message);
+            printf("[%s] [WARN] %s\n", tag, buffer);
         #endif
     }
 }
