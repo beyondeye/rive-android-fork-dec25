@@ -69,7 +69,28 @@ kotlin {
         }
         
         // Android test source set
+        // ⚠️ WORKAROUND: dependsOn(commonTest) triggers Gradle warnings but is necessary
+        // ISSUE: Android instrumented tests (androidInstrumentedTest) and common tests (commonTest)
+        //        are in different "Source Set Trees" in KMP's hierarchy. KMP considers:
+        //        - Main tree: commonMain → androidMain, desktopMain, iosMain
+        //        - Test tree: commonTest → desktopTest, iosTest
+        //        - Instrumented tree: androidInstrumentedTest (separate, requires Android runtime)
+        //
+        // The dependsOn(commonTest) below allows sharing expect/actual test utilities between
+        // commonTest and Android instrumented tests, but Gradle warns:
+        //   "Invalid Source Set Dependency Across Trees"
+        //   "Default Kotlin Hierarchy Template Not Applied Correctly"
+        //
+        // ALTERNATIVES CONSIDERED (all have drawbacks):
+        //   1. Accept warnings - code compiles and works (CURRENT APPROACH)
+        //   2. Duplicate code - maintain separate test utilities per platform
+        //   3. Move to main - pollutes production code with test utilities
+        //   4. Separate module - adds complexity for small utility classes
+        //
+        // STATUS: No ideal solution exists for sharing test utilities with Android instrumented
+        //         tests in KMP. This workaround is acceptable until KMP improves support.
         val androidInstrumentedTest by getting {
+            dependsOn(commonTest)  // Link to commonTest for expect/actual
             dependencies {
                 implementation(kotlin("test"))
                 implementation(fork.androidx.core)
