@@ -6,7 +6,7 @@
 **Date**: January 1, 2026  
 **Updated**: January 4, 2026  
 **Note**: mprive uses `androidInstrumentedTest` directory (KMP Source Set Layout V2)
-**Status**: Phase A & B Partially Implemented
+**Status**: Phase A, B & C.1 Tests Implemented
 
 ---
 
@@ -24,13 +24,17 @@
 - ✅ `MpRiveFileLoadTest.kt` - 6 test methods (file loading, error handling, handle uniqueness)
 - ✅ `MpRiveArtboardLoadTest.kt` - 10 test methods (artboard queries, creation, edge cases)
 
+**Phase C.1: State Machine Operations (100% Complete)**
+- ✅ `MpRiveStateMachineLoadTest.kt` - 10 test methods (SM creation, queries, error handling)
+- ✅ `MpRiveStateMachineInstanceTest.kt` - 8 test methods (SM advancement, settled events)
+
 **Test Infrastructure (100% Complete)**
 - ✅ `MpTestContext.kt` - Platform-agnostic test context (common + Android + Desktop + iOS)
 - ✅ `MpTestResources.kt` - Resource loading abstraction (common + Android + Desktop)
 - ✅ `MpCommandQueueTestUtil.kt` - Automatic message polling utility
 
-**Test Resources (Phase B Complete)**
-- ✅ 11 .riv files copied to `commonTest/resources/rive/`
+**Test Resources (Phase B + C.1 Complete)**
+- ✅ 16 .riv files copied to `commonTest/resources/rive/`
 - ✅ 1 .png asset file (eve.png)
 
 ### In Progress / Pending 🔄
@@ -42,8 +46,12 @@
   - Impact: Cannot test Compose-based CommandQueue lifecycle
   - Recommendation: Defer until Compose integration is ready
 
-**Phases C-G: Not Started ❌**
-- Phase C: State Machines & Rendering (0 of 5 tests)
+**Phase C Deferred Tests (Input Operations)**
+- ⏸️ SM input queries (`getInputCount`, `getInputNames`) - Pending input API implementation
+- ⏸️ Input type detection (`isBoolean`, `isNumber`, `isTrigger`) - Pending input API
+- ⏸️ Input value operations (`SMINumber.value`, `SMIBoolean.value`, `SMITrigger.fire()`) - Pending input API
+
+**Phases D-G: Not Started ❌**
 - Phase D: View Models & Properties (0 of 1 test - the massive 2,044-line test!)
 - Phase E: Advanced Features (0 of 4 tests)
 - Phase F: Platform-Specific Tests (0 of 7 tests)
@@ -53,11 +61,13 @@
 
 | Metric | Target | Actual | Status |
 |--------|--------|--------|--------|
-| **Tests Implemented** | 28 | 5 | 18% ✅ |
+| **Tests Implemented** | 28 | 7 | 25% ✅ |
 | **Phase A** | 4 tests | 3 tests | 75% ⏸️ (1 deferred) |
 | **Phase B** | 2 tests | 2 tests | 100% ✅ |
-| **Phases C-G** | 22 tests | 0 tests | 0% ❌ |
-| **Test Resources** | 37 files | 12 files | 32% ✅ |
+| **Phase C.1** | 2 tests | 2 tests | 100% ✅ |
+| **Phase C (input tests)** | 3 tests | 0 tests | 0% ⏸️ (pending input API) |
+| **Phases D-G** | 17 tests | 0 tests | 0% ❌ |
+| **Test Resources** | 37 files | 17 files | 46% ✅ |
 
 ### Test Execution Commands
 

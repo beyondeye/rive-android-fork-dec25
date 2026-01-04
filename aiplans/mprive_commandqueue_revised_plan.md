@@ -1231,8 +1231,8 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 
 ### Phase C: State Machines & Rendering (Week 3-4)
 
-**Status**: 🚧 **IN PROGRESS (Android)** - 40% (C.1 complete, C.2 foundation complete)  
-**Milestone C**: ⏳ **IN PROGRESS** - State machines working, rendering foundation ready  
+**Status**: 🚧 **IN PROGRESS (Android)** - 60% (C.1 complete, C.2 foundation complete, C.3 tests partially complete)
+**Milestone C**: ⏳ **IN PROGRESS** - State machines working with tests, rendering foundation ready
 **Updated**: January 4, 2026
 
 #### C.1: State Machine Operations ✅ **COMPLETE**
@@ -1423,23 +1423,62 @@ void CommandServer::handleDraw(const DrawCommand& cmd) {
 
 #### C.3: Testing (Phase C)
 
+**Status**: ✅ **PARTIALLY COMPLETE** - January 4, 2026
+
 See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
 
-**Tests to Implement** (Phase C):
-1. ✅ `MpRiveStateMachineLoadTest.kt` - State machine queries, loading
-2. ✅ `MpRiveStateMachineInstanceTest.kt` - SM advancement, inputs
-3. ✅ `MpRiveStateMachineConfigurationsTest.kt` - SM configurations
-4. ✅ `MpRiveEventTest.kt` - Event firing, listeners
-5. ✅ `MpRiveListenerTest.kt` - Event listener patterns
+**Tests Implemented** (C.1 State Machine Operations):
 
-**Resources to Copy** (10 files → `commonTest/resources/rive/`):
-- `multiple_state_machines.riv`, `state_machine_configurations.riv`
-- `state_machine_state_resolution.riv`
-- `events_test.riv`, `layerstatechange.riv`, `nested_settle.riv`
-- `what_a_state.riv`, `blend_state.riv`, `empty_animation_state.riv`
-- `animationconfigurations.riv`
+1. ✅ `MpRiveStateMachineLoadTest.kt` - 10 tests
+   - `createDefaultStateMachine` - Create default SM
+   - `createStateMachineByName` - Create SM by name
+   - `stateMachineHandlesAreUnique` - Handle uniqueness
+   - `queryStateMachineNamesFromArtboard1` - Query SM names (single SM)
+   - `queryStateMachineNamesFromArtboard2` - Query SM names (multiple SMs)
+   - `artboardWithNoStateMachines` - Auto-generated SM for empty files
+   - `createStateMachineWithInvalidArtboardHandle` - Error handling
+   - `createStateMachineByNonExistentName` - Error handling
+   - `queryStateMachineNamesWithInvalidHandle` - Error handling
+   - `deleteStateMachine` - SM deletion
 
-**Coverage Target**: 85%+
+2. ✅ `MpRiveStateMachineInstanceTest.kt` - 8 tests
+   - `advanceStateMachine` - Basic advancement
+   - `advanceMultipleStateMachines` - Multiple SM advancement
+   - `advanceWithZeroDelta` - Zero delta time
+   - `advanceWithLargeDelta` - Large delta time
+   - `settledFlowEmitsOnSettle` - Settled event flow
+   - `settledFlowMultipleStateMachines` - Multi-SM settled events
+   - `stateMachinesFromDifferentArtboards` - Cross-artboard SMs
+   - `nestedSettle` - Nested component settling
+
+**Tests Deferred** (Pending Future Implementation):
+
+The following tests require state machine input operations (Phase D):
+
+| Test Category | Description | Blocking Feature |
+|--------------|-------------|------------------|
+| Input Queries | `getInputCount`, `getInputNames`, `input(index)`, `input(name)` | SM input API not implemented |
+| Input Types | `isBoolean`, `isNumber`, `isTrigger` | Input type detection not implemented |
+| Number Input | Get/set number input values (`SMINumber.value`) | Number input operations not implemented |
+| Boolean Input | Get/set boolean input values (`SMIBoolean.value`) | Boolean input operations not implemented |
+| Trigger Input | Fire trigger inputs (`SMITrigger.fire()`) | Trigger operations not implemented |
+| Mixed Inputs | Test files with multiple input types | All input APIs needed |
+
+These deferred tests are documented in the test file headers.
+
+**Resources Copied** (6 files → `commonTest/resources/rive/`):
+- ✅ `multiple_state_machines.riv`
+- ✅ `state_machine_configurations.riv`
+- ✅ `what_a_state.riv`
+- ✅ `nested_settle.riv`
+- ✅ `blend_state.riv`
+- ✅ `events_test.riv`
+
+**Test File Locations**:
+- `mprive/src/commonTest/kotlin/app/rive/mp/test/statemachine/MpRiveStateMachineLoadTest.kt`
+- `mprive/src/commonTest/kotlin/app/rive/mp/test/statemachine/MpRiveStateMachineInstanceTest.kt`
+
+**Coverage**: 18 tests covering core SM operations (create, query, advance, delete, settled)
 
 **Reference**: [Testing Strategy - Phase C](mprive_testing_strategy.md#phase-c-state-machines--rendering-week-3-4)
 
