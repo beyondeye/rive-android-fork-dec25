@@ -4,6 +4,7 @@
 **Module**: mprive (Kotlin Multiplatform)  
 **Based on**: kotlin module Android tests (`kotlin/src/androidTest`)  
 **Date**: January 1, 2026  
+**Note**: mprive uses `androidInstrumentedTest` directory (KMP Source Set Layout V2)
 **Status**: Planning Complete - Ready for Implementation
 
 ---
@@ -237,7 +238,7 @@ mprive/src/
 │           ├── off_road_car_blog.riv
 │           └── ... (copy as needed)
 │
-├── androidTest/                          # ANDROID-SPECIFIC TESTS
+├── androidInstrumentedTest/              # ANDROID-SPECIFIC TESTS
 │   ├── kotlin/app/rive/mp/test/
 │   │   ├── platform/
 │   │   │   ├── AndroidResourceLoaderTest.kt      # Test Android R.raw loading
@@ -382,7 +383,7 @@ expect object MpTestResources {
 }
 ```
 
-**Android Implementation**: `mprive/src/androidTest/kotlin/app/rive/mp/test/utils/MpTestResources.android.kt`
+**Android Implementation**: `mprive/src/androidInstrumentedTest/kotlin/app/rive/mp/test/utils/MpTestResources.android.kt`
 
 ```kotlin
 package app.rive.mp.test.utils
@@ -520,7 +521,7 @@ object MpTestUtils {
 }
 ```
 
-**Android Implementation**: `mprive/src/androidTest/kotlin/app/rive/mp/test/utils/MpTestContext.android.kt`
+**Android Implementation**: `mprive/src/androidInstrumentedTest/kotlin/app/rive/mp/test/utils/MpTestContext.android.kt`
 
 ```kotlin
 package app.rive.mp.test.utils
@@ -583,7 +584,7 @@ expect class MpComposeTestRule {
 expect fun createMpComposeTestRule(): MpComposeTestRule
 ```
 
-**Android Implementation**: `mprive/src/androidTest/kotlin/app/rive/mp/test/utils/MpComposeTestUtils.android.kt`
+**Android Implementation**: `mprive/src/androidInstrumentedTest/kotlin/app/rive/mp/test/utils/MpComposeTestUtils.android.kt`
 
 ```kotlin
 package app.rive.mp.test.utils
@@ -1113,7 +1114,7 @@ class MpRiveDataBindingTest {
 
 #### Platform-Specific Tests to Create
 
-**Android** (`androidTest/platform/`):
+**Android** (`androidInstrumentedTest/platform/`):
 1. `AndroidRenderContextTest.kt` - Test PLS renderer initialization, surface management
 2. `AndroidResourceLoaderTest.kt` - Test R.raw resource loading
 3. `AndroidLifecycleTest.kt` - Test Android lifecycle integration
@@ -1162,7 +1163,7 @@ Create new integration tests that combine multiple components:
 
 **Android**:
 ```bash
-# Run all Android tests (common + androidTest)
+# Run all Android tests (common + androidInstrumentedTest)
 ./gradlew :mprive:connectedAndroidTest
 
 # Run only common tests on Android
