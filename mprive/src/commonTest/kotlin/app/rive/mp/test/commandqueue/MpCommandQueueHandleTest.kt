@@ -5,6 +5,7 @@ import app.rive.mp.test.utils.MpTestContext
 import app.rive.mp.test.utils.MpTestResources
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
+import app.rive.mp.test.utils.loadRiveFile
 
 /**
  * Phase A test for CommandQueue handle management.
