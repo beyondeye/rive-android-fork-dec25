@@ -11,6 +11,10 @@ using namespace rive_mp;
 static jmethodID g_onFileLoadedMethodID = nullptr;
 static jmethodID g_onFileErrorMethodID = nullptr;
 static jmethodID g_onFileDeletedMethodID = nullptr;
+static jmethodID g_onArtboardNamesListedMethodID = nullptr;
+static jmethodID g_onStateMachineNamesListedMethodID = nullptr;
+static jmethodID g_onViewModelNamesListedMethodID = nullptr;
+static jmethodID g_onQueryErrorMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -39,6 +43,30 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass, 
         "onFileDeleted", 
         "(JJ)V"  // (requestID: Long, fileHandle: Long) -> Unit
+    );
+    
+    g_onArtboardNamesListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onArtboardNamesListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, names: List<String>) -> Unit
+    );
+    
+    g_onStateMachineNamesListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onStateMachineNamesListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, names: List<String>) -> Unit
+    );
+    
+    g_onViewModelNamesListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onViewModelNamesListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, names: List<String>) -> Unit
+    );
+    
+    g_onQueryErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onQueryError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
     );
     
     env->DeleteLocalRef(commandQueueClass);
@@ -199,8 +227,91 @@ Java_app_rive_mp_CommandQueue_cppDeleteFile(
     server->deleteFile(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle));
 }
 
+/**
+ * Gets artboard names from a file.
+ * 
+ * JNI signature: cppGetArtboardNames(ptr: Long, requestID: Long, fileHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to query.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetArtboardNames(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get artboard names on null CommandServer");
+        return;
+    }
+    
+    server->getArtboardNames(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle));
+}
+
+/**
+ * Gets state machine names from an artboard.
+ * 
+ * JNI signature: cppGetStateMachineNames(ptr: Long, requestID: Long, artboardHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param artboardHandle The handle of the artboard to query.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetStateMachineNames(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong artboardHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get state machine names on null CommandServer");
+        return;
+    }
+    
+    server->getStateMachineNames(static_cast<int64_t>(requestID), static_cast<int64_t>(artboardHandle));
+}
+
+/**
+ * Gets view model names from a file.
+ * 
+ * JNI signature: cppGetViewModelNames(ptr: Long, requestID: Long, fileHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to query.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetViewModelNames(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get view model names on null CommandServer");
+        return;
+    }
+    
+    server->getViewModelNames(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle));
+}
+
 // Phase B+: Add more JNI bindings here
-// - cppGetArtboardNames
 // - cppCreateDefaultArtboard
 // - etc.
 

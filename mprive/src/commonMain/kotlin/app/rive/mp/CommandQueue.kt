@@ -33,9 +33,12 @@ class CommandQueue(
     private external fun cppDelete(ptr: Long)
     private external fun cppPollMessages(ptr: Long)
     
-    // Phase B methods (to be implemented)
+    // Phase B methods
     private external fun cppLoadFile(ptr: Long, requestID: Long, bytes: ByteArray)
     private external fun cppDeleteFile(ptr: Long, requestID: Long, fileHandle: Long)
+    private external fun cppGetArtboardNames(ptr: Long, requestID: Long, fileHandle: Long)
+    private external fun cppGetStateMachineNames(ptr: Long, requestID: Long, artboardHandle: Long)
+    private external fun cppGetViewModelNames(ptr: Long, requestID: Long, fileHandle: Long)
     
     companion object {
         /**
@@ -210,6 +213,54 @@ class CommandQueue(
         cppDeleteFile(cppPointer.pointer, requestID, fileHandle.handle)
     }
     
+    /**
+     * Get the names of all artboards in a file.
+     * 
+     * @param fileHandle The handle of the file to query.
+     * @return A list of artboard names.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getArtboardNames(fileHandle: FileHandle): List<String> {
+        return suspendNativeRequest { requestID ->
+            cppGetArtboardNames(cppPointer.pointer, requestID, fileHandle.handle)
+        }
+    }
+    
+    /**
+     * Get the names of all state machines in an artboard.
+     * 
+     * @param artboardHandle The handle of the artboard to query.
+     * @return A list of state machine names.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the artboard handle is invalid or artboards not yet implemented.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getStateMachineNames(artboardHandle: ArtboardHandle): List<String> {
+        return suspendNativeRequest { requestID ->
+            cppGetStateMachineNames(cppPointer.pointer, requestID, artboardHandle.handle)
+        }
+    }
+    
+    /**
+     * Get the names of all view models in a file.
+     * 
+     * @param fileHandle The handle of the file to query.
+     * @return A list of view model names.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getViewModelNames(fileHandle: FileHandle): List<String> {
+        return suspendNativeRequest { requestID ->
+            cppGetViewModelNames(cppPointer.pointer, requestID, fileHandle.handle)
+        }
+    }
+    
     // =============================================================================
     // JNI Callbacks (called from C++)
     // =============================================================================
@@ -267,5 +318,92 @@ class CommandQueue(
     @Suppress("unused")  // Called from JNI
     private fun onFileDeleted(requestID: Long, fileHandle: Long) {
         RiveLog.d(COMMAND_QUEUE_TAG) { "File deleted: handle=$fileHandle" }
+    }
+    
+    /**
+     * Called from C++ when artboard names have been retrieved.
+     * This resumes the suspended coroutine waiting for the query.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param names The list of artboard names.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onArtboardNamesListed(requestID: Long, names: List<String>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<String>>
+            typedCont.resume(names)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received artboard names callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when state machine names have been retrieved.
+     * This resumes the suspended coroutine waiting for the query.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param names The list of state machine names.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStateMachineNamesListed(requestID: Long, names: List<String>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<String>>
+            typedCont.resume(names)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received state machine names callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when view model names have been retrieved.
+     * This resumes the suspended coroutine waiting for the query.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param names The list of view model names.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onViewModelNamesListed(requestID: Long, names: List<String>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<String>>
+            typedCont.resume(names)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received view model names callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+    
+    /**
+     * Called from C++ when a query operation has failed.
+     * This resumes the suspended coroutine with an error.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onQueryError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            // Query errors could be for any query type, so we need to handle generically
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Any>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Query failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received query error callback for unknown requestID: $requestID - $error" 
+            }
+        }
     }
 }

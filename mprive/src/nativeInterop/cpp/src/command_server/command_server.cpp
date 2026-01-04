@@ -115,6 +115,18 @@ void CommandServer::executeCommand(const Command& cmd)
         case CommandType::DeleteFile:
             handleDeleteFile(cmd);
             break;
+            
+        case CommandType::GetArtboardNames:
+            handleGetArtboardNames(cmd);
+            break;
+            
+        case CommandType::GetStateMachineNames:
+            handleGetStateMachineNames(cmd);
+            break;
+            
+        case CommandType::GetViewModelNames:
+            handleGetViewModelNames(cmd);
+            break;
         
         default:
             LOGW("CommandServer: Unknown command type: %d", 
@@ -240,6 +252,141 @@ void CommandServer::enqueueMessage(Message msg)
         m_messageQueue.push(std::move(msg));
     }
     // Note: We don't notify here because pollMessages is called from Kotlin
+}
+
+void CommandServer::getArtboardNames(int64_t requestID, int64_t fileHandle)
+{
+    LOGI("CommandServer: Enqueuing GetArtboardNames command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle));
+    
+    Command cmd(CommandType::GetArtboardNames, requestID);
+    cmd.handle = fileHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getStateMachineNames(int64_t requestID, int64_t artboardHandle)
+{
+    LOGI("CommandServer: Enqueuing GetStateMachineNames command (requestID=%lld, artboardHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(artboardHandle));
+    
+    Command cmd(CommandType::GetStateMachineNames, requestID);
+    cmd.handle = artboardHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getViewModelNames(int64_t requestID, int64_t fileHandle)
+{
+    LOGI("CommandServer: Enqueuing GetViewModelNames command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle));
+    
+    Command cmd(CommandType::GetViewModelNames, requestID);
+    cmd.handle = fileHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::handleGetArtboardNames(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetArtboardNames command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    std::vector<std::string> names;
+    auto& file = it->second;
+    
+    for (size_t i = 0; i < file->artboardCount(); i++) {
+        auto artboard = file->artboard(i);
+        if (artboard) {
+            names.push_back(artboard->name());
+        }
+    }
+    
+    LOGI("CommandServer: Found %zu artboard names", names.size());
+    
+    Message msg(MessageType::ArtboardNamesListed, cmd.requestID);
+    msg.stringList = std::move(names);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetStateMachineNames(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetStateMachineNames command (requestID=%lld, artboardHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    // Note: This will be fully functional in Phase B.3 when artboards are implemented
+    // For now, we'll send an error message
+    LOGW("CommandServer: Artboard operations not yet implemented (Phase B.3)");
+    
+    Message msg(MessageType::QueryError, cmd.requestID);
+    msg.error = "Artboard operations not yet implemented";
+    enqueueMessage(std::move(msg));
+    
+    // Phase B.3 implementation will look like this:
+    // auto it = m_artboards.find(cmd.handle);
+    // if (it == m_artboards.end()) {
+    //     Message msg(MessageType::QueryError, cmd.requestID);
+    //     msg.error = "Invalid artboard handle";
+    //     enqueueMessage(std::move(msg));
+    //     return;
+    // }
+    // 
+    // std::vector<std::string> names;
+    // auto& artboard = it->second;
+    // 
+    // for (size_t i = 0; i < artboard->stateMachineCount(); i++) {
+    //     auto sm = artboard->stateMachine(i);
+    //     if (sm) {
+    //         names.push_back(sm->name());
+    //     }
+    // }
+    // 
+    // Message msg(MessageType::StateMachineNamesListed, cmd.requestID);
+    // msg.stringList = std::move(names);
+    // enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetViewModelNames(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetViewModelNames command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    std::vector<std::string> names;
+    auto& file = it->second;
+    
+    // Get view model names from the file
+    for (size_t i = 0; i < file->viewModelCount(); i++) {
+        auto vm = file->viewModel(i);
+        if (vm) {
+            names.push_back(vm->name());
+        }
+    }
+    
+    LOGI("CommandServer: Found %zu view model names", names.size());
+    
+    Message msg(MessageType::ViewModelNamesListed, cmd.requestID);
+    msg.stringList = std::move(names);
+    enqueueMessage(std::move(msg));
 }
 
 } // namespace rive_android

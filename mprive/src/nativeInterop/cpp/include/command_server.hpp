@@ -33,6 +33,9 @@ enum class CommandType {
     // Phase B: File operations
     LoadFile,
     DeleteFile,
+    GetArtboardNames,
+    GetStateMachineNames,
+    GetViewModelNames,
     // Phase B+: CreateArtboard, etc.
 };
 
@@ -61,6 +64,11 @@ enum class MessageType {
     FileLoaded,
     FileError,
     FileDeleted,
+    // Query operations
+    ArtboardNamesListed,
+    StateMachineNamesListed,
+    ViewModelNamesListed,
+    QueryError,
 };
 
 /**
@@ -71,6 +79,7 @@ struct Message {
     int64_t requestID = 0;
     int64_t handle = 0;
     std::string error;
+    std::vector<std::string> stringList;  // For query results
     
     Message() = default;
     explicit Message(MessageType t, int64_t reqID = 0) 
@@ -141,6 +150,30 @@ public:
      */
     void deleteFile(int64_t requestID, int64_t fileHandle);
     
+    /**
+     * Enqueues a GetArtboardNames command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to query.
+     */
+    void getArtboardNames(int64_t requestID, int64_t fileHandle);
+    
+    /**
+     * Enqueues a GetStateMachineNames command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param artboardHandle The handle of the artboard to query.
+     */
+    void getStateMachineNames(int64_t requestID, int64_t artboardHandle);
+    
+    /**
+     * Enqueues a GetViewModelNames command.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to query.
+     */
+    void getViewModelNames(int64_t requestID, int64_t fileHandle);
+    
 private:
     /**
      * The main loop for the worker thread.
@@ -168,6 +201,27 @@ private:
      * @param cmd The command to execute.
      */
     void handleDeleteFile(const Command& cmd);
+    
+    /**
+     * Handles a GetArtboardNames command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleGetArtboardNames(const Command& cmd);
+    
+    /**
+     * Handles a GetStateMachineNames command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleGetStateMachineNames(const Command& cmd);
+    
+    /**
+     * Handles a GetViewModelNames command.
+     * 
+     * @param cmd The command to execute.
+     */
+    void handleGetViewModelNames(const Command& cmd);
     
     /**
      * Enqueues a message to be sent to Kotlin.
@@ -208,7 +262,7 @@ private:
     std::map<int64_t, rive::rcp<rive::File>> m_files;
     std::atomic<int64_t> m_nextHandle{1};
     
-    // Phase B+: More resource maps
+    // Phase B.3+: More resource maps (will be uncommented in B.3)
     // std::map<int64_t, std::unique_ptr<rive::Artboard>> m_artboards;
 };
 
