@@ -1,5 +1,6 @@
 #include "command_server.hpp"
 #include "rive_log.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
 #include <cassert>
 
 namespace rive_android {
@@ -203,17 +204,17 @@ void CommandServer::handleLoadFile(const Command& cmd)
          static_cast<long long>(cmd.requestID), cmd.bytes.size());
     
     // Import the Rive file
-    auto importResult = rive::File::import(
+    auto file = rive::File::import(
         rive::Span<const uint8_t>(cmd.bytes.data(), cmd.bytes.size()),
         nullptr  // No asset loader for now (Phase E)
     );
     
-    if (importResult.ok()) {
+    if (file) {
         // Generate a unique handle
         int64_t handle = m_nextHandle.fetch_add(1);
         
         // Store the file
-        m_files[handle] = importResult.file;
+        m_files[handle] = file;
         
         LOGI("CommandServer: File loaded successfully (handle=%lld)", 
              static_cast<long long>(handle));
@@ -447,7 +448,7 @@ void CommandServer::handleCreateDefaultArtboard(const Command& cmd)
         return;
     }
     
-    // Create the default artboard
+    // Create the default artboard (returns unique_ptr<ArtboardInstance>)
     auto artboard = it->second->artboardDefault();
     if (!artboard) {
         LOGW("CommandServer: Failed to create default artboard");
@@ -488,8 +489,8 @@ void CommandServer::handleCreateArtboardByName(const Command& cmd)
         return;
     }
     
-    // Create the artboard by name
-    auto artboard = it->second->artboard(cmd.name);
+    // Create the artboard by name (returns unique_ptr<ArtboardInstance>)
+    auto artboard = it->second->artboardNamed(cmd.name);
     if (!artboard) {
         LOGW("CommandServer: Failed to create artboard with name: %s", cmd.name.c_str());
         

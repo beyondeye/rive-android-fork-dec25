@@ -323,7 +323,7 @@ private:
     
     // Phase B: Resource maps
     std::map<int64_t, rive::rcp<rive::File>> m_files;
-    std::map<int64_t, std::unique_ptr<rive::Artboard>> m_artboards;
+    std::map<int64_t, std::unique_ptr<rive::ArtboardInstance>> m_artboards;
     std::atomic<int64_t> m_nextHandle{1};
     
     // Phase C+: More resource maps
