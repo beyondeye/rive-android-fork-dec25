@@ -69,6 +69,12 @@ enum class CommandType {
     SetStringProperty,        // Set string property value
     GetBooleanProperty,       // Get boolean property value
     SetBooleanProperty,       // Set boolean property value
+    // Phase D.3: Additional property types
+    GetEnumProperty,          // Get enum property value (as string)
+    SetEnumProperty,          // Set enum property value (by string)
+    GetColorProperty,         // Get color property value (0xAARRGGBB)
+    SetColorProperty,         // Set color property value
+    FireTriggerProperty,      // Fire a trigger property
 };
 
 /**
@@ -96,7 +102,10 @@ struct Command {
 
     // Property operation data (Phase D.2)
     std::string propertyPath;    // For property get/set operations
-    std::string stringValue;     // For SetStringProperty
+    std::string stringValue;     // For SetStringProperty, SetEnumProperty
+
+    // Property operation data (Phase D.3)
+    int32_t colorValue = 0;      // For SetColorProperty (0xAARRGGBB format)
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -144,6 +153,10 @@ enum class MessageType {
     BooleanPropertyValue,     // Returns boolean value
     PropertyError,            // Error with property operation
     PropertySetSuccess,       // Set operation succeeded
+    // Phase D.3: Additional property types
+    EnumPropertyValue,        // Returns enum value (as string)
+    ColorPropertyValue,       // Returns color value (0xAARRGGBB)
+    TriggerFired,             // Trigger was successfully fired
 };
 
 /**
@@ -174,7 +187,10 @@ struct Message {
     std::string inputName;       // For InputInfoResult
 
     // Property operation results (Phase D.2)
-    std::string stringValue;     // For StringPropertyValue
+    std::string stringValue;     // For StringPropertyValue, EnumPropertyValue
+
+    // Property operation results (Phase D.3)
+    int32_t colorValue = 0;      // For ColorPropertyValue (0xAARRGGBB format)
 
     Message() = default;
     explicit Message(MessageType t, int64_t reqID = 0)
@@ -517,6 +533,57 @@ public:
      */
     void setBooleanProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, bool value);
 
+    // =========================================================================
+    // Additional Property Types (Phase D.3)
+    // =========================================================================
+
+    /**
+     * Enqueues a GetEnumProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     */
+    void getEnumProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a SetEnumProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The enum value to set (as string).
+     */
+    void setEnumProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, const std::string& value);
+
+    /**
+     * Enqueues a GetColorProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     */
+    void getColorProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a SetColorProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The color value (0xAARRGGBB format).
+     */
+    void setColorProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int32_t value);
+
+    /**
+     * Enqueues a FireTriggerProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the trigger property.
+     */
+    void fireTriggerProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -638,6 +705,13 @@ private:
     void handleSetStringProperty(const Command& cmd);
     void handleGetBooleanProperty(const Command& cmd);
     void handleSetBooleanProperty(const Command& cmd);
+
+    // Additional property handlers (Phase D.3)
+    void handleGetEnumProperty(const Command& cmd);
+    void handleSetEnumProperty(const Command& cmd);
+    void handleGetColorProperty(const Command& cmd);
+    void handleSetColorProperty(const Command& cmd);
+    void handleFireTriggerProperty(const Command& cmd);
 
     /**
      * Enqueues a message to be sent to Kotlin.

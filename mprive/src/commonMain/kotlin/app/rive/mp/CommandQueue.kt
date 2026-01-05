@@ -343,6 +343,13 @@ class CommandQueue(
     private external fun cppSetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String)
     private external fun cppGetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
     private external fun cppSetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Boolean)
+
+    // External JNI methods for Additional Property Types (Phase D.3)
+    private external fun cppGetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppSetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String)
+    private external fun cppGetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppSetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Int)
+    private external fun cppFireTriggerProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
     
     /**
      * Create the default state machine from an artboard.
@@ -724,6 +731,96 @@ class CommandQueue(
     fun setBooleanProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Boolean) {
         val requestID = nextRequestID.getAndIncrement()
         cppSetBooleanProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+    }
+
+    // =============================================================================
+    // Phase D.3: Additional Property Types (enum, color, trigger)
+    // =============================================================================
+
+    /**
+     * Get an enum property value from a ViewModelInstance.
+     * The value is returned as a string representing the selected enum option.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @return The current enum value as a string.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getEnumProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): String {
+        return suspendNativeRequest { requestID ->
+            cppGetEnumProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Set an enum property value on a ViewModelInstance.
+     * The value must be a valid enum option string.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The enum value to set (as a string).
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setEnumProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: String) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetEnumProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+    }
+
+    /**
+     * Get a color property value from a ViewModelInstance.
+     * The color is returned in 0xAARRGGBB format.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @return The current color value in 0xAARRGGBB format.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getColorProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): Int {
+        return suspendNativeRequest { requestID ->
+            cppGetColorProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Set a color property value on a ViewModelInstance.
+     * The color should be in 0xAARRGGBB format.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The color value in 0xAARRGGBB format.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setColorProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Int) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetColorProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+    }
+
+    /**
+     * Fire a trigger property on a ViewModelInstance.
+     * This is a one-shot action that triggers any bound behaviors.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the trigger property.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun fireTriggerProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppFireTriggerProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
     }
 
     // =============================================================================
@@ -1287,5 +1384,59 @@ class CommandQueue(
     @Suppress("unused")  // Called from JNI
     private fun onPropertySetSuccess(requestID: Long) {
         RiveLog.d(COMMAND_QUEUE_TAG) { "Property set succeeded: requestID=$requestID" }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for Additional Property Types (Phase D.3)
+    // =============================================================================
+
+    /**
+     * Called from C++ when an enum property value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The enum property value (as a string).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onEnumPropertyValue(requestID: Long, value: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<String>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received enum property value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a color property value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The color property value in 0xAARRGGBB format.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onColorPropertyValue(requestID: Long, value: Int) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Int>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received color property value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a trigger property has been successfully fired.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onTriggerFired(requestID: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Trigger fired: requestID=$requestID" }
     }
 }

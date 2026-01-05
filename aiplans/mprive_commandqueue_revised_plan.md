@@ -1607,7 +1607,7 @@ void CommandServer::handleGetInputInfo(const Command& cmd) {
 
 ### Phase D: View Models & Properties (Week 4-5)
 
-**Status**: 🚧 **IN PROGRESS (Android)** - 29% (2/7 subtasks complete)
+**Status**: 🚧 **IN PROGRESS (Android)** - 43% (3/7 subtasks complete)
 **Milestone D**: ⏳ **IN PROGRESS** - View model operations
 **Updated**: January 5, 2026
 
@@ -1617,7 +1617,7 @@ Phase D is broken into 7 subtasks for incremental implementation:
 |---------|-------------|--------|
 | D.1 | VMI Creation (basic: blank, default, by name) | ✅ Complete |
 | D.2 | Basic Property Operations (number, string, boolean) | ✅ Complete |
-| D.3 | Additional Property Types (enum, color, trigger) | ⏳ Pending |
+| D.3 | Additional Property Types (enum, color, trigger) | ✅ Complete |
 | D.4 | Property Flows & Subscriptions | ⏳ Pending |
 | D.5 | Advanced Features (lists, nested VMI, images, artboards) | ⏳ Pending |
 | D.6 | VMI Binding to State Machine | ⏳ Pending |
@@ -1722,7 +1722,7 @@ MessageType::PropertySetSuccess     // Set operation succeeded
 
 ---
 
-#### D.3: Additional Property Types ⏳ **PENDING**
+#### D.3: Additional Property Types ✅ **COMPLETE**
 
 **Scope**: Enum, color, and trigger properties.
 
@@ -1740,13 +1740,33 @@ fun setColorProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: In
 fun fireTriggerProperty(vmiHandle: ViewModelInstanceHandle, path: String)
 ```
 
+**C++ Implementation:**
+```cpp
+// Command types
+CommandType::GetEnumProperty, CommandType::SetEnumProperty
+CommandType::GetColorProperty, CommandType::SetColorProperty
+CommandType::FireTriggerProperty
+
+// Message types
+MessageType::EnumPropertyValue    // Returns string (enum option name)
+MessageType::ColorPropertyValue   // Returns int (0xAARRGGBB)
+MessageType::TriggerFired         // Confirmation of trigger fire
+// Uses shared PropertyError and PropertySetSuccess from D.2
+```
+
+**Files Modified:**
+- `CommandQueue.kt` - Added external JNI methods, public API, callbacks
+- `command_server.hpp` - Added command/message types, colorValue field, API declarations
+- `command_server.cpp` - Implemented property handlers (~250 lines)
+- `bindings_commandqueue.cpp` - Added JNI bindings (~150 lines)
+
 **Tasks:**
-- [ ] Add JNI external methods for enum/color/trigger
-- [ ] Add C++ command types and message types
-- [ ] Implement property handlers
-- [ ] Add JNI bindings
-- [ ] Add Kotlin callbacks
-- [ ] Test compilation
+- [x] Add JNI external methods for enum/color/trigger
+- [x] Add C++ command types and message types
+- [x] Implement property handlers
+- [x] Add JNI bindings
+- [x] Add Kotlin callbacks
+- [x] Test compilation
 
 ---
 

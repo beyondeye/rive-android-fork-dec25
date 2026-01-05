@@ -237,6 +237,27 @@ void CommandServer::executeCommand(const Command& cmd)
             handleSetBooleanProperty(cmd);
             break;
 
+        // Additional property types (Phase D.3)
+        case CommandType::GetEnumProperty:
+            handleGetEnumProperty(cmd);
+            break;
+
+        case CommandType::SetEnumProperty:
+            handleSetEnumProperty(cmd);
+            break;
+
+        case CommandType::GetColorProperty:
+            handleGetColorProperty(cmd);
+            break;
+
+        case CommandType::SetColorProperty:
+            handleSetColorProperty(cmd);
+            break;
+
+        case CommandType::FireTriggerProperty:
+            handleFireTriggerProperty(cmd);
+            break;
+
         default:
             LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
@@ -1847,6 +1868,255 @@ void CommandServer::handleSetBooleanProperty(const Command& cmd)
          cmd.propertyPath.c_str(), cmd.boolValue ? 1 : 0);
 
     Message msg(MessageType::PropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+// =============================================================================
+// Additional Property Types - Public API (Phase D.3)
+// =============================================================================
+
+void CommandServer::getEnumProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath)
+{
+    LOGI("CommandServer: Enqueuing GetEnumProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str());
+
+    Command cmd(CommandType::GetEnumProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setEnumProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, const std::string& value)
+{
+    LOGI("CommandServer: Enqueuing SetEnumProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str(), value.c_str());
+
+    Command cmd(CommandType::SetEnumProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.stringValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getColorProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath)
+{
+    LOGI("CommandServer: Enqueuing GetColorProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str());
+
+    Command cmd(CommandType::GetColorProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setColorProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int32_t value)
+{
+    LOGI("CommandServer: Enqueuing SetColorProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=0x%08X)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str(), value);
+
+    Command cmd(CommandType::SetColorProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.colorValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::fireTriggerProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath)
+{
+    LOGI("CommandServer: Enqueuing FireTriggerProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str());
+
+    Command cmd(CommandType::FireTriggerProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Additional Property Types - Handler Implementations (Phase D.3)
+// =============================================================================
+
+void CommandServer::handleGetEnumProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetEnumProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyEnum(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Enum property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Enum property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    std::string value = prop->value();
+
+    LOGI("CommandServer: GetEnumProperty succeeded (path=%s, value=%s)",
+         cmd.propertyPath.c_str(), value.c_str());
+
+    Message msg(MessageType::EnumPropertyValue, cmd.requestID);
+    msg.stringValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetEnumProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetEnumProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle),
+         cmd.propertyPath.c_str(), cmd.stringValue.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyEnum(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Enum property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Enum property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    prop->value(cmd.stringValue);
+
+    LOGI("CommandServer: SetEnumProperty succeeded (path=%s, value=%s)",
+         cmd.propertyPath.c_str(), cmd.stringValue.c_str());
+
+    Message msg(MessageType::PropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetColorProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetColorProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyColor(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Color property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Color property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    int value = prop->value();
+
+    LOGI("CommandServer: GetColorProperty succeeded (path=%s, value=0x%08X)",
+         cmd.propertyPath.c_str(), value);
+
+    Message msg(MessageType::ColorPropertyValue, cmd.requestID);
+    msg.colorValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetColorProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetColorProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=0x%08X)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle),
+         cmd.propertyPath.c_str(), cmd.colorValue);
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyColor(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Color property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Color property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    prop->value(cmd.colorValue);
+
+    LOGI("CommandServer: SetColorProperty succeeded (path=%s, value=0x%08X)",
+         cmd.propertyPath.c_str(), cmd.colorValue);
+
+    Message msg(MessageType::PropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleFireTriggerProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling FireTriggerProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyTrigger(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Trigger property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Trigger property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    prop->trigger();
+
+    LOGI("CommandServer: FireTriggerProperty succeeded (path=%s)",
+         cmd.propertyPath.c_str());
+
+    Message msg(MessageType::TriggerFired, cmd.requestID);
     enqueueMessage(std::move(msg));
 }
 

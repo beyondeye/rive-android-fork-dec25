@@ -40,6 +40,10 @@ static jmethodID g_onStringPropertyValueMethodID = nullptr;
 static jmethodID g_onBooleanPropertyValueMethodID = nullptr;
 static jmethodID g_onPropertyErrorMethodID = nullptr;
 static jmethodID g_onPropertySetSuccessMethodID = nullptr;
+// Additional property callbacks (Phase D.3)
+static jmethodID g_onEnumPropertyValueMethodID = nullptr;
+static jmethodID g_onColorPropertyValueMethodID = nullptr;
+static jmethodID g_onTriggerFiredMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -226,6 +230,25 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
     g_onPropertySetSuccessMethodID = env->GetMethodID(
         commandQueueClass,
         "onPropertySetSuccess",
+        "(J)V"  // (requestID: Long) -> Unit
+    );
+
+    // Additional property callbacks (Phase D.3)
+    g_onEnumPropertyValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onEnumPropertyValue",
+        "(JLjava/lang/String;)V"  // (requestID: Long, value: String) -> Unit
+    );
+
+    g_onColorPropertyValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onColorPropertyValue",
+        "(JI)V"  // (requestID: Long, value: Int) -> Unit
+    );
+
+    g_onTriggerFiredMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onTriggerFired",
         "(J)V"  // (requestID: Long) -> Unit
     );
 
@@ -557,6 +580,28 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
 
             case rive_android::MessageType::PropertySetSuccess:
                 env->CallVoidMethod(thiz, g_onPropertySetSuccessMethodID,
+                    static_cast<jlong>(msg.requestID));
+                break;
+
+            // Additional property messages (Phase D.3)
+            case rive_android::MessageType::EnumPropertyValue:
+                {
+                    jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
+                    env->CallVoidMethod(thiz, g_onEnumPropertyValueMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        valueStr);
+                    env->DeleteLocalRef(valueStr);
+                }
+                break;
+
+            case rive_android::MessageType::ColorPropertyValue:
+                env->CallVoidMethod(thiz, g_onColorPropertyValueMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jint>(msg.colorValue));
+                break;
+
+            case rive_android::MessageType::TriggerFired:
+                env->CallVoidMethod(thiz, g_onTriggerFiredMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
@@ -1436,6 +1481,151 @@ Java_app_rive_mp_CommandQueue_cppSetBooleanProperty(
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
     server->setBooleanProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<bool>(value));
+}
+
+// =============================================================================
+// Phase D.3: Additional Property Types (enum, color, trigger)
+// =============================================================================
+
+/**
+ * Gets an enum property value from a ViewModelInstance.
+ *
+ * JNI signature: cppGetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetEnumProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get enum property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->getEnumProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+}
+
+/**
+ * Sets an enum property value on a ViewModelInstance.
+ *
+ * JNI signature: cppSetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetEnumProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jstring value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set enum property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    const char* valueChars = env->GetStringUTFChars(value, nullptr);
+    std::string valueStr(valueChars);
+    env->ReleaseStringUTFChars(value, valueChars);
+
+    server->setEnumProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, valueStr);
+}
+
+/**
+ * Gets a color property value from a ViewModelInstance.
+ *
+ * JNI signature: cppGetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetColorProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get color property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->getColorProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+}
+
+/**
+ * Sets a color property value on a ViewModelInstance.
+ *
+ * JNI signature: cppSetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Int): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetColorProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jint value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set color property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->setColorProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<int32_t>(value));
+}
+
+/**
+ * Fires a trigger property on a ViewModelInstance.
+ *
+ * JNI signature: cppFireTriggerProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppFireTriggerProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to fire trigger property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->fireTriggerProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
 }
 
 } // extern "C"
