@@ -75,6 +75,9 @@ enum class CommandType {
     GetColorProperty,         // Get color property value (0xAARRGGBB)
     SetColorProperty,         // Set color property value
     FireTriggerProperty,      // Fire a trigger property
+    // Phase D.4: Property subscriptions
+    SubscribeToProperty,      // Subscribe to property updates
+    UnsubscribeFromProperty,  // Unsubscribe from property updates
 };
 
 /**
@@ -106,6 +109,9 @@ struct Command {
 
     // Property operation data (Phase D.3)
     int32_t colorValue = 0;      // For SetColorProperty (0xAARRGGBB format)
+
+    // Property subscription data (Phase D.4)
+    int32_t propertyType = 0;    // For SubscribeToProperty, UnsubscribeFromProperty (PropertyDataType)
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -157,6 +163,13 @@ enum class MessageType {
     EnumPropertyValue,        // Returns enum value (as string)
     ColorPropertyValue,       // Returns color value (0xAARRGGBB)
     TriggerFired,             // Trigger was successfully fired
+    // Phase D.4: Property subscription updates
+    NumberPropertyUpdated,    // Subscribed number property changed
+    StringPropertyUpdated,    // Subscribed string property changed
+    BooleanPropertyUpdated,   // Subscribed boolean property changed
+    EnumPropertyUpdated,      // Subscribed enum property changed
+    ColorPropertyUpdated,     // Subscribed color property changed
+    TriggerPropertyFired,     // Subscribed trigger property fired
 };
 
 /**
@@ -170,6 +183,40 @@ enum class InputType {
     BOOLEAN = 1,
     TRIGGER = 2,
     UNKNOWN = -1
+};
+
+/**
+ * Property data type enum - mirrors rive::DataType values.
+ */
+enum class PropertyDataType {
+    NONE = 0,
+    STRING = 1,
+    NUMBER = 2,
+    BOOLEAN = 3,
+    COLOR = 4,
+    LIST = 5,
+    ENUM = 6,
+    TRIGGER = 7,
+    VIEW_MODEL = 8,
+    INTEGER = 9,
+    SYMBOL_LIST_INDEX = 10,
+    ASSET_IMAGE = 11,
+    ARTBOARD = 12
+};
+
+/**
+ * Represents a subscription to property changes.
+ */
+struct PropertySubscription {
+    int64_t vmiHandle;
+    std::string propertyPath;
+    PropertyDataType propertyType;
+
+    bool operator==(const PropertySubscription& other) const {
+        return vmiHandle == other.vmiHandle &&
+               propertyPath == other.propertyPath &&
+               propertyType == other.propertyType;
+    }
 };
 
 struct Message {
@@ -191,6 +238,10 @@ struct Message {
 
     // Property operation results (Phase D.3)
     int32_t colorValue = 0;      // For ColorPropertyValue (0xAARRGGBB format)
+
+    // Property subscription update data (Phase D.4)
+    int64_t vmiHandle = 0;       // For property update messages
+    std::string propertyPath;    // For property update messages
 
     Message() = default;
     explicit Message(MessageType t, int64_t reqID = 0)
@@ -584,6 +635,28 @@ public:
      */
     void fireTriggerProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
 
+    // ==========================================================================
+    // Phase D.4: Property Subscriptions
+    // ==========================================================================
+
+    /**
+     * Subscribes to property updates on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param propertyType The type of the property (PropertyDataType value).
+     */
+    void subscribeToProperty(int64_t vmiHandle, const std::string& propertyPath, int32_t propertyType);
+
+    /**
+     * Unsubscribes from property updates on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param propertyType The type of the property (PropertyDataType value).
+     */
+    void unsubscribeFromProperty(int64_t vmiHandle, const std::string& propertyPath, int32_t propertyType);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -713,6 +786,20 @@ private:
     void handleSetColorProperty(const Command& cmd);
     void handleFireTriggerProperty(const Command& cmd);
 
+    // Property subscription handlers (Phase D.4)
+    void handleSubscribeToProperty(const Command& cmd);
+    void handleUnsubscribeFromProperty(const Command& cmd);
+
+    /**
+     * Checks subscriptions and emits property updates.
+     * Called after property set operations.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param propertyType The type of the property.
+     */
+    void emitPropertyUpdateIfSubscribed(int64_t vmiHandle, const std::string& propertyPath, PropertyDataType propertyType);
+
     /**
      * Enqueues a message to be sent to Kotlin.
      * Thread-safe.
@@ -758,6 +845,10 @@ private:
 
     // Phase D: View model instance resource map
     std::map<int64_t, rive::rcp<rive::ViewModelInstanceRuntime>> m_viewModelInstances;
+
+    // Phase D.4: Property subscriptions
+    std::vector<PropertySubscription> m_propertySubscriptions;
+    std::mutex m_subscriptionsMutex;
 };
 
 } // namespace rive_android

@@ -1607,7 +1607,7 @@ void CommandServer::handleGetInputInfo(const Command& cmd) {
 
 ### Phase D: View Models & Properties (Week 4-5)
 
-**Status**: 🚧 **IN PROGRESS (Android)** - 43% (3/7 subtasks complete)
+**Status**: 🚧 **IN PROGRESS (Android)** - 57% (4/7 subtasks complete)
 **Milestone D**: ⏳ **IN PROGRESS** - View model operations
 **Updated**: January 5, 2026
 
@@ -1618,7 +1618,7 @@ Phase D is broken into 7 subtasks for incremental implementation:
 | D.1 | VMI Creation (basic: blank, default, by name) | ✅ Complete |
 | D.2 | Basic Property Operations (number, string, boolean) | ✅ Complete |
 | D.3 | Additional Property Types (enum, color, trigger) | ✅ Complete |
-| D.4 | Property Flows & Subscriptions | ⏳ Pending |
+| D.4 | Property Flows & Subscriptions | ✅ Complete |
 | D.5 | Advanced Features (lists, nested VMI, images, artboards) | ⏳ Pending |
 | D.6 | VMI Binding to State Machine | ⏳ Pending |
 | D.7 | Testing - Port MpRiveDataBindingTest | ⏳ Pending |
@@ -1770,7 +1770,7 @@ MessageType::TriggerFired         // Confirmation of trigger fire
 
 ---
 
-#### D.4: Property Flows & Subscriptions ⏳ **PENDING**
+#### D.4: Property Flows & Subscriptions ✅ **COMPLETE**
 
 **Scope**: Reactive property flows using SharedFlow.
 
@@ -1791,23 +1791,20 @@ val enumPropertyFlow: SharedFlow<PropertyUpdate<String>>
 val colorPropertyFlow: SharedFlow<PropertyUpdate<Int>>
 val triggerPropertyFlow: SharedFlow<PropertyUpdate<Unit>>
 
-// Subscription method
-fun subscribeToProperty(
-    vmiHandle: ViewModelInstanceHandle,
-    propertyPath: String,
-    propertyType: PropertyDataType
-)
+// Subscription methods
+fun subscribeToProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, propertyType: PropertyDataType)
+fun unsubscribeFromProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, propertyType: PropertyDataType)
 ```
 
 **C++ Implementation:**
 ```cpp
 // Subscription tracking
-struct Subscription {
+struct PropertySubscription {
     int64_t vmiHandle;
     std::string propertyPath;
     PropertyDataType propertyType;
 };
-std::vector<Subscription> m_propertySubscriptions;
+std::vector<PropertySubscription> m_propertySubscriptions;
 
 // Commands
 CommandType::SubscribeToProperty
@@ -1822,16 +1819,23 @@ MessageType::ColorPropertyUpdated
 MessageType::TriggerPropertyFired
 ```
 
+**Files Modified:**
+- `PropertyTypes.kt` - New file with PropertyDataType enum and PropertyUpdate data class
+- `CommandQueue.kt` - Added property flows, JNI methods, subscription API, callbacks
+- `command_server.hpp` - Added command/message types, PropertyDataType enum, PropertySubscription struct
+- `command_server.cpp` - Implemented subscription handlers and property update emission (~180 lines)
+- `bindings_commandqueue.cpp` - Added JNI bindings (~120 lines)
+
 **Tasks:**
-- [ ] Add PropertyDataType enum to Kotlin
-- [ ] Add PropertyUpdate data class
-- [ ] Add MutableSharedFlow channels for each property type
-- [ ] Add subscription JNI methods
-- [ ] Implement subscription tracking in C++
-- [ ] Implement property change callbacks
-- [ ] Add JNI bindings for subscription
-- [ ] Add Kotlin callback emitters to flows
-- [ ] Test compilation
+- [x] Add PropertyDataType enum to Kotlin
+- [x] Add PropertyUpdate data class
+- [x] Add MutableSharedFlow channels for each property type
+- [x] Add subscription JNI methods
+- [x] Implement subscription tracking in C++
+- [x] Implement property change callbacks (emit on set operations)
+- [x] Add JNI bindings for subscription
+- [x] Add Kotlin callback emitters to flows
+- [x] Test compilation
 
 ---
 

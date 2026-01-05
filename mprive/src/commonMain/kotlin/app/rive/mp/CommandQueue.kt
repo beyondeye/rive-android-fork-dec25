@@ -97,7 +97,59 @@ class CommandQueue(
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
     val settledFlow: SharedFlow<StateMachineHandle> = _settledFlow
-    
+
+    // =============================================================================
+    // Property Flows (Phase D.4)
+    // =============================================================================
+
+    private val _numberPropertyFlow = MutableSharedFlow<PropertyUpdate<Float>>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    /** Hot flow that emits when any subscribed number property is updated. */
+    val numberPropertyFlow: SharedFlow<PropertyUpdate<Float>> = _numberPropertyFlow
+
+    private val _stringPropertyFlow = MutableSharedFlow<PropertyUpdate<String>>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    /** Hot flow that emits when any subscribed string property is updated. */
+    val stringPropertyFlow: SharedFlow<PropertyUpdate<String>> = _stringPropertyFlow
+
+    private val _booleanPropertyFlow = MutableSharedFlow<PropertyUpdate<Boolean>>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    /** Hot flow that emits when any subscribed boolean property is updated. */
+    val booleanPropertyFlow: SharedFlow<PropertyUpdate<Boolean>> = _booleanPropertyFlow
+
+    private val _enumPropertyFlow = MutableSharedFlow<PropertyUpdate<String>>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    /** Hot flow that emits when any subscribed enum property is updated. */
+    val enumPropertyFlow: SharedFlow<PropertyUpdate<String>> = _enumPropertyFlow
+
+    private val _colorPropertyFlow = MutableSharedFlow<PropertyUpdate<Int>>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    /** Hot flow that emits when any subscribed color property is updated. */
+    val colorPropertyFlow: SharedFlow<PropertyUpdate<Int>> = _colorPropertyFlow
+
+    private val _triggerPropertyFlow = MutableSharedFlow<PropertyUpdate<Unit>>(
+        replay = 0,
+        extraBufferCapacity = MAX_CONCURRENT_SUBSCRIBERS,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    /** Hot flow that emits when any subscribed trigger property is fired. */
+    val triggerPropertyFlow: SharedFlow<PropertyUpdate<Unit>> = _triggerPropertyFlow
+
     init {
         RiveLog.d(COMMAND_QUEUE_TAG) { "Creating command queue" }
     }
@@ -350,6 +402,10 @@ class CommandQueue(
     private external fun cppGetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
     private external fun cppSetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Int)
     private external fun cppFireTriggerProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+
+    // External JNI methods for Property Subscriptions (Phase D.4)
+    private external fun cppSubscribeToProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int)
+    private external fun cppUnsubscribeFromProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int)
     
     /**
      * Create the default state machine from an artboard.
@@ -821,6 +877,51 @@ class CommandQueue(
     fun fireTriggerProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String) {
         val requestID = nextRequestID.getAndIncrement()
         cppFireTriggerProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+    }
+
+    // =============================================================================
+    // Phase D.4: Property Subscriptions
+    // =============================================================================
+
+    /**
+     * Subscribe to changes to a property on a ViewModelInstance.
+     * Updates will be emitted on the flow of the corresponding type:
+     * - [numberPropertyFlow] for NUMBER properties
+     * - [stringPropertyFlow] for STRING properties
+     * - [booleanPropertyFlow] for BOOLEAN properties
+     * - [enumPropertyFlow] for ENUM properties
+     * - [colorPropertyFlow] for COLOR properties
+     * - [triggerPropertyFlow] for TRIGGER properties
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the property.
+     * @param propertyPath The path to the property within the ViewModelInstance.
+     * @param propertyType The data type of the property.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun subscribeToProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        propertyType: PropertyDataType
+    ) {
+        cppSubscribeToProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
+    }
+
+    /**
+     * Unsubscribe from changes to a property on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the property.
+     * @param propertyPath The path to the property within the ViewModelInstance.
+     * @param propertyType The data type of the property.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun unsubscribeFromProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        propertyType: PropertyDataType
+    ) {
+        cppUnsubscribeFromProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
     }
 
     // =============================================================================
@@ -1438,5 +1539,92 @@ class CommandQueue(
     @Suppress("unused")  // Called from JNI
     private fun onTriggerFired(requestID: Long) {
         RiveLog.d(COMMAND_QUEUE_TAG) { "Trigger fired: requestID=$requestID" }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for Property Subscriptions (Phase D.4)
+    // =============================================================================
+
+    /**
+     * Called from C++ when a subscribed number property has been updated.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The new value.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onNumberPropertyUpdated(vmiHandle: Long, propertyPath: String, value: Float) {
+        _numberPropertyFlow.tryEmit(
+            PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, value)
+        )
+    }
+
+    /**
+     * Called from C++ when a subscribed string property has been updated.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The new value.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStringPropertyUpdated(vmiHandle: Long, propertyPath: String, value: String) {
+        _stringPropertyFlow.tryEmit(
+            PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, value)
+        )
+    }
+
+    /**
+     * Called from C++ when a subscribed boolean property has been updated.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The new value.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onBooleanPropertyUpdated(vmiHandle: Long, propertyPath: String, value: Boolean) {
+        _booleanPropertyFlow.tryEmit(
+            PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, value)
+        )
+    }
+
+    /**
+     * Called from C++ when a subscribed enum property has been updated.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The new value (as string).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onEnumPropertyUpdated(vmiHandle: Long, propertyPath: String, value: String) {
+        _enumPropertyFlow.tryEmit(
+            PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, value)
+        )
+    }
+
+    /**
+     * Called from C++ when a subscribed color property has been updated.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The new value (0xAARRGGBB format).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onColorPropertyUpdated(vmiHandle: Long, propertyPath: String, value: Int) {
+        _colorPropertyFlow.tryEmit(
+            PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, value)
+        )
+    }
+
+    /**
+     * Called from C++ when a subscribed trigger property has been fired.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the trigger property.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onTriggerPropertyFired(vmiHandle: Long, propertyPath: String) {
+        _triggerPropertyFlow.tryEmit(
+            PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, Unit)
+        )
     }
 }

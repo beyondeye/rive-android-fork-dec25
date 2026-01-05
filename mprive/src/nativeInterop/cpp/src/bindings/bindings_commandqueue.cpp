@@ -44,6 +44,13 @@ static jmethodID g_onPropertySetSuccessMethodID = nullptr;
 static jmethodID g_onEnumPropertyValueMethodID = nullptr;
 static jmethodID g_onColorPropertyValueMethodID = nullptr;
 static jmethodID g_onTriggerFiredMethodID = nullptr;
+// Property subscription update callbacks (Phase D.4)
+static jmethodID g_onNumberPropertyUpdatedMethodID = nullptr;
+static jmethodID g_onStringPropertyUpdatedMethodID = nullptr;
+static jmethodID g_onBooleanPropertyUpdatedMethodID = nullptr;
+static jmethodID g_onEnumPropertyUpdatedMethodID = nullptr;
+static jmethodID g_onColorPropertyUpdatedMethodID = nullptr;
+static jmethodID g_onTriggerPropertyFiredMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -250,6 +257,43 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onTriggerFired",
         "(J)V"  // (requestID: Long) -> Unit
+    );
+
+    // Property subscription update callbacks (Phase D.4)
+    g_onNumberPropertyUpdatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onNumberPropertyUpdated",
+        "(JLjava/lang/String;F)V"  // (vmiHandle: Long, propertyPath: String, value: Float) -> Unit
+    );
+
+    g_onStringPropertyUpdatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onStringPropertyUpdated",
+        "(JLjava/lang/String;Ljava/lang/String;)V"  // (vmiHandle: Long, propertyPath: String, value: String) -> Unit
+    );
+
+    g_onBooleanPropertyUpdatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onBooleanPropertyUpdated",
+        "(JLjava/lang/String;Z)V"  // (vmiHandle: Long, propertyPath: String, value: Boolean) -> Unit
+    );
+
+    g_onEnumPropertyUpdatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onEnumPropertyUpdated",
+        "(JLjava/lang/String;Ljava/lang/String;)V"  // (vmiHandle: Long, propertyPath: String, value: String) -> Unit
+    );
+
+    g_onColorPropertyUpdatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onColorPropertyUpdated",
+        "(JLjava/lang/String;I)V"  // (vmiHandle: Long, propertyPath: String, value: Int) -> Unit
+    );
+
+    g_onTriggerPropertyFiredMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onTriggerPropertyFired",
+        "(JLjava/lang/String;)V"  // (vmiHandle: Long, propertyPath: String) -> Unit
     );
 
     env->DeleteLocalRef(commandQueueClass);
@@ -603,6 +647,76 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
             case rive_android::MessageType::TriggerFired:
                 env->CallVoidMethod(thiz, g_onTriggerFiredMethodID,
                     static_cast<jlong>(msg.requestID));
+                break;
+
+            // Property subscription updates (Phase D.4)
+            case rive_android::MessageType::NumberPropertyUpdated:
+                {
+                    jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
+                    env->CallVoidMethod(thiz, g_onNumberPropertyUpdatedMethodID,
+                        static_cast<jlong>(msg.vmiHandle),
+                        pathStr,
+                        static_cast<jfloat>(msg.floatValue));
+                    env->DeleteLocalRef(pathStr);
+                }
+                break;
+
+            case rive_android::MessageType::StringPropertyUpdated:
+                {
+                    jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
+                    jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
+                    env->CallVoidMethod(thiz, g_onStringPropertyUpdatedMethodID,
+                        static_cast<jlong>(msg.vmiHandle),
+                        pathStr,
+                        valueStr);
+                    env->DeleteLocalRef(valueStr);
+                    env->DeleteLocalRef(pathStr);
+                }
+                break;
+
+            case rive_android::MessageType::BooleanPropertyUpdated:
+                {
+                    jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
+                    env->CallVoidMethod(thiz, g_onBooleanPropertyUpdatedMethodID,
+                        static_cast<jlong>(msg.vmiHandle),
+                        pathStr,
+                        static_cast<jboolean>(msg.boolValue));
+                    env->DeleteLocalRef(pathStr);
+                }
+                break;
+
+            case rive_android::MessageType::EnumPropertyUpdated:
+                {
+                    jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
+                    jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
+                    env->CallVoidMethod(thiz, g_onEnumPropertyUpdatedMethodID,
+                        static_cast<jlong>(msg.vmiHandle),
+                        pathStr,
+                        valueStr);
+                    env->DeleteLocalRef(valueStr);
+                    env->DeleteLocalRef(pathStr);
+                }
+                break;
+
+            case rive_android::MessageType::ColorPropertyUpdated:
+                {
+                    jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
+                    env->CallVoidMethod(thiz, g_onColorPropertyUpdatedMethodID,
+                        static_cast<jlong>(msg.vmiHandle),
+                        pathStr,
+                        static_cast<jint>(msg.colorValue));
+                    env->DeleteLocalRef(pathStr);
+                }
+                break;
+
+            case rive_android::MessageType::TriggerPropertyFired:
+                {
+                    jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
+                    env->CallVoidMethod(thiz, g_onTriggerPropertyFiredMethodID,
+                        static_cast<jlong>(msg.vmiHandle),
+                        pathStr);
+                    env->DeleteLocalRef(pathStr);
+                }
                 break;
 
             default:
@@ -1626,6 +1740,64 @@ Java_app_rive_mp_CommandQueue_cppFireTriggerProperty(
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
     server->fireTriggerProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+}
+
+// =============================================================================
+// Phase D.4: Property Subscriptions
+// =============================================================================
+
+/**
+ * Subscribes to property updates on a ViewModelInstance.
+ *
+ * JNI signature: cppSubscribeToProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSubscribeToProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jint propertyType
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to subscribe to property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->subscribeToProperty(static_cast<int64_t>(vmiHandle), path, static_cast<int32_t>(propertyType));
+}
+
+/**
+ * Unsubscribes from property updates on a ViewModelInstance.
+ *
+ * JNI signature: cppUnsubscribeFromProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppUnsubscribeFromProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jint propertyType
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to unsubscribe from property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->unsubscribeFromProperty(static_cast<int64_t>(vmiHandle), path, static_cast<int32_t>(propertyType));
 }
 
 } // extern "C"

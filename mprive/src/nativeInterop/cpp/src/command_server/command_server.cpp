@@ -258,6 +258,14 @@ void CommandServer::executeCommand(const Command& cmd)
             handleFireTriggerProperty(cmd);
             break;
 
+        case CommandType::SubscribeToProperty:
+            handleSubscribeToProperty(cmd);
+            break;
+
+        case CommandType::UnsubscribeFromProperty:
+            handleUnsubscribeFromProperty(cmd);
+            break;
+
         default:
             LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
@@ -1723,6 +1731,9 @@ void CommandServer::handleSetNumberProperty(const Command& cmd)
     LOGI("CommandServer: SetNumberProperty succeeded (path=%s, value=%f)",
          cmd.propertyPath.c_str(), cmd.floatValue);
 
+    // Emit update to subscribers (Phase D.4)
+    emitPropertyUpdateIfSubscribed(cmd.handle, cmd.propertyPath, PropertyDataType::NUMBER);
+
     Message msg(MessageType::PropertySetSuccess, cmd.requestID);
     enqueueMessage(std::move(msg));
 }
@@ -1794,6 +1805,9 @@ void CommandServer::handleSetStringProperty(const Command& cmd)
 
     LOGI("CommandServer: SetStringProperty succeeded (path=%s, value=%s)",
          cmd.propertyPath.c_str(), cmd.stringValue.c_str());
+
+    // Emit update to subscribers (Phase D.4)
+    emitPropertyUpdateIfSubscribed(cmd.handle, cmd.propertyPath, PropertyDataType::STRING);
 
     Message msg(MessageType::PropertySetSuccess, cmd.requestID);
     enqueueMessage(std::move(msg));
@@ -1867,6 +1881,9 @@ void CommandServer::handleSetBooleanProperty(const Command& cmd)
     LOGI("CommandServer: SetBooleanProperty succeeded (path=%s, value=%d)",
          cmd.propertyPath.c_str(), cmd.boolValue ? 1 : 0);
 
+    // Emit update to subscribers (Phase D.4)
+    emitPropertyUpdateIfSubscribed(cmd.handle, cmd.propertyPath, PropertyDataType::BOOLEAN);
+
     Message msg(MessageType::PropertySetSuccess, cmd.requestID);
     enqueueMessage(std::move(msg));
 }
@@ -1933,6 +1950,36 @@ void CommandServer::fireTriggerProperty(int64_t requestID, int64_t vmiHandle, co
     Command cmd(CommandType::FireTriggerProperty, requestID);
     cmd.handle = vmiHandle;
     cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Property Subscriptions - Public API (Phase D.4)
+// =============================================================================
+
+void CommandServer::subscribeToProperty(int64_t vmiHandle, const std::string& propertyPath, int32_t propertyType)
+{
+    LOGI("CommandServer: Enqueuing SubscribeToProperty command (vmiHandle=%lld, path=%s, type=%d)",
+         static_cast<long long>(vmiHandle), propertyPath.c_str(), propertyType);
+
+    Command cmd(CommandType::SubscribeToProperty, 0);  // No requestID needed
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.propertyType = propertyType;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::unsubscribeFromProperty(int64_t vmiHandle, const std::string& propertyPath, int32_t propertyType)
+{
+    LOGI("CommandServer: Enqueuing UnsubscribeFromProperty command (vmiHandle=%lld, path=%s, type=%d)",
+         static_cast<long long>(vmiHandle), propertyPath.c_str(), propertyType);
+
+    Command cmd(CommandType::UnsubscribeFromProperty, 0);  // No requestID needed
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.propertyType = propertyType;
 
     enqueueCommand(std::move(cmd));
 }
@@ -2009,6 +2056,9 @@ void CommandServer::handleSetEnumProperty(const Command& cmd)
     LOGI("CommandServer: SetEnumProperty succeeded (path=%s, value=%s)",
          cmd.propertyPath.c_str(), cmd.stringValue.c_str());
 
+    // Emit update to subscribers (Phase D.4)
+    emitPropertyUpdateIfSubscribed(cmd.handle, cmd.propertyPath, PropertyDataType::ENUM);
+
     Message msg(MessageType::PropertySetSuccess, cmd.requestID);
     enqueueMessage(std::move(msg));
 }
@@ -2081,6 +2131,9 @@ void CommandServer::handleSetColorProperty(const Command& cmd)
     LOGI("CommandServer: SetColorProperty succeeded (path=%s, value=0x%08X)",
          cmd.propertyPath.c_str(), cmd.colorValue);
 
+    // Emit update to subscribers (Phase D.4)
+    emitPropertyUpdateIfSubscribed(cmd.handle, cmd.propertyPath, PropertyDataType::COLOR);
+
     Message msg(MessageType::PropertySetSuccess, cmd.requestID);
     enqueueMessage(std::move(msg));
 }
@@ -2116,8 +2169,171 @@ void CommandServer::handleFireTriggerProperty(const Command& cmd)
     LOGI("CommandServer: FireTriggerProperty succeeded (path=%s)",
          cmd.propertyPath.c_str());
 
+    // Emit update to subscribers (Phase D.4)
+    emitPropertyUpdateIfSubscribed(cmd.handle, cmd.propertyPath, PropertyDataType::TRIGGER);
+
     Message msg(MessageType::TriggerFired, cmd.requestID);
     enqueueMessage(std::move(msg));
+}
+
+// =============================================================================
+// Property Subscriptions - Handler Implementations (Phase D.4)
+// =============================================================================
+
+void CommandServer::handleSubscribeToProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SubscribeToProperty command (vmiHandle=%lld, path=%s, type=%d)",
+         static_cast<long long>(cmd.handle), cmd.propertyPath.c_str(), cmd.propertyType);
+
+    // Validate the VMI handle exists
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle for subscription: %lld", static_cast<long long>(cmd.handle));
+        return;
+    }
+
+    PropertySubscription sub;
+    sub.vmiHandle = cmd.handle;
+    sub.propertyPath = cmd.propertyPath;
+    sub.propertyType = static_cast<PropertyDataType>(cmd.propertyType);
+
+    // Check if already subscribed (avoid duplicates)
+    {
+        std::lock_guard<std::mutex> lock(m_subscriptionsMutex);
+        for (const auto& existing : m_propertySubscriptions) {
+            if (existing == sub) {
+                LOGI("CommandServer: Already subscribed to property (vmiHandle=%lld, path=%s)",
+                     static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+                return;
+            }
+        }
+        m_propertySubscriptions.push_back(sub);
+    }
+
+    LOGI("CommandServer: Subscribed to property (vmiHandle=%lld, path=%s, type=%d)",
+         static_cast<long long>(cmd.handle), cmd.propertyPath.c_str(), cmd.propertyType);
+}
+
+void CommandServer::handleUnsubscribeFromProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling UnsubscribeFromProperty command (vmiHandle=%lld, path=%s, type=%d)",
+         static_cast<long long>(cmd.handle), cmd.propertyPath.c_str(), cmd.propertyType);
+
+    PropertySubscription sub;
+    sub.vmiHandle = cmd.handle;
+    sub.propertyPath = cmd.propertyPath;
+    sub.propertyType = static_cast<PropertyDataType>(cmd.propertyType);
+
+    {
+        std::lock_guard<std::mutex> lock(m_subscriptionsMutex);
+        auto it = std::find(m_propertySubscriptions.begin(), m_propertySubscriptions.end(), sub);
+        if (it != m_propertySubscriptions.end()) {
+            m_propertySubscriptions.erase(it);
+            LOGI("CommandServer: Unsubscribed from property (vmiHandle=%lld, path=%s)",
+                 static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+        } else {
+            LOGI("CommandServer: Subscription not found (vmiHandle=%lld, path=%s)",
+                 static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+        }
+    }
+}
+
+void CommandServer::emitPropertyUpdateIfSubscribed(int64_t vmiHandle, const std::string& propertyPath, PropertyDataType propertyType)
+{
+    // Check if this property is subscribed
+    bool isSubscribed = false;
+    {
+        std::lock_guard<std::mutex> lock(m_subscriptionsMutex);
+        for (const auto& sub : m_propertySubscriptions) {
+            if (sub.vmiHandle == vmiHandle && sub.propertyPath == propertyPath && sub.propertyType == propertyType) {
+                isSubscribed = true;
+                break;
+            }
+        }
+    }
+
+    if (!isSubscribed) {
+        return;
+    }
+
+    // Get the VMI
+    auto it = m_viewModelInstances.find(vmiHandle);
+    if (it == m_viewModelInstances.end()) {
+        return;
+    }
+
+    auto& vmi = it->second;
+
+    // Emit update message based on property type
+    switch (propertyType) {
+        case PropertyDataType::NUMBER: {
+            auto* prop = vmi->propertyNumber(propertyPath);
+            if (prop) {
+                Message msg(MessageType::NumberPropertyUpdated, 0);
+                msg.vmiHandle = vmiHandle;
+                msg.propertyPath = propertyPath;
+                msg.floatValue = prop->value();
+                enqueueMessage(std::move(msg));
+            }
+            break;
+        }
+        case PropertyDataType::STRING: {
+            auto* prop = vmi->propertyString(propertyPath);
+            if (prop) {
+                Message msg(MessageType::StringPropertyUpdated, 0);
+                msg.vmiHandle = vmiHandle;
+                msg.propertyPath = propertyPath;
+                msg.stringValue = prop->value();
+                enqueueMessage(std::move(msg));
+            }
+            break;
+        }
+        case PropertyDataType::BOOLEAN: {
+            auto* prop = vmi->propertyBoolean(propertyPath);
+            if (prop) {
+                Message msg(MessageType::BooleanPropertyUpdated, 0);
+                msg.vmiHandle = vmiHandle;
+                msg.propertyPath = propertyPath;
+                msg.boolValue = prop->value();
+                enqueueMessage(std::move(msg));
+            }
+            break;
+        }
+        case PropertyDataType::ENUM: {
+            auto* prop = vmi->propertyEnum(propertyPath);
+            if (prop) {
+                Message msg(MessageType::EnumPropertyUpdated, 0);
+                msg.vmiHandle = vmiHandle;
+                msg.propertyPath = propertyPath;
+                msg.stringValue = prop->value();
+                enqueueMessage(std::move(msg));
+            }
+            break;
+        }
+        case PropertyDataType::COLOR: {
+            auto* prop = vmi->propertyColor(propertyPath);
+            if (prop) {
+                Message msg(MessageType::ColorPropertyUpdated, 0);
+                msg.vmiHandle = vmiHandle;
+                msg.propertyPath = propertyPath;
+                msg.colorValue = prop->value();
+                enqueueMessage(std::move(msg));
+            }
+            break;
+        }
+        case PropertyDataType::TRIGGER: {
+            // Triggers don't have a value, just emit that it was fired
+            Message msg(MessageType::TriggerPropertyFired, 0);
+            msg.vmiHandle = vmiHandle;
+            msg.propertyPath = propertyPath;
+            enqueueMessage(std::move(msg));
+            break;
+        }
+        default:
+            LOGW("CommandServer: Unsupported property type for subscription update: %d",
+                 static_cast<int>(propertyType));
+            break;
+    }
 }
 
 } // namespace rive_android
