@@ -46,6 +46,15 @@ enum class CommandType {
     CreateStateMachineByName,
     AdvanceStateMachine,
     DeleteStateMachine,
+    // Phase C.4: State machine input operations
+    GetInputCount,
+    GetInputNames,
+    GetInputInfo,
+    GetNumberInput,
+    SetNumberInput,
+    GetBooleanInput,
+    SetBooleanInput,
+    FireTrigger,
     // Phase D+: View models, etc.
 };
 
@@ -61,6 +70,12 @@ struct Command {
     int64_t handle = 0;          // For DeleteFile, etc.
     std::string name;            // For CreateArtboardByName, CreateStateMachineByName
     float deltaTime = 0.0f;      // For AdvanceStateMachine (in seconds)
+
+    // Input operation data
+    std::string inputName;       // For input operations by name
+    int32_t inputIndex = -1;     // For input operations by index
+    float floatValue = 0.0f;     // For SetNumberInput
+    bool boolValue = false;      // For SetBooleanInput
     
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -90,20 +105,45 @@ enum class MessageType {
     StateMachineError,
     StateMachineDeleted,
     StateMachineSettled,
+    // State machine input operations
+    InputCountResult,
+    InputNamesListed,
+    InputInfoResult,
+    NumberInputValue,
+    BooleanInputValue,
+    InputOperationSuccess,
+    InputOperationError,
 };
 
 /**
  * A message to be sent from CommandServer to Kotlin.
  */
+/**
+ * Input type enum for state machine inputs.
+ */
+enum class InputType {
+    NUMBER = 0,
+    BOOLEAN = 1,
+    TRIGGER = 2,
+    UNKNOWN = -1
+};
+
 struct Message {
     MessageType type = MessageType::None;
     int64_t requestID = 0;
     int64_t handle = 0;
     std::string error;
     std::vector<std::string> stringList;  // For query results
-    
+
+    // Input operation results
+    int32_t intValue = 0;        // For InputCountResult
+    float floatValue = 0.0f;     // For NumberInputValue
+    bool boolValue = false;      // For BooleanInputValue
+    InputType inputType = InputType::UNKNOWN;  // For InputInfoResult
+    std::string inputName;       // For InputInfoResult
+
     Message() = default;
-    explicit Message(MessageType t, int64_t reqID = 0) 
+    explicit Message(MessageType t, int64_t reqID = 0)
         : type(t), requestID(reqID) {}
 };
 
@@ -256,12 +296,88 @@ public:
     
     /**
      * Enqueues a DeleteStateMachine command.
-     * 
+     *
      * @param requestID The request ID for async completion.
      * @param smHandle The handle of the state machine to delete.
      */
     void deleteStateMachine(int64_t requestID, int64_t smHandle);
-    
+
+    // =========================================================================
+    // State Machine Input Operations (Phase C.4)
+    // =========================================================================
+
+    /**
+     * Enqueues a GetInputCount command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     */
+    void getInputCount(int64_t requestID, int64_t smHandle);
+
+    /**
+     * Enqueues a GetInputNames command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     */
+    void getInputNames(int64_t requestID, int64_t smHandle);
+
+    /**
+     * Enqueues a GetInputInfo command (get type and name by index).
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param inputIndex The index of the input.
+     */
+    void getInputInfo(int64_t requestID, int64_t smHandle, int32_t inputIndex);
+
+    /**
+     * Enqueues a GetNumberInput command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     */
+    void getNumberInput(int64_t requestID, int64_t smHandle, const std::string& inputName);
+
+    /**
+     * Enqueues a SetNumberInput command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     * @param value The value to set.
+     */
+    void setNumberInput(int64_t requestID, int64_t smHandle, const std::string& inputName, float value);
+
+    /**
+     * Enqueues a GetBooleanInput command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     */
+    void getBooleanInput(int64_t requestID, int64_t smHandle, const std::string& inputName);
+
+    /**
+     * Enqueues a SetBooleanInput command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     * @param value The value to set.
+     */
+    void setBooleanInput(int64_t requestID, int64_t smHandle, const std::string& inputName, bool value);
+
+    /**
+     * Enqueues a FireTrigger command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the trigger input.
+     */
+    void fireTrigger(int64_t requestID, int64_t smHandle, const std::string& inputName);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -355,11 +471,21 @@ private:
     
     /**
      * Handles a DeleteStateMachine command.
-     * 
+     *
      * @param cmd The command to execute.
      */
     void handleDeleteStateMachine(const Command& cmd);
-    
+
+    // State machine input handlers (Phase C.4)
+    void handleGetInputCount(const Command& cmd);
+    void handleGetInputNames(const Command& cmd);
+    void handleGetInputInfo(const Command& cmd);
+    void handleGetNumberInput(const Command& cmd);
+    void handleSetNumberInput(const Command& cmd);
+    void handleGetBooleanInput(const Command& cmd);
+    void handleSetBooleanInput(const Command& cmd);
+    void handleFireTrigger(const Command& cmd);
+
     /**
      * Enqueues a message to be sent to Kotlin.
      * Thread-safe.

@@ -1231,9 +1231,9 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 
 ### Phase C: State Machines & Rendering (Week 3-4)
 
-**Status**: 🚧 **IN PROGRESS (Android)** - 60% (C.1 complete, C.2 foundation complete, C.3 tests partially complete)
-**Milestone C**: ⏳ **IN PROGRESS** - State machines working with tests, rendering foundation ready
-**Updated**: January 4, 2026
+**Status**: 🚧 **IN PROGRESS (Android)** - 85% (C.1 complete, C.2 foundation complete, C.3 tests partially complete, C.4 complete)
+**Milestone C**: ⏳ **IN PROGRESS** - State machines working with inputs, tests passing, rendering foundation ready
+**Updated**: January 5, 2026
 
 #### C.1: State Machine Operations ✅ **COMPLETE**
 
@@ -1423,7 +1423,7 @@ void CommandServer::handleDraw(const DrawCommand& cmd) {
 
 #### C.3: Testing (Phase C)
 
-**Status**: ✅ **PARTIALLY COMPLETE** - January 4, 2026
+**Status**: ✅ **COMPLETE** - January 5, 2026
 
 See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
 
@@ -1441,7 +1441,7 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
    - `queryStateMachineNamesWithInvalidHandle` - Error handling
    - `deleteStateMachine` - SM deletion
 
-2. ✅ `MpRiveStateMachineInstanceTest.kt` - 8 tests
+2. ✅ `MpRiveStateMachineInstanceTest.kt` - 13 tests (8 core + 5 input tests)
    - `advanceStateMachine` - Basic advancement
    - `advanceMultipleStateMachines` - Multiple SM advancement
    - `advanceWithZeroDelta` - Zero delta time
@@ -1450,21 +1450,11 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
    - `settledFlowMultipleStateMachines` - Multi-SM settled events
    - `stateMachinesFromDifferentArtboards` - Cross-artboard SMs
    - `nestedSettle` - Nested component settling
-
-**Tests Deferred** (Pending Future Implementation):
-
-The following tests require state machine input operations (Phase D):
-
-| Test Category | Description | Blocking Feature |
-|--------------|-------------|------------------|
-| Input Queries | `getInputCount`, `getInputNames`, `input(index)`, `input(name)` | SM input API not implemented |
-| Input Types | `isBoolean`, `isNumber`, `isTrigger` | Input type detection not implemented |
-| Number Input | Get/set number input values (`SMINumber.value`) | Number input operations not implemented |
-| Boolean Input | Get/set boolean input values (`SMIBoolean.value`) | Boolean input operations not implemented |
-| Trigger Input | Fire trigger inputs (`SMITrigger.fire()`) | Trigger operations not implemented |
-| Mixed Inputs | Test files with multiple input types | All input APIs needed |
-
-These deferred tests are documented in the test file headers.
+   - `inputsNothing` - Test state machine with no inputs (C.4)
+   - `inputsNumberInput` - Test number input get/set (C.4)
+   - `inputsBooleanInput` - Test boolean input get/set (C.4)
+   - `inputsTriggerInput` - Test trigger firing (C.4)
+   - `inputsMixed` - Test mixed input types (C.4)
 
 **Resources Copied** (6 files → `commonTest/resources/rive/`):
 - ✅ `multiple_state_machines.riv`
@@ -1478,9 +1468,140 @@ These deferred tests are documented in the test file headers.
 - `mprive/src/commonTest/kotlin/app/rive/mp/test/statemachine/MpRiveStateMachineLoadTest.kt`
 - `mprive/src/commonTest/kotlin/app/rive/mp/test/statemachine/MpRiveStateMachineInstanceTest.kt`
 
-**Coverage**: 18 tests covering core SM operations (create, query, advance, delete, settled)
+**Coverage**: 23 tests covering SM operations (create, query, advance, delete, settled, inputs)
 
 **Reference**: [Testing Strategy - Phase C](mprive_testing_strategy.md#phase-c-state-machines--rendering-week-3-4)
+
+#### C.4: State Machine Input Operations ✅ **COMPLETE**
+
+**Status**: ✅ **IMPLEMENTED** - January 5, 2026
+
+**Kotlin API:**
+```kotlin
+// Query operations
+suspend fun getInputCount(smHandle: StateMachineHandle): Int
+suspend fun getInputNames(smHandle: StateMachineHandle): List<String>
+suspend fun getInputInfo(smHandle: StateMachineHandle, inputIndex: Int): InputInfo
+
+// Number input operations
+suspend fun getNumberInput(smHandle: StateMachineHandle, inputName: String): Float
+fun setNumberInput(smHandle: StateMachineHandle, inputName: String, value: Float)
+
+// Boolean input operations
+suspend fun getBooleanInput(smHandle: StateMachineHandle, inputName: String): Boolean
+fun setBooleanInput(smHandle: StateMachineHandle, inputName: String, value: Boolean)
+
+// Trigger operation
+fun fireTrigger(smHandle: StateMachineHandle, inputName: String)
+```
+
+**C++ Implementation:**
+```cpp
+void CommandServer::handleGetInputInfo(const Command& cmd) {
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& sm = it->second;
+    auto input = sm->input(cmd.inputIndex);
+
+    // Determine type via StateMachineInput type check
+    InputType inputType = InputType::UNKNOWN;
+    if (input->input()->is<rive::StateMachineNumber>()) {
+        inputType = InputType::NUMBER;
+    } else if (input->input()->is<rive::StateMachineBool>()) {
+        inputType = InputType::BOOLEAN;
+    } else if (input->input()->is<rive::StateMachineTrigger>()) {
+        inputType = InputType::TRIGGER;
+    }
+
+    Message msg(MessageType::InputInfoResult, cmd.requestID);
+    msg.inputName = input->name();
+    msg.inputType = inputType;
+    enqueueMessage(std::move(msg));
+}
+```
+
+**Implementation Details:**
+
+1. **Command Types Added (8 total):**
+   - `CommandType::GetInputCount` - Get number of inputs in state machine
+   - `CommandType::GetInputNames` - Get list of input names
+   - `CommandType::GetInputInfo` - Get input type and name by index
+   - `CommandType::GetNumberInput` - Get number input value
+   - `CommandType::SetNumberInput` - Set number input value
+   - `CommandType::GetBooleanInput` - Get boolean input value
+   - `CommandType::SetBooleanInput` - Set boolean input value
+   - `CommandType::FireTrigger` - Fire trigger input
+
+2. **Message Types Added (7 total):**
+   - `MessageType::InputCountResult` - Returns count
+   - `MessageType::InputNamesListed` - Returns list of names
+   - `MessageType::InputInfoResult` - Returns name and type
+   - `MessageType::NumberInputValue` - Returns float value
+   - `MessageType::BooleanInputValue` - Returns bool value
+   - `MessageType::InputOperationSuccess` - Success for fire-and-forget operations
+   - `MessageType::InputOperationError` - Error with message
+
+3. **New Types Added:**
+   - `InputType` enum (C++): `NUMBER=0, BOOLEAN=1, TRIGGER=2, UNKNOWN=-1`
+   - `InputType` enum (Kotlin): Mirrors C++ values with `fromValue()` conversion
+   - `InputInfo` data class (Kotlin): Contains `name: String` and `type: InputType`
+
+4. **API Design:**
+   - Uses `(smHandle, inputName)` pattern instead of separate input handles
+   - Get operations are suspend functions (return via callback)
+   - Set/fire operations are fire-and-forget (no waiting for completion)
+   - Type checking uses `input->input()->is<StateMachineXXX>()` pattern
+   - Casting uses `reinterpret_cast<SMIXxx*>(input)` pattern
+
+5. **JNI Bindings (8 functions):**
+   - `cppGetInputCount`, `cppGetInputNames`, `cppGetInputInfo`
+   - `cppGetNumberInput`, `cppSetNumberInput`
+   - `cppGetBooleanInput`, `cppSetBooleanInput`
+   - `cppFireTrigger`
+
+6. **Kotlin Callbacks (7 methods):**
+   - `onInputCountResult`, `onInputNamesListed`, `onInputInfoResult`
+   - `onNumberInputValue`, `onBooleanInputValue`
+   - `onInputOperationSuccess`, `onInputOperationError`
+
+**Files Modified (7 files):**
+- ✅ `command_server.hpp` - Added input command types, message types, InputType enum
+- ✅ `command_server.cpp` - Implemented 8 input handlers (~400 lines)
+- ✅ `bindings_commandqueue.cpp` - Added 8 JNI functions, 7 callback method IDs
+- ✅ `CommandQueue.kt` - Added 8 external declarations, 8 public methods, 7 callbacks
+- ✅ `InputType.kt` - **NEW FILE** - InputType enum and InputInfo data class
+- ✅ `MpRiveStateMachineInstanceTest.kt` - Added 5 input operation tests
+- ✅ `MpRiveStateMachineLoadTest.kt` - Updated documentation
+
+**Tests Implemented (5 tests):**
+1. ✅ `inputsNothing` - Test state machine with no inputs
+2. ✅ `inputsNumberInput` - Test number input get/set
+3. ✅ `inputsBooleanInput` - Test boolean input get/set
+4. ✅ `inputsTriggerInput` - Test trigger firing
+5. ✅ `inputsMixed` - Test mixed input types (6 inputs)
+
+**Build Status:**
+- ✅ **BUILD SUCCESSFUL** - All compilation errors resolved
+- ✅ Kotlin compilation successful
+- ✅ Android native library compiled for all architectures (arm64-v8a, armeabi-v7a, x86, x86_64)
+
+**Milestone C.4**: ✅ **ACHIEVED** - State machine inputs can be queried, get/set values work, and triggers can be fired
+
+- [x] Implement input count/names queries
+- [x] Implement input info by index
+- [x] Implement number input get/set
+- [x] Implement boolean input get/set
+- [x] Implement trigger firing
+- [x] Add JNI bindings
+- [x] Add Kotlin API and callbacks
+- [x] Enable and update tests
+- [x] Test compilation
 
 ---
 

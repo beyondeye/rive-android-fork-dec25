@@ -16,20 +16,13 @@ import kotlin.test.assertTrue
  *
  * Ported from kotlin/src/androidTest/kotlin/app/rive/runtime/kotlin/core/RiveStateMachineLoadTest.kt
  *
- * ## Currently Implemented Tests
+ * ## Implemented Tests
  * - State machine creation (default and by name)
  * - State machine name queries
  * - Error handling for invalid handles/names
  * - Handle uniqueness
  *
- * ## Deferred Tests (Pending Implementation)
- * The following tests require state machine input operations which are not yet implemented:
- * - Input count queries (getInputCount)
- * - Input name queries (getInputNames)
- * - Input type detection (isBoolean, isNumber, isTrigger)
- * - Input value get/set operations
- *
- * These will be implemented in Phase D when state machine input operations are added.
+ * Note: State machine input tests are in MpRiveStateMachineInstanceTest.kt
  */
 class MpRiveStateMachineLoadTest {
 

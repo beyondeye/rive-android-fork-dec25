@@ -319,6 +319,16 @@ class CommandQueue(
     private external fun cppCreateStateMachineByName(ptr: Long, requestID: Long, artboardHandle: Long, name: String)
     private external fun cppAdvanceStateMachine(ptr: Long, requestID: Long, smHandle: Long, deltaTimeSeconds: Float)
     private external fun cppDeleteStateMachine(ptr: Long, requestID: Long, smHandle: Long)
+
+    // External JNI methods for state machine inputs (Phase C.4)
+    private external fun cppGetInputCount(ptr: Long, requestID: Long, smHandle: Long)
+    private external fun cppGetInputNames(ptr: Long, requestID: Long, smHandle: Long)
+    private external fun cppGetInputInfo(ptr: Long, requestID: Long, smHandle: Long, inputIndex: Int)
+    private external fun cppGetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
+    private external fun cppSetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Float)
+    private external fun cppGetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
+    private external fun cppSetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Boolean)
+    private external fun cppFireTrigger(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
     
     /**
      * Create the default state machine from an artboard.
@@ -372,7 +382,7 @@ class CommandQueue(
     
     /**
      * Delete a state machine and free its resources.
-     * 
+     *
      * @param smHandle The handle of the state machine to delete.
      * @throws IllegalStateException If the CommandQueue has been released.
      */
@@ -382,7 +392,138 @@ class CommandQueue(
         val requestID = nextRequestID.getAndIncrement()
         cppDeleteStateMachine(cppPointer.pointer, requestID, smHandle.handle)
     }
-    
+
+    // =============================================================================
+    // Phase C.4: State Machine Input Operations
+    // =============================================================================
+
+    /**
+     * Get the number of inputs in a state machine.
+     *
+     * @param smHandle The handle of the state machine.
+     * @return The number of inputs.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the state machine handle is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getInputCount(smHandle: StateMachineHandle): Int {
+        return suspendNativeRequest { requestID ->
+            cppGetInputCount(cppPointer.pointer, requestID, smHandle.handle)
+        }
+    }
+
+    /**
+     * Get the names of all inputs in a state machine.
+     *
+     * @param smHandle The handle of the state machine.
+     * @return A list of input names.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the state machine handle is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getInputNames(smHandle: StateMachineHandle): List<String> {
+        return suspendNativeRequest { requestID ->
+            cppGetInputNames(cppPointer.pointer, requestID, smHandle.handle)
+        }
+    }
+
+    /**
+     * Get information about an input by index.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputIndex The index of the input (0-based).
+     * @return The input information (name and type).
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the state machine handle or input index is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getInputInfo(smHandle: StateMachineHandle, inputIndex: Int): InputInfo {
+        return suspendNativeRequest { requestID ->
+            cppGetInputInfo(cppPointer.pointer, requestID, smHandle.handle, inputIndex)
+        }
+    }
+
+    /**
+     * Get the value of a number input.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     * @return The current value of the input.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the state machine handle or input name is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getNumberInput(smHandle: StateMachineHandle, inputName: String): Float {
+        return suspendNativeRequest { requestID ->
+            cppGetNumberInput(cppPointer.pointer, requestID, smHandle.handle, inputName)
+        }
+    }
+
+    /**
+     * Set the value of a number input.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setNumberInput(smHandle: StateMachineHandle, inputName: String, value: Float) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetNumberInput(cppPointer.pointer, requestID, smHandle.handle, inputName, value)
+    }
+
+    /**
+     * Get the value of a boolean input.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     * @return The current value of the input.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the state machine handle or input name is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getBooleanInput(smHandle: StateMachineHandle, inputName: String): Boolean {
+        return suspendNativeRequest { requestID ->
+            cppGetBooleanInput(cppPointer.pointer, requestID, smHandle.handle, inputName)
+        }
+    }
+
+    /**
+     * Set the value of a boolean input.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the input.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setBooleanInput(smHandle: StateMachineHandle, inputName: String, value: Boolean) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetBooleanInput(cppPointer.pointer, requestID, smHandle.handle, inputName, value)
+    }
+
+    /**
+     * Fire a trigger input.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the trigger input.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun fireTrigger(smHandle: StateMachineHandle, inputName: String) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppFireTrigger(cppPointer.pointer, requestID, smHandle.handle, inputName)
+    }
+
     // =============================================================================
     // JNI Callbacks (called from C++)
     // =============================================================================
@@ -642,7 +783,7 @@ class CommandQueue(
     /**
      * Called from C++ when a state machine has settled.
      * This emits to the settledFlow.
-     * 
+     *
      * @param requestID The request ID (currently unused).
      * @param smHandle The handle of the settled state machine.
      */
@@ -650,5 +791,144 @@ class CommandQueue(
     private fun onStateMachineSettled(requestID: Long, smHandle: Long) {
         RiveLog.d(COMMAND_QUEUE_TAG) { "State machine settled: handle=$smHandle" }
         _settledFlow.tryEmit(StateMachineHandle(smHandle))
+    }
+
+    // =============================================================================
+    // JNI Callbacks for State Machine Inputs (Phase C.4)
+    // =============================================================================
+
+    /**
+     * Called from C++ when input count has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param count The number of inputs.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInputCountResult(requestID: Long, count: Int) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Int>
+            typedCont.resume(count)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received input count callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when input names have been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param names The list of input names.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInputNamesListed(requestID: Long, names: List<String>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<String>>
+            typedCont.resume(names)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received input names callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when input info has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param inputName The name of the input.
+     * @param inputType The type of the input (as integer).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInputInfoResult(requestID: Long, inputName: String, inputType: Int) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<InputInfo>
+            typedCont.resume(InputInfo(inputName, InputType.fromValue(inputType)))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received input info callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a number input value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The value of the number input.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onNumberInputValue(requestID: Long, value: Float) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Float>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received number input value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a boolean input value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The value of the boolean input.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onBooleanInputValue(requestID: Long, value: Boolean) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Boolean>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received boolean input value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when an input set/fire operation has completed successfully.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInputOperationSuccess(requestID: Long) {
+        // Fire-and-forget operations don't have pending continuations
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Input operation succeeded: requestID=$requestID" }
+    }
+
+    /**
+     * Called from C++ when an input operation has failed.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine (if any).
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInputOperationError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Any>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Input operation failed: $error")
+            )
+        } else {
+            // This may be an error for a fire-and-forget operation, just log it
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Input operation error (requestID=$requestID): $error"
+            }
+        }
     }
 }

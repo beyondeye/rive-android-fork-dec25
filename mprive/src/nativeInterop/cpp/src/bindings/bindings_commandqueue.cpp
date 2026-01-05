@@ -22,6 +22,14 @@ static jmethodID g_onStateMachineCreatedMethodID = nullptr;
 static jmethodID g_onStateMachineErrorMethodID = nullptr;
 static jmethodID g_onStateMachineDeletedMethodID = nullptr;
 static jmethodID g_onStateMachineSettledMethodID = nullptr;
+// Input operation callbacks
+static jmethodID g_onInputCountResultMethodID = nullptr;
+static jmethodID g_onInputNamesListedMethodID = nullptr;
+static jmethodID g_onInputInfoResultMethodID = nullptr;
+static jmethodID g_onNumberInputValueMethodID = nullptr;
+static jmethodID g_onBooleanInputValueMethodID = nullptr;
+static jmethodID g_onInputOperationSuccessMethodID = nullptr;
+static jmethodID g_onInputOperationErrorMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -117,7 +125,50 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         "onStateMachineSettled",
         "(JJ)V"  // (requestID: Long, smHandle: Long) -> Unit
     );
-    
+
+    // Input operation callbacks
+    g_onInputCountResultMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onInputCountResult",
+        "(JI)V"  // (requestID: Long, count: Int) -> Unit
+    );
+
+    g_onInputNamesListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onInputNamesListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, names: List<String>) -> Unit
+    );
+
+    g_onInputInfoResultMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onInputInfoResult",
+        "(JLjava/lang/String;I)V"  // (requestID: Long, name: String, type: Int) -> Unit
+    );
+
+    g_onNumberInputValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onNumberInputValue",
+        "(JF)V"  // (requestID: Long, value: Float) -> Unit
+    );
+
+    g_onBooleanInputValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onBooleanInputValue",
+        "(JZ)V"  // (requestID: Long, value: Boolean) -> Unit
+    );
+
+    g_onInputOperationSuccessMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onInputOperationSuccess",
+        "(J)V"  // (requestID: Long) -> Unit
+    );
+
+    g_onInputOperationErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onInputOperationError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
     env->DeleteLocalRef(commandQueueClass);
 }
 
@@ -315,11 +366,79 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
                 break;
                 
             case rive_android::MessageType::StateMachineSettled:
-                env->CallVoidMethod(thiz, g_onStateMachineSettledMethodID, 
-                    static_cast<jlong>(msg.requestID), 
+                env->CallVoidMethod(thiz, g_onStateMachineSettledMethodID,
+                    static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
-                
+
+            // Input operation messages
+            case rive_android::MessageType::InputCountResult:
+                env->CallVoidMethod(thiz, g_onInputCountResultMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jint>(msg.intValue));
+                break;
+
+            case rive_android::MessageType::InputNamesListed:
+                {
+                    // Convert std::vector<std::string> to Java List<String>
+                    jclass arrayListClass = env->FindClass("java/util/ArrayList");
+                    jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+                    jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+
+                    jobject arrayList = env->NewObject(arrayListClass, arrayListConstructor);
+
+                    for (const auto& name : msg.stringList) {
+                        jstring nameStr = env->NewStringUTF(name.c_str());
+                        env->CallBooleanMethod(arrayList, arrayListAdd, nameStr);
+                        env->DeleteLocalRef(nameStr);
+                    }
+
+                    env->CallVoidMethod(thiz, g_onInputNamesListedMethodID,
+                        static_cast<jlong>(msg.requestID), arrayList);
+
+                    env->DeleteLocalRef(arrayList);
+                    env->DeleteLocalRef(arrayListClass);
+                }
+                break;
+
+            case rive_android::MessageType::InputInfoResult:
+                {
+                    jstring nameStr = env->NewStringUTF(msg.inputName.c_str());
+                    env->CallVoidMethod(thiz, g_onInputInfoResultMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        nameStr,
+                        static_cast<jint>(msg.inputType));
+                    env->DeleteLocalRef(nameStr);
+                }
+                break;
+
+            case rive_android::MessageType::NumberInputValue:
+                env->CallVoidMethod(thiz, g_onNumberInputValueMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jfloat>(msg.floatValue));
+                break;
+
+            case rive_android::MessageType::BooleanInputValue:
+                env->CallVoidMethod(thiz, g_onBooleanInputValueMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jboolean>(msg.boolValue));
+                break;
+
+            case rive_android::MessageType::InputOperationSuccess:
+                env->CallVoidMethod(thiz, g_onInputOperationSuccessMethodID,
+                    static_cast<jlong>(msg.requestID));
+                break;
+
+            case rive_android::MessageType::InputOperationError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onInputOperationErrorMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+
             default:
                 {
                     std::string errorMsg = "CommandQueue JNI: Unknown message type: " + 
@@ -679,9 +798,9 @@ Java_app_rive_mp_CommandQueue_cppAdvanceStateMachine(
 
 /**
  * Deletes a state machine.
- * 
+ *
  * JNI signature: cppDeleteStateMachine(ptr: Long, requestID: Long, smHandle: Long): Unit
- * 
+ *
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
@@ -701,8 +820,216 @@ Java_app_rive_mp_CommandQueue_cppDeleteStateMachine(
         LOGW("CommandQueue JNI: Attempted to delete state machine on null CommandServer");
         return;
     }
-    
+
     server->deleteStateMachine(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle));
+}
+
+// =============================================================================
+// Phase C.4: State Machine Input Operations
+// =============================================================================
+
+/**
+ * Gets the input count from a state machine.
+ *
+ * JNI signature: cppGetInputCount(ptr: Long, requestID: Long, smHandle: Long): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetInputCount(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get input count on null CommandServer");
+        return;
+    }
+
+    server->getInputCount(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle));
+}
+
+/**
+ * Gets the input names from a state machine.
+ *
+ * JNI signature: cppGetInputNames(ptr: Long, requestID: Long, smHandle: Long): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetInputNames(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get input names on null CommandServer");
+        return;
+    }
+
+    server->getInputNames(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle));
+}
+
+/**
+ * Gets input info (name and type) by index from a state machine.
+ *
+ * JNI signature: cppGetInputInfo(ptr: Long, requestID: Long, smHandle: Long, inputIndex: Int): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetInputInfo(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jint inputIndex
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get input info on null CommandServer");
+        return;
+    }
+
+    server->getInputInfo(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), static_cast<int32_t>(inputIndex));
+}
+
+/**
+ * Gets the value of a number input.
+ *
+ * JNI signature: cppGetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetNumberInput(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jstring inputName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get number input on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    server->getNumberInput(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), name);
+}
+
+/**
+ * Sets the value of a number input.
+ *
+ * JNI signature: cppSetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetNumberInput(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jstring inputName,
+    jfloat value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set number input on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    server->setNumberInput(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), name, static_cast<float>(value));
+}
+
+/**
+ * Gets the value of a boolean input.
+ *
+ * JNI signature: cppGetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetBooleanInput(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jstring inputName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get boolean input on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    server->getBooleanInput(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), name);
+}
+
+/**
+ * Sets the value of a boolean input.
+ *
+ * JNI signature: cppSetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Boolean): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetBooleanInput(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jstring inputName,
+    jboolean value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set boolean input on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    server->setBooleanInput(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), name, static_cast<bool>(value));
+}
+
+/**
+ * Fires a trigger input.
+ *
+ * JNI signature: cppFireTrigger(ptr: Long, requestID: Long, smHandle: Long, inputName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppFireTrigger(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jstring inputName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to fire trigger on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    server->fireTrigger(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), name);
 }
 
 } // extern "C"

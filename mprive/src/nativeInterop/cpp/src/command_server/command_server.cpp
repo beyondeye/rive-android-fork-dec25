@@ -2,6 +2,10 @@
 #include "rive_log.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/animation/state_machine_bool.hpp"
+#include "rive/animation/state_machine_number.hpp"
+#include "rive/animation/state_machine_trigger.hpp"
 #include <cassert>
 
 namespace rive_android {
@@ -157,9 +161,42 @@ void CommandServer::executeCommand(const Command& cmd)
         case CommandType::DeleteStateMachine:
             handleDeleteStateMachine(cmd);
             break;
-        
+
+        // Phase C.4: State machine input operations
+        case CommandType::GetInputCount:
+            handleGetInputCount(cmd);
+            break;
+
+        case CommandType::GetInputNames:
+            handleGetInputNames(cmd);
+            break;
+
+        case CommandType::GetInputInfo:
+            handleGetInputInfo(cmd);
+            break;
+
+        case CommandType::GetNumberInput:
+            handleGetNumberInput(cmd);
+            break;
+
+        case CommandType::SetNumberInput:
+            handleSetNumberInput(cmd);
+            break;
+
+        case CommandType::GetBooleanInput:
+            handleGetBooleanInput(cmd);
+            break;
+
+        case CommandType::SetBooleanInput:
+            handleSetBooleanInput(cmd);
+            break;
+
+        case CommandType::FireTrigger:
+            handleFireTrigger(cmd);
+            break;
+
         default:
-            LOGW("CommandServer: Unknown command type: %d", 
+            LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
             break;
     }
@@ -723,14 +760,14 @@ void CommandServer::handleDeleteStateMachine(const Command& cmd)
 {
     LOGI("CommandServer: Handling DeleteStateMachine command (requestID=%lld, handle=%lld)",
          static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
-    
+
     auto it = m_stateMachines.find(cmd.handle);
     if (it != m_stateMachines.end()) {
         m_stateMachines.erase(it);
-        
-        LOGI("CommandServer: State machine deleted successfully (handle=%lld)", 
+
+        LOGI("CommandServer: State machine deleted successfully (handle=%lld)",
              static_cast<long long>(cmd.handle));
-        
+
         // Send success message
         Message msg(MessageType::StateMachineDeleted, cmd.requestID);
         msg.handle = cmd.handle;
@@ -738,12 +775,490 @@ void CommandServer::handleDeleteStateMachine(const Command& cmd)
     } else {
         LOGW("CommandServer: Attempted to delete non-existent state machine (handle=%lld)",
              static_cast<long long>(cmd.handle));
-        
+
         // Send error message
         Message msg(MessageType::StateMachineError, cmd.requestID);
         msg.error = "Invalid state machine handle";
         enqueueMessage(std::move(msg));
     }
+}
+
+// =============================================================================
+// Phase C.4: State Machine Input Operations
+// =============================================================================
+
+void CommandServer::getInputCount(int64_t requestID, int64_t smHandle)
+{
+    LOGI("CommandServer: Enqueuing GetInputCount command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle));
+
+    Command cmd(CommandType::GetInputCount, requestID);
+    cmd.handle = smHandle;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getInputNames(int64_t requestID, int64_t smHandle)
+{
+    LOGI("CommandServer: Enqueuing GetInputNames command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle));
+
+    Command cmd(CommandType::GetInputNames, requestID);
+    cmd.handle = smHandle;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getInputInfo(int64_t requestID, int64_t smHandle, int32_t inputIndex)
+{
+    LOGI("CommandServer: Enqueuing GetInputInfo command (requestID=%lld, smHandle=%lld, index=%d)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), inputIndex);
+
+    Command cmd(CommandType::GetInputInfo, requestID);
+    cmd.handle = smHandle;
+    cmd.inputIndex = inputIndex;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getNumberInput(int64_t requestID, int64_t smHandle, const std::string& inputName)
+{
+    LOGI("CommandServer: Enqueuing GetNumberInput command (requestID=%lld, smHandle=%lld, name=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), inputName.c_str());
+
+    Command cmd(CommandType::GetNumberInput, requestID);
+    cmd.handle = smHandle;
+    cmd.inputName = inputName;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setNumberInput(int64_t requestID, int64_t smHandle, const std::string& inputName, float value)
+{
+    LOGI("CommandServer: Enqueuing SetNumberInput command (requestID=%lld, smHandle=%lld, name=%s, value=%f)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), inputName.c_str(), value);
+
+    Command cmd(CommandType::SetNumberInput, requestID);
+    cmd.handle = smHandle;
+    cmd.inputName = inputName;
+    cmd.floatValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getBooleanInput(int64_t requestID, int64_t smHandle, const std::string& inputName)
+{
+    LOGI("CommandServer: Enqueuing GetBooleanInput command (requestID=%lld, smHandle=%lld, name=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), inputName.c_str());
+
+    Command cmd(CommandType::GetBooleanInput, requestID);
+    cmd.handle = smHandle;
+    cmd.inputName = inputName;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setBooleanInput(int64_t requestID, int64_t smHandle, const std::string& inputName, bool value)
+{
+    LOGI("CommandServer: Enqueuing SetBooleanInput command (requestID=%lld, smHandle=%lld, name=%s, value=%d)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), inputName.c_str(), value);
+
+    Command cmd(CommandType::SetBooleanInput, requestID);
+    cmd.handle = smHandle;
+    cmd.inputName = inputName;
+    cmd.boolValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::fireTrigger(int64_t requestID, int64_t smHandle, const std::string& inputName)
+{
+    LOGI("CommandServer: Enqueuing FireTrigger command (requestID=%lld, smHandle=%lld, name=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), inputName.c_str());
+
+    Command cmd(CommandType::FireTrigger, requestID);
+    cmd.handle = smHandle;
+    cmd.inputName = inputName;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Input Handler Implementations
+// =============================================================================
+
+void CommandServer::handleGetInputCount(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetInputCount command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    int32_t count = static_cast<int32_t>(it->second->inputCount());
+
+    LOGI("CommandServer: Input count: %d", count);
+
+    Message msg(MessageType::InputCountResult, cmd.requestID);
+    msg.intValue = count;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetInputNames(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetInputNames command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    std::vector<std::string> names;
+    auto& sm = it->second;
+
+    for (size_t i = 0; i < sm->inputCount(); i++) {
+        auto input = sm->input(i);
+        if (input) {
+            names.push_back(input->name());
+        }
+    }
+
+    LOGI("CommandServer: Found %zu input names", names.size());
+
+    Message msg(MessageType::InputNamesListed, cmd.requestID);
+    msg.stringList = std::move(names);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetInputInfo(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetInputInfo command (requestID=%lld, smHandle=%lld, index=%d)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.inputIndex);
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& sm = it->second;
+    if (cmd.inputIndex < 0 || static_cast<size_t>(cmd.inputIndex) >= sm->inputCount()) {
+        LOGW("CommandServer: Input index out of bounds: %d (count=%zu)", cmd.inputIndex, sm->inputCount());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input index out of bounds";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto input = sm->input(cmd.inputIndex);
+    if (!input) {
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Failed to get input at index";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Determine input type by checking the underlying StateMachineInput type
+    InputType inputType = InputType::UNKNOWN;
+    if (input->input()->is<rive::StateMachineNumber>()) {
+        inputType = InputType::NUMBER;
+    } else if (input->input()->is<rive::StateMachineBool>()) {
+        inputType = InputType::BOOLEAN;
+    } else if (input->input()->is<rive::StateMachineTrigger>()) {
+        inputType = InputType::TRIGGER;
+    }
+
+    LOGI("CommandServer: Input info - name=%s, type=%d", input->name().c_str(), static_cast<int>(inputType));
+
+    Message msg(MessageType::InputInfoResult, cmd.requestID);
+    msg.inputName = input->name();
+    msg.inputType = inputType;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetNumberInput(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetNumberInput command (requestID=%lld, smHandle=%lld, name=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.inputName.c_str());
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Find the input by name
+    auto& sm = it->second;
+    rive::SMIInput* foundInput = nullptr;
+    for (size_t i = 0; i < sm->inputCount(); i++) {
+        auto input = sm->input(i);
+        if (input && input->name() == cmd.inputName) {
+            foundInput = input;
+            break;
+        }
+    }
+
+    if (!foundInput) {
+        LOGW("CommandServer: Input not found: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input not found: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    if (!foundInput->input()->is<rive::StateMachineNumber>()) {
+        LOGW("CommandServer: Input is not a number: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input is not a number: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto numberInput = reinterpret_cast<rive::SMINumber*>(foundInput);
+    float value = numberInput->value();
+
+    LOGI("CommandServer: Number input value: %f", value);
+
+    Message msg(MessageType::NumberInputValue, cmd.requestID);
+    msg.floatValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetNumberInput(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetNumberInput command (requestID=%lld, smHandle=%lld, name=%s, value=%f)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.inputName.c_str(), cmd.floatValue);
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Find the input by name
+    auto& sm = it->second;
+    rive::SMIInput* foundInput = nullptr;
+    for (size_t i = 0; i < sm->inputCount(); i++) {
+        auto input = sm->input(i);
+        if (input && input->name() == cmd.inputName) {
+            foundInput = input;
+            break;
+        }
+    }
+
+    if (!foundInput) {
+        LOGW("CommandServer: Input not found: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input not found: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    if (!foundInput->input()->is<rive::StateMachineNumber>()) {
+        LOGW("CommandServer: Input is not a number: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input is not a number: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto numberInput = reinterpret_cast<rive::SMINumber*>(foundInput);
+    numberInput->value(cmd.floatValue);
+
+    LOGI("CommandServer: Number input set to: %f", cmd.floatValue);
+
+    Message msg(MessageType::InputOperationSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetBooleanInput(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetBooleanInput command (requestID=%lld, smHandle=%lld, name=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.inputName.c_str());
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Find the input by name
+    auto& sm = it->second;
+    rive::SMIInput* foundInput = nullptr;
+    for (size_t i = 0; i < sm->inputCount(); i++) {
+        auto input = sm->input(i);
+        if (input && input->name() == cmd.inputName) {
+            foundInput = input;
+            break;
+        }
+    }
+
+    if (!foundInput) {
+        LOGW("CommandServer: Input not found: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input not found: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    if (!foundInput->input()->is<rive::StateMachineBool>()) {
+        LOGW("CommandServer: Input is not a boolean: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input is not a boolean: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto boolInput = reinterpret_cast<rive::SMIBool*>(foundInput);
+    bool value = boolInput->value();
+
+    LOGI("CommandServer: Boolean input value: %d", value);
+
+    Message msg(MessageType::BooleanInputValue, cmd.requestID);
+    msg.boolValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetBooleanInput(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetBooleanInput command (requestID=%lld, smHandle=%lld, name=%s, value=%d)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.inputName.c_str(), cmd.boolValue);
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Find the input by name
+    auto& sm = it->second;
+    rive::SMIInput* foundInput = nullptr;
+    for (size_t i = 0; i < sm->inputCount(); i++) {
+        auto input = sm->input(i);
+        if (input && input->name() == cmd.inputName) {
+            foundInput = input;
+            break;
+        }
+    }
+
+    if (!foundInput) {
+        LOGW("CommandServer: Input not found: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input not found: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    if (!foundInput->input()->is<rive::StateMachineBool>()) {
+        LOGW("CommandServer: Input is not a boolean: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input is not a boolean: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto boolInput = reinterpret_cast<rive::SMIBool*>(foundInput);
+    boolInput->value(cmd.boolValue);
+
+    LOGI("CommandServer: Boolean input set to: %d", cmd.boolValue);
+
+    Message msg(MessageType::InputOperationSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleFireTrigger(const Command& cmd)
+{
+    LOGI("CommandServer: Handling FireTrigger command (requestID=%lld, smHandle=%lld, name=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.inputName.c_str());
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Find the input by name
+    auto& sm = it->second;
+    rive::SMIInput* foundInput = nullptr;
+    for (size_t i = 0; i < sm->inputCount(); i++) {
+        auto input = sm->input(i);
+        if (input && input->name() == cmd.inputName) {
+            foundInput = input;
+            break;
+        }
+    }
+
+    if (!foundInput) {
+        LOGW("CommandServer: Input not found: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input not found: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    if (!foundInput->input()->is<rive::StateMachineTrigger>()) {
+        LOGW("CommandServer: Input is not a trigger: %s", cmd.inputName.c_str());
+
+        Message msg(MessageType::InputOperationError, cmd.requestID);
+        msg.error = "Input is not a trigger: " + cmd.inputName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto triggerInput = reinterpret_cast<rive::SMITrigger*>(foundInput);
+    triggerInput->fire();
+
+    LOGI("CommandServer: Trigger fired: %s", cmd.inputName.c_str());
+
+    Message msg(MessageType::InputOperationSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
 }
 
 } // namespace rive_android

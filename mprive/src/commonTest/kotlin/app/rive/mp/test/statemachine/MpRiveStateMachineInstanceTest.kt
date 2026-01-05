@@ -1,5 +1,6 @@
 package app.rive.mp.test.statemachine
 
+import app.rive.mp.InputType
 import app.rive.mp.StateMachineHandle
 import app.rive.mp.test.utils.MpCommandQueueTestUtil
 import app.rive.mp.test.utils.MpTestContext
@@ -20,36 +21,13 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Ported from kotlin/src/androidTest/kotlin/app/rive/runtime/kotlin/core/RiveStateMachineInstanceTest.kt
  *
- * ## Currently Implemented Tests
+ * ## Implemented Tests
  * - State machine advancement (advanceStateMachine)
  * - Settled event flow (settledFlow)
  * - Multiple state machine advancement
- *
- * ## Deferred Tests (Pending Implementation - Phase D)
- * The following test categories require state machine input operations:
- *
- * ### Input Query Operations
- * - `inputCount` - Get number of inputs in state machine
- * - `inputNames` - Get list of input names
- * - `input(index)` - Get input by index
- * - `input(name)` - Get input by name
- *
- * ### Input Type Detection
- * - `isBoolean` - Check if input is boolean type
- * - `isNumber` - Check if input is number type
- * - `isTrigger` - Check if input is trigger type
- *
- * ### Input Value Operations
- * - `SMINumber.value` - Get/set number input value
- * - `SMIBoolean.value` - Get/set boolean input value
- * - `SMITrigger.fire()` - Fire trigger input
- *
- * ### Test Cases Pending Implementation
- * - nothing() - Test state machine with no inputs
- * - numberInput() - Test number input get/set
- * - booleanInput() - Test boolean input get/set
- * - triggerInput() - Test trigger firing
- * - mixed() - Test mixed input types
+ * - Input query operations (getInputCount, getInputNames, getInputInfo)
+ * - Input type detection (NUMBER, BOOLEAN, TRIGGER)
+ * - Input value operations (getNumberInput, setNumberInput, getBooleanInput, setBooleanInput, fireTrigger)
  */
 class MpRiveStateMachineInstanceTest {
 
@@ -329,6 +307,226 @@ class MpRiveStateMachineInstanceTest {
             repeat(120) { // ~2 seconds at 60fps
                 testUtil.commandQueue.advanceStateMachine(smHandle, 0.016f)
             }
+
+            // Cleanup
+            testUtil.commandQueue.deleteStateMachine(smHandle)
+            testUtil.commandQueue.deleteArtboard(artboardHandle)
+            testUtil.commandQueue.deleteFile(fileHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    // =========================================================================
+    // State Machine Input Query Tests (Phase C.4)
+    // =========================================================================
+
+    /**
+     * Test state machine with no inputs.
+     * Ported from RiveStateMachineInstanceTest.nothing()
+     */
+    @Test
+    fun inputsNothing() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            val bytes = MpTestResources.loadRiveFile("state_machine_configurations.riv")
+            val fileHandle = testUtil.commandQueue.loadFile(bytes)
+            val artboardHandle = testUtil.commandQueue.createDefaultArtboard(fileHandle)
+            val smHandle = testUtil.commandQueue.createStateMachineByName(artboardHandle, "nothing")
+
+            // State machine "nothing" should have 0 inputs
+            val inputCount = testUtil.commandQueue.getInputCount(smHandle)
+            assertEquals(0, inputCount, "Expected 0 inputs in 'nothing' state machine")
+
+            // Cleanup
+            testUtil.commandQueue.deleteStateMachine(smHandle)
+            testUtil.commandQueue.deleteArtboard(artboardHandle)
+            testUtil.commandQueue.deleteFile(fileHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    /**
+     * Test number input operations.
+     * Ported from RiveStateMachineInstanceTest.numberInput()
+     */
+    @Test
+    fun inputsNumberInput() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            val bytes = MpTestResources.loadRiveFile("state_machine_configurations.riv")
+            val fileHandle = testUtil.commandQueue.loadFile(bytes)
+            val artboardHandle = testUtil.commandQueue.createDefaultArtboard(fileHandle)
+            val smHandle = testUtil.commandQueue.createStateMachineByName(artboardHandle, "number_input")
+
+            // State machine should have 1 input
+            val inputCount = testUtil.commandQueue.getInputCount(smHandle)
+            assertEquals(1, inputCount, "Expected 1 input in 'number_input' state machine")
+
+            // Get input info by index
+            val inputInfo = testUtil.commandQueue.getInputInfo(smHandle, 0)
+            assertEquals("Number 1", inputInfo.name, "Expected input name 'Number 1'")
+            assertEquals(InputType.NUMBER, inputInfo.type, "Expected NUMBER type")
+
+            // Set and get number value
+            testUtil.commandQueue.setNumberInput(smHandle, "Number 1", 15f)
+            testUtil.commandQueue.advanceStateMachine(smHandle, 0.016f) // Process the set
+            val value = testUtil.commandQueue.getNumberInput(smHandle, "Number 1")
+            assertEquals(15f, value, "Expected number value to be 15f")
+
+            // Cleanup
+            testUtil.commandQueue.deleteStateMachine(smHandle)
+            testUtil.commandQueue.deleteArtboard(artboardHandle)
+            testUtil.commandQueue.deleteFile(fileHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    /**
+     * Test boolean input operations.
+     * Ported from RiveStateMachineInstanceTest.booleanInput()
+     */
+    @Test
+    fun inputsBooleanInput() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            val bytes = MpTestResources.loadRiveFile("state_machine_configurations.riv")
+            val fileHandle = testUtil.commandQueue.loadFile(bytes)
+            val artboardHandle = testUtil.commandQueue.createDefaultArtboard(fileHandle)
+            val smHandle = testUtil.commandQueue.createStateMachineByName(artboardHandle, "boolean_input")
+
+            // State machine should have 1 input
+            val inputCount = testUtil.commandQueue.getInputCount(smHandle)
+            assertEquals(1, inputCount, "Expected 1 input in 'boolean_input' state machine")
+
+            // Get input info by index
+            val inputInfo = testUtil.commandQueue.getInputInfo(smHandle, 0)
+            assertEquals("Boolean 1", inputInfo.name, "Expected input name 'Boolean 1'")
+            assertEquals(InputType.BOOLEAN, inputInfo.type, "Expected BOOLEAN type")
+
+            // Set and get boolean value - set to false
+            testUtil.commandQueue.setBooleanInput(smHandle, "Boolean 1", false)
+            testUtil.commandQueue.advanceStateMachine(smHandle, 0.016f) // Process the set
+            val valueFalse = testUtil.commandQueue.getBooleanInput(smHandle, "Boolean 1")
+            assertEquals(false, valueFalse, "Expected boolean value to be false")
+
+            // Set and get boolean value - set to true
+            testUtil.commandQueue.setBooleanInput(smHandle, "Boolean 1", true)
+            testUtil.commandQueue.advanceStateMachine(smHandle, 0.016f) // Process the set
+            val valueTrue = testUtil.commandQueue.getBooleanInput(smHandle, "Boolean 1")
+            assertEquals(true, valueTrue, "Expected boolean value to be true")
+
+            // Cleanup
+            testUtil.commandQueue.deleteStateMachine(smHandle)
+            testUtil.commandQueue.deleteArtboard(artboardHandle)
+            testUtil.commandQueue.deleteFile(fileHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    /**
+     * Test trigger input operations.
+     * Ported from RiveStateMachineInstanceTest.triggerInput()
+     */
+    @Test
+    fun inputsTriggerInput() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            val bytes = MpTestResources.loadRiveFile("state_machine_configurations.riv")
+            val fileHandle = testUtil.commandQueue.loadFile(bytes)
+            val artboardHandle = testUtil.commandQueue.createDefaultArtboard(fileHandle)
+            val smHandle = testUtil.commandQueue.createStateMachineByName(artboardHandle, "trigger_input")
+
+            // State machine should have 1 input
+            val inputCount = testUtil.commandQueue.getInputCount(smHandle)
+            assertEquals(1, inputCount, "Expected 1 input in 'trigger_input' state machine")
+
+            // Get input info by index
+            val inputInfo = testUtil.commandQueue.getInputInfo(smHandle, 0)
+            assertEquals("Trigger 1", inputInfo.name, "Expected input name 'Trigger 1'")
+            assertEquals(InputType.TRIGGER, inputInfo.type, "Expected TRIGGER type")
+
+            // Fire trigger (should not throw)
+            testUtil.commandQueue.fireTrigger(smHandle, "Trigger 1")
+            testUtil.commandQueue.advanceStateMachine(smHandle, 0.016f) // Process the fire
+
+            // Cleanup
+            testUtil.commandQueue.deleteStateMachine(smHandle)
+            testUtil.commandQueue.deleteArtboard(artboardHandle)
+            testUtil.commandQueue.deleteFile(fileHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    /**
+     * Test mixed input types.
+     * Ported from RiveStateMachineInstanceTest.mixed()
+     */
+    @Test
+    fun inputsMixed() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            val bytes = MpTestResources.loadRiveFile("state_machine_configurations.riv")
+            val fileHandle = testUtil.commandQueue.loadFile(bytes)
+            val artboardHandle = testUtil.commandQueue.createDefaultArtboard(fileHandle)
+            val smHandle = testUtil.commandQueue.createStateMachineByName(artboardHandle, "mixed")
+
+            // State machine "mixed" should have 6 inputs
+            val inputCount = testUtil.commandQueue.getInputCount(smHandle)
+            assertEquals(6, inputCount, "Expected 6 inputs in 'mixed' state machine")
+
+            // Get input names
+            val inputNames = testUtil.commandQueue.getInputNames(smHandle)
+            assertEquals(
+                listOf("zero", "off", "trigger", "two_point_two", "on", "three"),
+                inputNames,
+                "Expected specific input names"
+            )
+
+            // Verify input types by checking each input
+            // zero - NUMBER
+            val zeroInfo = testUtil.commandQueue.getInputInfo(smHandle, 0)
+            assertEquals("zero", zeroInfo.name)
+            assertEquals(InputType.NUMBER, zeroInfo.type)
+            val zeroValue = testUtil.commandQueue.getNumberInput(smHandle, "zero")
+            assertEquals(0f, zeroValue, "Expected 'zero' value to be 0f")
+
+            // off - BOOLEAN
+            val offInfo = testUtil.commandQueue.getInputInfo(smHandle, 1)
+            assertEquals("off", offInfo.name)
+            assertEquals(InputType.BOOLEAN, offInfo.type)
+            val offValue = testUtil.commandQueue.getBooleanInput(smHandle, "off")
+            assertEquals(false, offValue, "Expected 'off' value to be false")
+
+            // trigger - TRIGGER
+            val triggerInfo = testUtil.commandQueue.getInputInfo(smHandle, 2)
+            assertEquals("trigger", triggerInfo.name)
+            assertEquals(InputType.TRIGGER, triggerInfo.type)
+
+            // two_point_two - NUMBER
+            val twoPointTwoInfo = testUtil.commandQueue.getInputInfo(smHandle, 3)
+            assertEquals("two_point_two", twoPointTwoInfo.name)
+            assertEquals(InputType.NUMBER, twoPointTwoInfo.type)
+            val twoPointTwoValue = testUtil.commandQueue.getNumberInput(smHandle, "two_point_two")
+            assertEquals(2.2f, twoPointTwoValue, "Expected 'two_point_two' value to be 2.2f")
+
+            // on - BOOLEAN
+            val onInfo = testUtil.commandQueue.getInputInfo(smHandle, 4)
+            assertEquals("on", onInfo.name)
+            assertEquals(InputType.BOOLEAN, onInfo.type)
+            val onValue = testUtil.commandQueue.getBooleanInput(smHandle, "on")
+            assertEquals(true, onValue, "Expected 'on' value to be true")
+
+            // three - NUMBER
+            val threeInfo = testUtil.commandQueue.getInputInfo(smHandle, 5)
+            assertEquals("three", threeInfo.name)
+            assertEquals(InputType.NUMBER, threeInfo.type)
+            val threeValue = testUtil.commandQueue.getNumberInput(smHandle, "three")
+            assertEquals(3f, threeValue, "Expected 'three' value to be 3f")
 
             // Cleanup
             testUtil.commandQueue.deleteStateMachine(smHandle)
