@@ -406,6 +406,23 @@ class CommandQueue(
     // External JNI methods for Property Subscriptions (Phase D.4)
     private external fun cppSubscribeToProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int)
     private external fun cppUnsubscribeFromProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int)
+
+    // External JNI methods for List Operations (Phase D.5)
+    private external fun cppGetListSize(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppGetListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int)
+    private external fun cppAddListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, itemHandle: Long)
+    private external fun cppAddListItemAt(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int, itemHandle: Long)
+    private external fun cppRemoveListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, itemHandle: Long)
+    private external fun cppRemoveListItemAt(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int)
+    private external fun cppSwapListItems(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, indexA: Int, indexB: Int)
+
+    // External JNI methods for Nested VMI Operations (Phase D.5)
+    private external fun cppGetInstanceProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppSetInstanceProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, nestedHandle: Long)
+
+    // External JNI methods for Asset Property Operations (Phase D.5)
+    private external fun cppSetImageProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, imageHandle: Long)
+    private external fun cppSetArtboardProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, fileHandle: Long, artboardHandle: Long)
     
     /**
      * Create the default state machine from an artboard.
@@ -922,6 +939,232 @@ class CommandQueue(
         propertyType: PropertyDataType
     ) {
         cppUnsubscribeFromProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
+    }
+
+    // =============================================================================
+    // Phase D.5: List Operations
+    // =============================================================================
+
+    /**
+     * Get the size of a list property on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the list property.
+     * @return The number of items in the list.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getListSize(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): Int {
+        return suspendNativeRequest { requestID ->
+            cppGetListSize(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Get an item from a list property by index.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the list property.
+     * @param index The index of the item to get (0-based).
+     * @return A handle to the ViewModelInstance at the specified index.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid, property not found, or index out of bounds.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getListItem(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        index: Int
+    ): ViewModelInstanceHandle {
+        return suspendNativeRequest { requestID ->
+            cppGetListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index)
+        }
+    }
+
+    /**
+     * Add an item to the end of a list property.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the list.
+     * @param propertyPath The path to the list property.
+     * @param itemHandle The handle of the ViewModelInstance to add.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun addListItem(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        itemHandle: ViewModelInstanceHandle
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppAddListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, itemHandle.handle)
+    }
+
+    /**
+     * Add an item at a specific index in a list property.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the list.
+     * @param propertyPath The path to the list property.
+     * @param index The index at which to insert the item.
+     * @param itemHandle The handle of the ViewModelInstance to add.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun addListItemAt(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        index: Int,
+        itemHandle: ViewModelInstanceHandle
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppAddListItemAt(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index, itemHandle.handle)
+    }
+
+    /**
+     * Remove an item from a list property by its handle.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the list.
+     * @param propertyPath The path to the list property.
+     * @param itemHandle The handle of the ViewModelInstance to remove.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun removeListItem(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        itemHandle: ViewModelInstanceHandle
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppRemoveListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, itemHandle.handle)
+    }
+
+    /**
+     * Remove an item from a list property by index.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the list.
+     * @param propertyPath The path to the list property.
+     * @param index The index of the item to remove.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun removeListItemAt(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        index: Int
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppRemoveListItemAt(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index)
+    }
+
+    /**
+     * Swap two items in a list property.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance that owns the list.
+     * @param propertyPath The path to the list property.
+     * @param indexA The index of the first item.
+     * @param indexB The index of the second item.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun swapListItems(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        indexA: Int,
+        indexB: Int
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSwapListItems(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, indexA, indexB)
+    }
+
+    // =============================================================================
+    // Phase D.5: Nested VMI Operations
+    // =============================================================================
+
+    /**
+     * Get a nested ViewModelInstance property from a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the parent ViewModelInstance.
+     * @param propertyPath The path to the nested VMI property.
+     * @return A handle to the nested ViewModelInstance.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getInstanceProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): ViewModelInstanceHandle {
+        return suspendNativeRequest { requestID ->
+            cppGetInstanceProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Set a nested ViewModelInstance property on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the parent ViewModelInstance.
+     * @param propertyPath The path to the nested VMI property.
+     * @param nestedHandle The handle of the ViewModelInstance to set as the nested value.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setInstanceProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        nestedHandle: ViewModelInstanceHandle
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetInstanceProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, nestedHandle.handle)
+    }
+
+    // =============================================================================
+    // Phase D.5: Asset Property Operations
+    // =============================================================================
+
+    /**
+     * Set an image property on a ViewModelInstance.
+     * Pass a null imageHandle to clear the image.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the image property.
+     * @param imageHandle The handle of the image to set, or null to clear.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setImageProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        imageHandle: ImageHandle?
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetImageProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, imageHandle?.handle ?: 0L)
+    }
+
+    /**
+     * Set an artboard property on a ViewModelInstance.
+     * Pass a null artboardHandle to clear the artboard.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the artboard property.
+     * @param fileHandle The handle of the file that owns the artboard.
+     * @param artboardHandle The handle of the artboard to set, or null to clear.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setArtboardProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String,
+        fileHandle: FileHandle,
+        artboardHandle: ArtboardHandle?
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetArtboardProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, fileHandle.handle, artboardHandle?.handle ?: 0L)
     }
 
     // =============================================================================
@@ -1626,5 +1869,164 @@ class CommandQueue(
         _triggerPropertyFlow.tryEmit(
             PropertyUpdate(ViewModelInstanceHandle(vmiHandle), propertyPath, Unit)
         )
+    }
+
+    // =============================================================================
+    // JNI Callbacks for List Operations (Phase D.5)
+    // =============================================================================
+
+    /**
+     * Called from C++ when list size has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param size The number of items in the list.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onListSizeResult(requestID: Long, size: Int) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Int>
+            typedCont.resume(size)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received list size callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a list item has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param itemHandle The handle of the list item (VMI).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onListItemResult(requestID: Long, itemHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle>
+            typedCont.resume(ViewModelInstanceHandle(itemHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received list item callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a list operation has failed.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine (if any).
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onListOperationError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Any>
+            typedCont.resumeWithException(
+                IllegalArgumentException("List operation failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "List operation error (requestID=$requestID): $error"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a list modification operation has succeeded.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onListOperationSuccess(requestID: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "List operation succeeded: requestID=$requestID" }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for Nested VMI Operations (Phase D.5)
+    // =============================================================================
+
+    /**
+     * Called from C++ when a nested VMI property has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param nestedHandle The handle of the nested ViewModelInstance.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInstancePropertyResult(requestID: Long, nestedHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle>
+            typedCont.resume(ViewModelInstanceHandle(nestedHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received instance property callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a nested VMI operation has failed.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine (if any).
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInstancePropertyError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Instance property operation failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Instance property error (requestID=$requestID): $error"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a nested VMI set operation has succeeded.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onInstancePropertySetSuccess(requestID: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Instance property set succeeded: requestID=$requestID" }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for Asset Property Operations (Phase D.5)
+    // =============================================================================
+
+    /**
+     * Called from C++ when an asset property set operation has succeeded.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onAssetPropertySetSuccess(requestID: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Asset property set succeeded: requestID=$requestID" }
+    }
+
+    /**
+     * Called from C++ when an asset property operation has failed.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onAssetPropertyError(requestID: Long, error: String) {
+        RiveLog.w(COMMAND_QUEUE_TAG) {
+            "Asset property error (requestID=$requestID): $error"
+        }
     }
 }

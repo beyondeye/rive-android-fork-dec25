@@ -78,6 +78,20 @@ enum class CommandType {
     // Phase D.4: Property subscriptions
     SubscribeToProperty,      // Subscribe to property updates
     UnsubscribeFromProperty,  // Unsubscribe from property updates
+    // Phase D.5: List operations
+    GetListSize,              // Get the size of a list property
+    GetListItem,              // Get an item from a list by index
+    AddListItem,              // Add an item to the end of a list
+    AddListItemAt,            // Add an item at a specific index
+    RemoveListItem,           // Remove an item from a list by handle
+    RemoveListItemAt,         // Remove an item from a list by index
+    SwapListItems,            // Swap two items in a list
+    // Phase D.5: Nested VMI operations
+    GetInstanceProperty,      // Get a nested VMI property
+    SetInstanceProperty,      // Set a nested VMI property
+    // Phase D.5: Asset property operations
+    SetImageProperty,         // Set an image property
+    SetArtboardProperty,      // Set an artboard property
 };
 
 /**
@@ -112,6 +126,18 @@ struct Command {
 
     // Property subscription data (Phase D.4)
     int32_t propertyType = 0;    // For SubscribeToProperty, UnsubscribeFromProperty (PropertyDataType)
+
+    // List operation data (Phase D.5)
+    int32_t listIndex = -1;      // For GetListItem, AddListItemAt, RemoveListItemAt
+    int32_t listIndexB = -1;     // For SwapListItems (second index)
+    int64_t itemHandle = 0;      // For AddListItem, AddListItemAt, RemoveListItem
+
+    // Nested VMI operation data (Phase D.5)
+    int64_t nestedHandle = 0;    // For SetInstanceProperty
+
+    // Asset property operation data (Phase D.5)
+    int64_t assetHandle = 0;     // For SetImageProperty, SetArtboardProperty
+    int64_t fileHandle = 0;      // For SetArtboardProperty (needed to create BindableArtboard)
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -170,6 +196,18 @@ enum class MessageType {
     EnumPropertyUpdated,      // Subscribed enum property changed
     ColorPropertyUpdated,     // Subscribed color property changed
     TriggerPropertyFired,     // Subscribed trigger property fired
+    // Phase D.5: List operation results
+    ListSizeResult,           // List size query result
+    ListItemResult,           // List item query result (returns VMI handle)
+    ListOperationSuccess,     // List modification succeeded
+    ListOperationError,       // List operation failed
+    // Phase D.5: Nested VMI operation results
+    InstancePropertyResult,   // Nested VMI query result (returns VMI handle)
+    InstancePropertySetSuccess,// Nested VMI set succeeded
+    InstancePropertyError,    // Nested VMI operation failed
+    // Phase D.5: Asset property operation results
+    AssetPropertySetSuccess,  // Asset property set succeeded
+    AssetPropertyError,       // Asset property operation failed
 };
 
 /**
@@ -657,6 +695,76 @@ public:
      */
     void unsubscribeFromProperty(int64_t vmiHandle, const std::string& propertyPath, int32_t propertyType);
 
+    // ==========================================================================
+    // Phase D.5: List Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a GetListSize command.
+     */
+    void getListSize(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a GetListItem command.
+     */
+    void getListItem(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int32_t index);
+
+    /**
+     * Enqueues an AddListItem command (append to end).
+     */
+    void addListItem(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int64_t itemHandle);
+
+    /**
+     * Enqueues an AddListItemAt command (insert at index).
+     */
+    void addListItemAt(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int32_t index, int64_t itemHandle);
+
+    /**
+     * Enqueues a RemoveListItem command (remove by handle).
+     */
+    void removeListItem(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int64_t itemHandle);
+
+    /**
+     * Enqueues a RemoveListItemAt command (remove by index).
+     */
+    void removeListItemAt(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int32_t index);
+
+    /**
+     * Enqueues a SwapListItems command.
+     */
+    void swapListItems(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int32_t indexA, int32_t indexB);
+
+    // ==========================================================================
+    // Phase D.5: Nested VMI Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a GetInstanceProperty command.
+     */
+    void getInstanceProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a SetInstanceProperty command.
+     */
+    void setInstanceProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int64_t nestedHandle);
+
+    // ==========================================================================
+    // Phase D.5: Asset Property Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a SetImageProperty command.
+     * Pass 0 for imageHandle to clear the image.
+     */
+    void setImageProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int64_t imageHandle);
+
+    /**
+     * Enqueues a SetArtboardProperty command.
+     * Pass 0 for artboardHandle to clear the artboard.
+     * fileHandle is required to create a BindableArtboard from the artboard.
+     */
+    void setArtboardProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int64_t fileHandle, int64_t artboardHandle);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -789,6 +897,23 @@ private:
     // Property subscription handlers (Phase D.4)
     void handleSubscribeToProperty(const Command& cmd);
     void handleUnsubscribeFromProperty(const Command& cmd);
+
+    // List operation handlers (Phase D.5)
+    void handleGetListSize(const Command& cmd);
+    void handleGetListItem(const Command& cmd);
+    void handleAddListItem(const Command& cmd);
+    void handleAddListItemAt(const Command& cmd);
+    void handleRemoveListItem(const Command& cmd);
+    void handleRemoveListItemAt(const Command& cmd);
+    void handleSwapListItems(const Command& cmd);
+
+    // Nested VMI operation handlers (Phase D.5)
+    void handleGetInstanceProperty(const Command& cmd);
+    void handleSetInstanceProperty(const Command& cmd);
+
+    // Asset property operation handlers (Phase D.5)
+    void handleSetImageProperty(const Command& cmd);
+    void handleSetArtboardProperty(const Command& cmd);
 
     /**
      * Checks subscriptions and emits property updates.
