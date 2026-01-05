@@ -423,7 +423,11 @@ class CommandQueue(
     // External JNI methods for Asset Property Operations (Phase D.5)
     private external fun cppSetImageProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, imageHandle: Long)
     private external fun cppSetArtboardProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, fileHandle: Long, artboardHandle: Long)
-    
+
+    // External JNI methods for VMI Binding Operations (Phase D.6)
+    private external fun cppBindViewModelInstance(ptr: Long, requestID: Long, smHandle: Long, vmiHandle: Long)
+    private external fun cppGetDefaultViewModelInstance(ptr: Long, requestID: Long, fileHandle: Long, artboardHandle: Long)
+
     /**
      * Create the default state machine from an artboard.
      * 
@@ -1165,6 +1169,48 @@ class CommandQueue(
     ) {
         val requestID = nextRequestID.getAndIncrement()
         cppSetArtboardProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, fileHandle.handle, artboardHandle?.handle ?: 0L)
+    }
+
+    // =============================================================================
+    // Phase D.6: VMI Binding to State Machine
+    // =============================================================================
+
+    /**
+     * Bind a ViewModelInstance to a StateMachine for data binding.
+     * Once bound, changes to the VMI properties will be reflected in the state machine.
+     *
+     * @param smHandle The handle of the state machine to bind to.
+     * @param vmiHandle The handle of the ViewModelInstance to bind.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun bindViewModelInstance(
+        smHandle: StateMachineHandle,
+        vmiHandle: ViewModelInstanceHandle
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppBindViewModelInstance(cppPointer.pointer, requestID, smHandle.handle, vmiHandle.handle)
+    }
+
+    /**
+     * Get the default ViewModelInstance for an artboard.
+     * Returns the default VMI if one exists, or null if the artboard has no default VMI.
+     *
+     * @param fileHandle The handle of the file that contains the artboard.
+     * @param artboardHandle The handle of the artboard to get the default VMI for.
+     * @return A handle to the default VMI, or null if no default VMI exists.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file or artboard handle is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getDefaultViewModelInstance(
+        fileHandle: FileHandle,
+        artboardHandle: ArtboardHandle
+    ): ViewModelInstanceHandle? {
+        return suspendNativeRequest { requestID ->
+            cppGetDefaultViewModelInstance(cppPointer.pointer, requestID, fileHandle.handle, artboardHandle.handle)
+        }
     }
 
     // =============================================================================
@@ -2027,6 +2073,78 @@ class CommandQueue(
     private fun onAssetPropertyError(requestID: Long, error: String) {
         RiveLog.w(COMMAND_QUEUE_TAG) {
             "Asset property error (requestID=$requestID): $error"
+        }
+    }
+
+    // =============================================================================
+    // Phase D.6: VMI Binding Callbacks
+    // =============================================================================
+
+    /**
+     * Called from C++ when VMI binding has succeeded.
+     * This is a fire-and-forget operation, so we just log success.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onVMIBindingSuccess(requestID: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) {
+            "VMI binding succeeded (requestID=$requestID)"
+        }
+    }
+
+    /**
+     * Called from C++ when VMI binding has failed.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget operations).
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onVMIBindingError(requestID: Long, error: String) {
+        RiveLog.w(COMMAND_QUEUE_TAG) {
+            "VMI binding error (requestID=$requestID): $error"
+        }
+    }
+
+    /**
+     * Called from C++ with the result of a default VMI query.
+     * Resumes the suspended coroutine with the VMI handle (or null if 0).
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param vmiHandle The handle of the default VMI, or 0 if no default VMI exists.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onDefaultVMIResult(requestID: Long, vmiHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle?>
+            val result = if (vmiHandle == 0L) null else ViewModelInstanceHandle(vmiHandle)
+            typedCont.resume(result)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received default VMI result callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a default VMI query has failed.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onDefaultVMIError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle?>
+            typedCont.resumeWithException(IllegalArgumentException(error))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received default VMI error callback for unknown requestID: $requestID"
+            }
         }
     }
 }

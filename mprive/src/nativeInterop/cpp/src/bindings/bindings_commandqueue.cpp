@@ -63,6 +63,11 @@ static jmethodID g_onInstancePropertyErrorMethodID = nullptr;
 // Asset property operation callbacks (Phase D.5)
 static jmethodID g_onAssetPropertySetSuccessMethodID = nullptr;
 static jmethodID g_onAssetPropertyErrorMethodID = nullptr;
+// VMI binding operation callbacks (Phase D.6)
+static jmethodID g_onVMIBindingSuccessMethodID = nullptr;
+static jmethodID g_onVMIBindingErrorMethodID = nullptr;
+static jmethodID g_onDefaultVMIResultMethodID = nullptr;
+static jmethodID g_onDefaultVMIErrorMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -362,6 +367,31 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
     g_onAssetPropertyErrorMethodID = env->GetMethodID(
         commandQueueClass,
         "onAssetPropertyError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    // Phase D.6: VMI binding operation callbacks
+    g_onVMIBindingSuccessMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onVMIBindingSuccess",
+        "(J)V"  // (requestID: Long) -> Unit
+    );
+
+    g_onVMIBindingErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onVMIBindingError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    g_onDefaultVMIResultMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onDefaultVMIResult",
+        "(JJ)V"  // (requestID: Long, vmiHandle: Long) -> Unit
+    );
+
+    g_onDefaultVMIErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onDefaultVMIError",
         "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
     );
 
@@ -848,6 +878,38 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
                     env->CallVoidMethod(thiz, g_onAssetPropertyErrorMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+
+            // Phase D.6: VMI Binding operation results
+            case rive_android::MessageType::VMIBindingSuccess:
+                env->CallVoidMethod(thiz, g_onVMIBindingSuccessMethodID,
+                    static_cast<jlong>(msg.requestID));
+                break;
+
+            case rive_android::MessageType::VMIBindingError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onVMIBindingErrorMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+
+            case rive_android::MessageType::DefaultVMIResult:
+                env->CallVoidMethod(thiz, g_onDefaultVMIResultMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jlong>(msg.handle));
+                break;
+
+            case rive_android::MessageType::DefaultVMIError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onDefaultVMIErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -2254,6 +2316,56 @@ Java_app_rive_mp_CommandQueue_cppSetArtboardProperty(
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
     server->setArtboardProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<int64_t>(fileHandle), static_cast<int64_t>(artboardHandle));
+}
+
+// =============================================================================
+// Phase D.6: VMI Binding to State Machine
+// =============================================================================
+
+/**
+ * Binds a ViewModelInstance to a StateMachine for data binding.
+ *
+ * JNI signature: cppBindViewModelInstance(ptr: Long, requestID: Long, smHandle: Long, vmiHandle: Long): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppBindViewModelInstance(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong smHandle,
+    jlong vmiHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to bind VMI on null CommandServer");
+        return;
+    }
+
+    server->bindViewModelInstance(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), static_cast<int64_t>(vmiHandle));
+}
+
+/**
+ * Gets the default ViewModelInstance for an artboard from its file.
+ *
+ * JNI signature: cppGetDefaultViewModelInstance(ptr: Long, requestID: Long, fileHandle: Long, artboardHandle: Long): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetDefaultViewModelInstance(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jlong artboardHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get default VMI on null CommandServer");
+        return;
+    }
+
+    server->getDefaultViewModelInstance(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), static_cast<int64_t>(artboardHandle));
 }
 
 } // extern "C"

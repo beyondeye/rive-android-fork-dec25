@@ -313,6 +313,15 @@ void CommandServer::executeCommand(const Command& cmd)
             handleSetArtboardProperty(cmd);
             break;
 
+        // Phase D.6: VMI Binding to State Machine
+        case CommandType::BindViewModelInstance:
+            handleBindViewModelInstance(cmd);
+            break;
+
+        case CommandType::GetDefaultVMI:
+            handleGetDefaultVMI(cmd);
+            break;
+
         default:
             LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
@@ -2878,6 +2887,106 @@ void CommandServer::handleSetArtboardProperty(const Command& cmd)
     }
 
     Message msg(MessageType::AssetPropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+// =============================================================================
+// Phase D.6: VMI Binding to State Machine - Public API
+// =============================================================================
+
+void CommandServer::bindViewModelInstance(int64_t requestID, int64_t smHandle, int64_t vmiHandle)
+{
+    Command cmd(CommandType::BindViewModelInstance, requestID);
+    cmd.handle = smHandle;      // State machine handle
+    cmd.vmiHandle = vmiHandle;  // VMI handle to bind
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getDefaultViewModelInstance(int64_t requestID, int64_t fileHandle, int64_t artboardHandle)
+{
+    Command cmd(CommandType::GetDefaultVMI, requestID);
+    cmd.fileHandle = fileHandle;
+    cmd.handle = artboardHandle;  // Artboard handle
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Phase D.6: VMI Binding to State Machine - Handlers
+// =============================================================================
+
+void CommandServer::handleBindViewModelInstance(const Command& cmd)
+{
+    // Look up state machine
+    auto smIt = m_stateMachines.find(cmd.handle);
+    if (smIt == m_stateMachines.end()) {
+        Message msg(MessageType::VMIBindingError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Look up VMI
+    auto vmiIt = m_viewModelInstances.find(cmd.vmiHandle);
+    if (vmiIt == m_viewModelInstances.end()) {
+        Message msg(MessageType::VMIBindingError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Bind the VMI to the state machine
+    // StateMachineInstance::bindViewModelInstance takes rcp<ViewModelInstance>
+    // ViewModelInstanceRuntime wraps a ViewModelInstance, use instance() to get it
+    smIt->second->bindViewModelInstance(vmiIt->second->instance());
+
+    Message msg(MessageType::VMIBindingSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetDefaultVMI(const Command& cmd)
+{
+    // Look up file
+    auto fileIt = m_files.find(cmd.fileHandle);
+    if (fileIt == m_files.end()) {
+        Message msg(MessageType::DefaultVMIError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Look up artboard
+    auto artboardIt = m_artboards.find(cmd.handle);
+    if (artboardIt == m_artboards.end()) {
+        Message msg(MessageType::DefaultVMIError, cmd.requestID);
+        msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Get default VMI from file for the artboard
+    // File::createDefaultViewModelInstance returns rcp<ViewModelInstance>
+    auto defaultVMI = fileIt->second->createDefaultViewModelInstance(artboardIt->second.get());
+
+    if (!defaultVMI) {
+        // No default VMI for this artboard - return 0 handle (not an error, just no default)
+        Message msg(MessageType::DefaultVMIResult, cmd.requestID);
+        msg.handle = 0;  // 0 means no default VMI
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Wrap in ViewModelInstanceRuntime for storage
+    // We store rcp<ViewModelInstanceRuntime>, not raw rcp<ViewModelInstance>
+    auto runtimeVMI = rive::rcp<rive::ViewModelInstanceRuntime>(
+        new rive::ViewModelInstanceRuntime(std::move(defaultVMI))
+    );
+
+    // Store the VMI and return its handle
+    int64_t vmiHandle = m_nextHandle++;
+    m_viewModelInstances[vmiHandle] = std::move(runtimeVMI);
+
+    Message msg(MessageType::DefaultVMIResult, cmd.requestID);
+    msg.handle = vmiHandle;
     enqueueMessage(std::move(msg));
 }
 

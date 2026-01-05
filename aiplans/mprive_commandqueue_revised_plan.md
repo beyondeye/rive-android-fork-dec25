@@ -1607,7 +1607,7 @@ void CommandServer::handleGetInputInfo(const Command& cmd) {
 
 ### Phase D: View Models & Properties (Week 4-5)
 
-**Status**: 🚧 **IN PROGRESS (Android)** - 57% (4/7 subtasks complete)
+**Status**: 🚧 **IN PROGRESS (Android)** - 86% (6/7 subtasks complete)
 **Milestone D**: ⏳ **IN PROGRESS** - View model operations
 **Updated**: January 5, 2026
 
@@ -1619,8 +1619,8 @@ Phase D is broken into 7 subtasks for incremental implementation:
 | D.2 | Basic Property Operations (number, string, boolean) | ✅ Complete |
 | D.3 | Additional Property Types (enum, color, trigger) | ✅ Complete |
 | D.4 | Property Flows & Subscriptions | ✅ Complete |
-| D.5 | Advanced Features (lists, nested VMI, images, artboards) | ⏳ Pending |
-| D.6 | VMI Binding to State Machine | ⏳ Pending |
+| D.5 | Advanced Features (lists, nested VMI, images, artboards) | ✅ Complete |
+| D.6 | VMI Binding to State Machine | ✅ Complete |
 | D.7 | Testing - Port MpRiveDataBindingTest | ⏳ Pending |
 
 ---
@@ -1839,7 +1839,7 @@ MessageType::TriggerPropertyFired
 
 ---
 
-#### D.5: Advanced Features ⏳ **PENDING**
+#### D.5: Advanced Features ✅ **COMPLETE**
 
 **Scope**: Lists, nested VMI, images, and artboard properties.
 
@@ -1848,8 +1848,8 @@ MessageType::TriggerPropertyFired
 // List operations
 suspend fun getListSize(vmiHandle: ViewModelInstanceHandle, path: String): Int
 suspend fun getListItem(vmiHandle: ViewModelInstanceHandle, path: String, index: Int): ViewModelInstanceHandle
-fun addListItem(vmiHandle: ViewModelInstanceHandle, path: String)
-fun addListItemAt(vmiHandle: ViewModelInstanceHandle, path: String, index: Int)
+fun addListItem(vmiHandle: ViewModelInstanceHandle, path: String, itemHandle: ViewModelInstanceHandle)
+fun addListItemAt(vmiHandle: ViewModelInstanceHandle, path: String, index: Int, itemHandle: ViewModelInstanceHandle)
 fun removeListItem(vmiHandle: ViewModelInstanceHandle, path: String, itemHandle: ViewModelInstanceHandle)
 fun removeListItemAt(vmiHandle: ViewModelInstanceHandle, path: String, index: Int)
 fun swapListItems(vmiHandle: ViewModelInstanceHandle, path: String, index1: Int, index2: Int)
@@ -1861,27 +1861,33 @@ fun setInstanceProperty(vmiHandle: ViewModelInstanceHandle, path: String, nested
 // Image property (write-only)
 fun setImageProperty(vmiHandle: ViewModelInstanceHandle, path: String, imageHandle: ImageHandle?)
 
-// Artboard property (write-only)
-fun setArtboardProperty(vmiHandle: ViewModelInstanceHandle, path: String, artboardHandle: ArtboardHandle?)
+// Artboard property (write-only) - Note: requires fileHandle for BindableArtboard creation
+fun setArtboardProperty(vmiHandle: ViewModelInstanceHandle, path: String, fileHandle: FileHandle, artboardHandle: ArtboardHandle?)
 ```
 
+**Files Modified:**
+- `CommandQueue.kt` - Added external JNI methods, public API, callbacks
+- `command_server.hpp` - Added command/message types, Command struct fields
+- `command_server.cpp` - Implemented handlers for all D.5 operations
+- `bindings_commandqueue.cpp` - Added JNI bindings and pollMessages cases
+
 **Tasks:**
-- [ ] Add list operation JNI methods
-- [ ] Add nested VMI operation JNI methods
-- [ ] Add image/artboard property JNI methods
-- [ ] Implement C++ handlers
-- [ ] Add JNI bindings
-- [ ] Test compilation
+- [x] Add list operation JNI methods
+- [x] Add nested VMI operation JNI methods
+- [x] Add image/artboard property JNI methods
+- [x] Implement C++ handlers
+- [x] Add JNI bindings
+- [x] Test compilation
 
 ---
 
-#### D.6: VMI Binding to State Machine ⏳ **PENDING**
+#### D.6: VMI Binding to State Machine ✅ **COMPLETE**
 
 **Scope**: Bind VMI to state machine for property-driven animations.
 
 **Kotlin API:**
 ```kotlin
-// Bind VMI to state machine
+// Bind VMI to state machine (fire-and-forget)
 fun bindViewModelInstance(
     smHandle: StateMachineHandle,
     vmiHandle: ViewModelInstanceHandle
@@ -1889,16 +1895,27 @@ fun bindViewModelInstance(
 
 // Query default VMI for artboard
 suspend fun getDefaultViewModelInstance(
+    fileHandle: FileHandle,
     artboardHandle: ArtboardHandle
 ): ViewModelInstanceHandle?
 ```
 
+**Files Modified:**
+- `CommandQueue.kt` - Added external JNI methods, public API, callbacks
+- `command_server.hpp` - Added command/message types, Command struct fields
+- `command_server.cpp` - Implemented handlers for D.6 operations
+- `bindings_commandqueue.cpp` - Added JNI bindings and pollMessages cases
+
+**Implementation Notes:**
+- `bindViewModelInstance` uses `ViewModelInstanceRuntime::instance()` to get the underlying `rcp<ViewModelInstance>` for binding
+- `getDefaultViewModelInstance` wraps the returned `rcp<ViewModelInstance>` in a `ViewModelInstanceRuntime` for consistent storage
+
 **Tasks:**
-- [ ] Add binding JNI methods
-- [ ] Add default VMI query
-- [ ] Implement C++ handlers
-- [ ] Add JNI bindings
-- [ ] Test compilation
+- [x] Add binding JNI methods
+- [x] Add default VMI query
+- [x] Implement C++ handlers
+- [x] Add JNI bindings
+- [x] Test compilation
 
 ---
 

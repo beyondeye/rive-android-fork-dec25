@@ -92,6 +92,9 @@ enum class CommandType {
     // Phase D.5: Asset property operations
     SetImageProperty,         // Set an image property
     SetArtboardProperty,      // Set an artboard property
+    // Phase D.6: VMI Binding to State Machine
+    BindViewModelInstance,    // Bind VMI to state machine for data binding
+    GetDefaultVMI,            // Get the default VMI for an artboard (from file)
 };
 
 /**
@@ -138,6 +141,9 @@ struct Command {
     // Asset property operation data (Phase D.5)
     int64_t assetHandle = 0;     // For SetImageProperty, SetArtboardProperty
     int64_t fileHandle = 0;      // For SetArtboardProperty (needed to create BindableArtboard)
+
+    // VMI binding operation data (Phase D.6)
+    int64_t vmiHandle = 0;       // For BindViewModelInstance (VMI to bind to SM)
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -208,6 +214,11 @@ enum class MessageType {
     // Phase D.5: Asset property operation results
     AssetPropertySetSuccess,  // Asset property set succeeded
     AssetPropertyError,       // Asset property operation failed
+    // Phase D.6: VMI Binding results
+    VMIBindingSuccess,        // VMI bound to state machine successfully
+    VMIBindingError,          // VMI binding failed
+    DefaultVMIResult,         // Default VMI query result (returns VMI handle or 0)
+    DefaultVMIError,          // Default VMI query failed
 };
 
 /**
@@ -765,6 +776,22 @@ public:
      */
     void setArtboardProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, int64_t fileHandle, int64_t artboardHandle);
 
+    // ==========================================================================
+    // Phase D.6: VMI Binding to State Machine
+    // ==========================================================================
+
+    /**
+     * Enqueues a BindViewModelInstance command.
+     * Binds a VMI to a state machine for data binding.
+     */
+    void bindViewModelInstance(int64_t requestID, int64_t smHandle, int64_t vmiHandle);
+
+    /**
+     * Enqueues a GetDefaultVMI command.
+     * Gets the default VMI for an artboard from its file.
+     */
+    void getDefaultViewModelInstance(int64_t requestID, int64_t fileHandle, int64_t artboardHandle);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -914,6 +941,10 @@ private:
     // Asset property operation handlers (Phase D.5)
     void handleSetImageProperty(const Command& cmd);
     void handleSetArtboardProperty(const Command& cmd);
+
+    // VMI binding operation handlers (Phase D.6)
+    void handleBindViewModelInstance(const Command& cmd);
+    void handleGetDefaultVMI(const Command& cmd);
 
     /**
      * Checks subscriptions and emits property updates.
