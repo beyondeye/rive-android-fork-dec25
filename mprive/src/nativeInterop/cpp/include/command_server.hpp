@@ -19,6 +19,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
+#include "utils/no_op_factory.hpp"
 
 namespace rive_android {
 
@@ -986,6 +987,9 @@ private:
     
     // Render context (for Phase C+)
     void* m_renderContext;
+
+    // Fallback factory for when no render context is available (for tests)
+    std::unique_ptr<rive::NoOpFactory> m_noOpFactory;
     
     // Message queue for callbacks to Kotlin
     std::queue<Message> m_messageQueue;

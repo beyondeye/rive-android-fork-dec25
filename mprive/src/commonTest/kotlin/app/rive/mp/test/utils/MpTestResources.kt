@@ -27,10 +27,13 @@ expect object MpTestResources {
 
 /**
  * Helper extension to load Rive files from the test resources.
- * 
- * @param filename The Rive file name (without path).
+ *
+ * @param filename The Rive file name (without path, without .riv extension).
+ *                 Example: "flux_capacitor" will load "rive/flux_capacitor.riv"
  * @return The file contents as a ByteArray.
  */
 fun MpTestResources.loadRiveFile(filename: String): ByteArray {
-    return loadResource("rive/$filename")
+    // Add .riv extension if not present (matches Android R.raw.* resource naming convention)
+    val fullFilename = if (filename.endsWith(".riv")) filename else "$filename.riv"
+    return loadResource("rive/$fullFilename")
 }

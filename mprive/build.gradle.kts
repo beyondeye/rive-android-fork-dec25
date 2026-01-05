@@ -137,15 +137,23 @@ kotlin {
 android {
     namespace = "app.rive.mprive"
     compileSdk = 36
-    
+
     defaultConfig {
         minSdk = 21
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    // Configure test source sets to include commonTest resources as assets
+    // This allows Android instrumented tests to access shared test resources
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("src/commonTest/resources")
+        }
     }
     
     // Native build configuration for Android (similar to kotlin module)

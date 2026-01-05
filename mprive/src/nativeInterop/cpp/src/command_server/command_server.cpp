@@ -6,6 +6,7 @@
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
+#include "utils/no_op_factory.hpp"
 #include <cassert>
 
 namespace rive_android {
@@ -383,11 +384,27 @@ void CommandServer::handleLoadFile(const Command& cmd)
 {
     LOGI("CommandServer: Handling LoadFile command (requestID=%lld, size=%zu)",
          static_cast<long long>(cmd.requestID), cmd.bytes.size());
-    
+
+    // Get the factory - use render context factory if available, otherwise NoOpFactory
+    rive::Factory* factory = nullptr;
+    if (m_renderContext != nullptr) {
+        // TODO: Get factory from render context in Phase C
+        // factory = static_cast<RenderContext*>(m_renderContext)->getFactory();
+    }
+    if (factory == nullptr) {
+        // Use NoOpFactory for tests or when no render context
+        if (!m_noOpFactory) {
+            m_noOpFactory = std::make_unique<rive::NoOpFactory>();
+        }
+        factory = m_noOpFactory.get();
+    }
+
     // Import the Rive file
     auto file = rive::File::import(
         rive::Span<const uint8_t>(cmd.bytes.data(), cmd.bytes.size()),
-        nullptr  // No asset loader for now (Phase E)
+        factory,
+        nullptr,  // ImportResult
+        nullptr   // No asset loader for now (Phase E)
     );
     
     if (file) {

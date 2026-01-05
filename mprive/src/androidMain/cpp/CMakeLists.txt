@@ -39,12 +39,35 @@ file(GLOB ANDROID_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+# Rive utility sources from rive-runtime/utils/
+#
+# WHY: The rive-runtime static library (librive.a) built by Premake does NOT include
+# the utils/ directory sources. These are optional utilities meant to be compiled
+# separately when needed.
+#
+# WHAT: NoOpFactory is a lightweight Factory implementation that returns null/empty
+# render objects. It allows loading and manipulating Rive files without a real
+# graphics context (OpenGL/Vulkan).
+#
+# WHEN NEEDED: The CommandServer uses NoOpFactory as a fallback when no RenderContext
+# is provided (i.e., when renderContextPtr == 0). This enables:
+#   1. Unit tests that don't need rendering
+#   2. Headless file manipulation (loading files, querying artboards, view models)
+#   3. Server-side Rive file processing
+#
+# Without this, File::import() would crash with "assertion 'factory' failed" because
+# rive-runtime requires a non-null Factory* to load files.
+set(RIVE_UTILS_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../submodules/rive-runtime/utils/no_op_factory.cpp"
+)
+
 # Combine all sources
 set(ALL_SOURCES
         ${NATIVE_INTEROP_JNI_COMMON}
         ${NATIVE_INTEROP_BINDINGS}
         ${NATIVE_INTEROP_COMMAND_SERVER}
         ${ANDROID_SOURCES}
+        ${RIVE_UTILS_SOURCES}
 )
 
 # Debug: Print discovered files (visible during build)
@@ -193,11 +216,15 @@ endif ()
 # =============================================================================
 
 # Add header files from Rive runtime
+# NOTE: ${RIVE_RUNTIME_DIR} (without /include) is added to support #include "utils/no_op_factory.hpp"
+# which is how the header is referenced in command_server.hpp. The utils/ directory lives at
+# the root of rive-runtime, not under include/.
 target_include_directories(mprive-android PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../nativeInterop/cpp/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${RIVE_RUNTIME_DIR}/include
-        ${RIVE_RUNTIME_DIR}/renderer/include)
+        ${RIVE_RUNTIME_DIR}/renderer/include
+        ${RIVE_RUNTIME_DIR})
 
 # =============================================================================
 # Link Static Libraries
