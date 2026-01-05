@@ -212,6 +212,31 @@ void CommandServer::executeCommand(const Command& cmd)
             handleDeleteVMI(cmd);
             break;
 
+        // Property operations (Phase D.2)
+        case CommandType::GetNumberProperty:
+            handleGetNumberProperty(cmd);
+            break;
+
+        case CommandType::SetNumberProperty:
+            handleSetNumberProperty(cmd);
+            break;
+
+        case CommandType::GetStringProperty:
+            handleGetStringProperty(cmd);
+            break;
+
+        case CommandType::SetStringProperty:
+            handleSetStringProperty(cmd);
+            break;
+
+        case CommandType::GetBooleanProperty:
+            handleGetBooleanProperty(cmd);
+            break;
+
+        case CommandType::SetBooleanProperty:
+            handleSetBooleanProperty(cmd);
+            break;
+
         default:
             LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
@@ -1524,6 +1549,305 @@ void CommandServer::handleDeleteVMI(const Command& cmd)
         msg.error = "Invalid ViewModelInstance handle";
         enqueueMessage(std::move(msg));
     }
+}
+
+// =============================================================================
+// Property Operations - Public API (Phase D.2)
+// =============================================================================
+
+void CommandServer::getNumberProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath)
+{
+    LOGI("CommandServer: Enqueuing GetNumberProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str());
+
+    Command cmd(CommandType::GetNumberProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setNumberProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, float value)
+{
+    LOGI("CommandServer: Enqueuing SetNumberProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%f)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str(), value);
+
+    Command cmd(CommandType::SetNumberProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.floatValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getStringProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath)
+{
+    LOGI("CommandServer: Enqueuing GetStringProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str());
+
+    Command cmd(CommandType::GetStringProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setStringProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, const std::string& value)
+{
+    LOGI("CommandServer: Enqueuing SetStringProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str(), value.c_str());
+
+    Command cmd(CommandType::SetStringProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.stringValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getBooleanProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath)
+{
+    LOGI("CommandServer: Enqueuing GetBooleanProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str());
+
+    Command cmd(CommandType::GetBooleanProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::setBooleanProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, bool value)
+{
+    LOGI("CommandServer: Enqueuing SetBooleanProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%d)",
+         static_cast<long long>(requestID), static_cast<long long>(vmiHandle), propertyPath.c_str(), value ? 1 : 0);
+
+    Command cmd(CommandType::SetBooleanProperty, requestID);
+    cmd.handle = vmiHandle;
+    cmd.propertyPath = propertyPath;
+    cmd.boolValue = value;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Property Operations - Handler Implementations (Phase D.2)
+// =============================================================================
+
+void CommandServer::handleGetNumberProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetNumberProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyNumber(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Number property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Number property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    float value = prop->value();
+
+    LOGI("CommandServer: GetNumberProperty succeeded (path=%s, value=%f)",
+         cmd.propertyPath.c_str(), value);
+
+    Message msg(MessageType::NumberPropertyValue, cmd.requestID);
+    msg.floatValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetNumberProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetNumberProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%f)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle),
+         cmd.propertyPath.c_str(), cmd.floatValue);
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyNumber(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Number property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Number property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    prop->value(cmd.floatValue);
+
+    LOGI("CommandServer: SetNumberProperty succeeded (path=%s, value=%f)",
+         cmd.propertyPath.c_str(), cmd.floatValue);
+
+    Message msg(MessageType::PropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetStringProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetStringProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyString(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: String property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "String property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    const std::string& value = prop->value();
+
+    LOGI("CommandServer: GetStringProperty succeeded (path=%s, value=%s)",
+         cmd.propertyPath.c_str(), value.c_str());
+
+    Message msg(MessageType::StringPropertyValue, cmd.requestID);
+    msg.stringValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetStringProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetStringProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle),
+         cmd.propertyPath.c_str(), cmd.stringValue.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyString(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: String property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "String property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    prop->value(cmd.stringValue);
+
+    LOGI("CommandServer: SetStringProperty succeeded (path=%s, value=%s)",
+         cmd.propertyPath.c_str(), cmd.stringValue.c_str());
+
+    Message msg(MessageType::PropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetBooleanProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetBooleanProperty command (requestID=%lld, vmiHandle=%lld, path=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.propertyPath.c_str());
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyBoolean(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Boolean property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Boolean property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    bool value = prop->value();
+
+    LOGI("CommandServer: GetBooleanProperty succeeded (path=%s, value=%d)",
+         cmd.propertyPath.c_str(), value ? 1 : 0);
+
+    Message msg(MessageType::BooleanPropertyValue, cmd.requestID);
+    msg.boolValue = value;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleSetBooleanProperty(const Command& cmd)
+{
+    LOGI("CommandServer: Handling SetBooleanProperty command (requestID=%lld, vmiHandle=%lld, path=%s, value=%d)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle),
+         cmd.propertyPath.c_str(), cmd.boolValue ? 1 : 0);
+
+    auto it = m_viewModelInstances.find(cmd.handle);
+    if (it == m_viewModelInstances.end()) {
+        LOGW("CommandServer: Invalid VMI handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Invalid ViewModelInstance handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& vmi = it->second;
+    auto* prop = vmi->propertyBoolean(cmd.propertyPath);
+    if (!prop) {
+        LOGW("CommandServer: Boolean property not found: %s", cmd.propertyPath.c_str());
+
+        Message msg(MessageType::PropertyError, cmd.requestID);
+        msg.error = "Boolean property not found: " + cmd.propertyPath;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    prop->value(cmd.boolValue);
+
+    LOGI("CommandServer: SetBooleanProperty succeeded (path=%s, value=%d)",
+         cmd.propertyPath.c_str(), cmd.boolValue ? 1 : 0);
+
+    Message msg(MessageType::PropertySetSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
 }
 
 } // namespace rive_android

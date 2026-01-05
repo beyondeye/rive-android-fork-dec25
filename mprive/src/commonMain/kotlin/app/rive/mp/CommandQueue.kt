@@ -335,6 +335,14 @@ class CommandQueue(
     private external fun cppCreateDefaultVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String)
     private external fun cppCreateNamedVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String, instanceName: String)
     private external fun cppDeleteVMI(ptr: Long, requestID: Long, vmiHandle: Long)
+
+    // External JNI methods for Property Operations (Phase D.2)
+    private external fun cppGetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppSetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Float)
+    private external fun cppGetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppSetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String)
+    private external fun cppGetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
+    private external fun cppSetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Boolean)
     
     /**
      * Create the default state machine from an artboard.
@@ -610,6 +618,112 @@ class CommandQueue(
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
         cppDeleteVMI(cppPointer.pointer, requestID, vmiHandle.handle)
+    }
+
+    // =============================================================================
+    // Phase D.2: Property Operations
+    // =============================================================================
+
+    /**
+     * Get a number property value from a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property (e.g., "myNumber" or "nested/property").
+     * @return The current value of the property.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getNumberProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): Float {
+        return suspendNativeRequest { requestID ->
+            cppGetNumberProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Set a number property value on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setNumberProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Float) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetNumberProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+    }
+
+    /**
+     * Get a string property value from a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @return The current value of the property.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getStringProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): String {
+        return suspendNativeRequest { requestID ->
+            cppGetStringProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Set a string property value on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setStringProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: String) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetStringProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+    }
+
+    /**
+     * Get a boolean property value from a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @return The current value of the property.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the VMI handle is invalid or property not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getBooleanProperty(
+        vmiHandle: ViewModelInstanceHandle,
+        propertyPath: String
+    ): Boolean {
+        return suspendNativeRequest { requestID ->
+            cppGetBooleanProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        }
+    }
+
+    /**
+     * Set a boolean property value on a ViewModelInstance.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setBooleanProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Boolean) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppSetBooleanProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
     }
 
     // =============================================================================
@@ -1077,5 +1191,101 @@ class CommandQueue(
     @Suppress("unused")  // Called from JNI
     private fun onVMIDeleted(requestID: Long, vmiHandle: Long) {
         RiveLog.d(COMMAND_QUEUE_TAG) { "ViewModelInstance deleted: handle=$vmiHandle" }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for Property Operations (Phase D.2)
+    // =============================================================================
+
+    /**
+     * Called from C++ when a number property value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The property value.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onNumberPropertyValue(requestID: Long, value: Float) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Float>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received number property value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a string property value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The property value.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onStringPropertyValue(requestID: Long, value: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<String>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received string property value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a boolean property value has been retrieved.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param value The property value.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onBooleanPropertyValue(requestID: Long, value: Boolean) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Boolean>
+            typedCont.resume(value)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received boolean property value callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a property operation has failed.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine (if any).
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onPropertyError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Any>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Property operation failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Property operation error (requestID=$requestID): $error"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a property set operation has succeeded.
+     *
+     * @param requestID The request ID (currently unused for fire-and-forget set operations).
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onPropertySetSuccess(requestID: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Property set succeeded: requestID=$requestID" }
     }
 }

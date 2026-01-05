@@ -1607,7 +1607,7 @@ void CommandServer::handleGetInputInfo(const Command& cmd) {
 
 ### Phase D: View Models & Properties (Week 4-5)
 
-**Status**: 🚧 **IN PROGRESS (Android)** - 14% (1/7 subtasks complete)
+**Status**: 🚧 **IN PROGRESS (Android)** - 29% (2/7 subtasks complete)
 **Milestone D**: ⏳ **IN PROGRESS** - View model operations
 **Updated**: January 5, 2026
 
@@ -1616,7 +1616,7 @@ Phase D is broken into 7 subtasks for incremental implementation:
 | Subtask | Description | Status |
 |---------|-------------|--------|
 | D.1 | VMI Creation (basic: blank, default, by name) | ✅ Complete |
-| D.2 | Basic Property Operations (number, string, boolean) | ⏳ Pending |
+| D.2 | Basic Property Operations (number, string, boolean) | ✅ Complete |
 | D.3 | Additional Property Types (enum, color, trigger) | ⏳ Pending |
 | D.4 | Property Flows & Subscriptions | ⏳ Pending |
 | D.5 | Advanced Features (lists, nested VMI, images, artboards) | ⏳ Pending |
@@ -1672,23 +1672,23 @@ std::map<int64_t, rive::rcp<rive::ViewModelInstanceRuntime>> m_viewModelInstance
 
 ---
 
-#### D.2: Basic Property Operations ⏳ **PENDING**
+#### D.2: Basic Property Operations ✅ **COMPLETE**
 
 **Scope**: Get/set for number, string, and boolean properties.
 
 **Kotlin API:**
 ```kotlin
 // Number properties
-suspend fun getNumberProperty(vmiHandle: ViewModelInstanceHandle, path: String): Float
-fun setNumberProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: Float)
+suspend fun getNumberProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String): Float
+fun setNumberProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Float)
 
 // String properties
-suspend fun getStringProperty(vmiHandle: ViewModelInstanceHandle, path: String): String
-fun setStringProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: String)
+suspend fun getStringProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String): String
+fun setStringProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: String)
 
 // Boolean properties
-suspend fun getBooleanProperty(vmiHandle: ViewModelInstanceHandle, path: String): Boolean
-fun setBooleanProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: Boolean)
+suspend fun getBooleanProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String): Boolean
+fun setBooleanProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Boolean)
 ```
 
 **C++ Implementation:**
@@ -1706,13 +1706,19 @@ MessageType::PropertyError          // Error with message
 MessageType::PropertySetSuccess     // Set operation succeeded
 ```
 
+**Files Modified:**
+- `CommandQueue.kt` - Added external JNI methods, public API, callbacks
+- `command_server.hpp` - Added command/message types, API declarations
+- `command_server.cpp` - Implemented property handlers (~300 lines)
+- `bindings_commandqueue.cpp` - Added JNI bindings (~180 lines)
+
 **Tasks:**
-- [ ] Add JNI external methods for property get/set
-- [ ] Add C++ command types and message types
-- [ ] Implement property handlers using path navigation
-- [ ] Add JNI bindings with type conversions
-- [ ] Add Kotlin callbacks
-- [ ] Test compilation
+- [x] Add JNI external methods for property get/set
+- [x] Add C++ command types and message types
+- [x] Implement property handlers using ViewModelInstanceRuntime API
+- [x] Add JNI bindings with type conversions
+- [x] Add Kotlin callbacks
+- [x] Test compilation
 
 ---
 

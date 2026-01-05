@@ -34,6 +34,12 @@ static jmethodID g_onInputOperationErrorMethodID = nullptr;
 static jmethodID g_onVMICreatedMethodID = nullptr;
 static jmethodID g_onVMIErrorMethodID = nullptr;
 static jmethodID g_onVMIDeletedMethodID = nullptr;
+// Property operation callbacks (Phase D.2)
+static jmethodID g_onNumberPropertyValueMethodID = nullptr;
+static jmethodID g_onStringPropertyValueMethodID = nullptr;
+static jmethodID g_onBooleanPropertyValueMethodID = nullptr;
+static jmethodID g_onPropertyErrorMethodID = nullptr;
+static jmethodID g_onPropertySetSuccessMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -190,6 +196,37 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onVMIDeleted",
         "(JJ)V"  // (requestID: Long, vmiHandle: Long) -> Unit
+    );
+
+    // Property operation callbacks (Phase D.2)
+    g_onNumberPropertyValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onNumberPropertyValue",
+        "(JF)V"  // (requestID: Long, value: Float) -> Unit
+    );
+
+    g_onStringPropertyValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onStringPropertyValue",
+        "(JLjava/lang/String;)V"  // (requestID: Long, value: String) -> Unit
+    );
+
+    g_onBooleanPropertyValueMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onBooleanPropertyValue",
+        "(JZ)V"  // (requestID: Long, value: Boolean) -> Unit
+    );
+
+    g_onPropertyErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onPropertyError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    g_onPropertySetSuccessMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onPropertySetSuccess",
+        "(J)V"  // (requestID: Long) -> Unit
     );
 
     env->DeleteLocalRef(commandQueueClass);
@@ -483,6 +520,44 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
                 env->CallVoidMethod(thiz, g_onVMIDeletedMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
+                break;
+
+            // Property operation messages (Phase D.2)
+            case rive_android::MessageType::NumberPropertyValue:
+                env->CallVoidMethod(thiz, g_onNumberPropertyValueMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jfloat>(msg.floatValue));
+                break;
+
+            case rive_android::MessageType::StringPropertyValue:
+                {
+                    jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
+                    env->CallVoidMethod(thiz, g_onStringPropertyValueMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        valueStr);
+                    env->DeleteLocalRef(valueStr);
+                }
+                break;
+
+            case rive_android::MessageType::BooleanPropertyValue:
+                env->CallVoidMethod(thiz, g_onBooleanPropertyValueMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jboolean>(msg.boolValue));
+                break;
+
+            case rive_android::MessageType::PropertyError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onPropertyErrorMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+
+            case rive_android::MessageType::PropertySetSuccess:
+                env->CallVoidMethod(thiz, g_onPropertySetSuccessMethodID,
+                    static_cast<jlong>(msg.requestID));
                 break;
 
             default:
@@ -1188,6 +1263,179 @@ Java_app_rive_mp_CommandQueue_cppDeleteVMI(
     }
 
     server->deleteVMI(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle));
+}
+
+// =============================================================================
+// Phase D.2: Property Operations
+// =============================================================================
+
+/**
+ * Gets a number property value from a ViewModelInstance.
+ *
+ * JNI signature: cppGetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetNumberProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get number property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->getNumberProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+}
+
+/**
+ * Sets a number property value on a ViewModelInstance.
+ *
+ * JNI signature: cppSetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetNumberProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jfloat value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set number property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->setNumberProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<float>(value));
+}
+
+/**
+ * Gets a string property value from a ViewModelInstance.
+ *
+ * JNI signature: cppGetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetStringProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get string property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->getStringProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+}
+
+/**
+ * Sets a string property value on a ViewModelInstance.
+ *
+ * JNI signature: cppSetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetStringProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jstring value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set string property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    const char* valueChars = env->GetStringUTFChars(value, nullptr);
+    std::string valueStr(valueChars);
+    env->ReleaseStringUTFChars(value, valueChars);
+
+    server->setStringProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, valueStr);
+}
+
+/**
+ * Gets a boolean property value from a ViewModelInstance.
+ *
+ * JNI signature: cppGetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppGetBooleanProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get boolean property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->getBooleanProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+}
+
+/**
+ * Sets a boolean property value on a ViewModelInstance.
+ *
+ * JNI signature: cppSetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Boolean): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppSetBooleanProperty(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle,
+    jstring propertyPath,
+    jboolean value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set boolean property on null CommandServer");
+        return;
+    }
+
+    const char* pathChars = env->GetStringUTFChars(propertyPath, nullptr);
+    std::string path(pathChars);
+    env->ReleaseStringUTFChars(propertyPath, pathChars);
+
+    server->setBooleanProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<bool>(value));
 }
 
 } // extern "C"

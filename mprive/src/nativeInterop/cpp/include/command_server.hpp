@@ -62,6 +62,13 @@ enum class CommandType {
     CreateDefaultVMI,         // Create default instance from named ViewModel
     CreateNamedVMI,           // Create named instance from named ViewModel
     DeleteVMI,                // Delete a ViewModelInstance
+    // Phase D.2: Property operations
+    GetNumberProperty,        // Get number property value
+    SetNumberProperty,        // Set number property value
+    GetStringProperty,        // Get string property value
+    SetStringProperty,        // Set string property value
+    GetBooleanProperty,       // Get boolean property value
+    SetBooleanProperty,       // Set boolean property value
 };
 
 /**
@@ -86,6 +93,10 @@ struct Command {
     // View model operation data (Phase D)
     std::string viewModelName;   // For CreateBlankVMI, CreateDefaultVMI, CreateNamedVMI
     std::string instanceName;    // For CreateNamedVMI
+
+    // Property operation data (Phase D.2)
+    std::string propertyPath;    // For property get/set operations
+    std::string stringValue;     // For SetStringProperty
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -127,6 +138,12 @@ enum class MessageType {
     VMICreated,
     VMIError,
     VMIDeleted,
+    // Phase D.2: Property operations
+    NumberPropertyValue,      // Returns float value
+    StringPropertyValue,      // Returns string value
+    BooleanPropertyValue,     // Returns boolean value
+    PropertyError,            // Error with property operation
+    PropertySetSuccess,       // Set operation succeeded
 };
 
 /**
@@ -151,10 +168,13 @@ struct Message {
 
     // Input operation results
     int32_t intValue = 0;        // For InputCountResult
-    float floatValue = 0.0f;     // For NumberInputValue
-    bool boolValue = false;      // For BooleanInputValue
+    float floatValue = 0.0f;     // For NumberInputValue, NumberPropertyValue
+    bool boolValue = false;      // For BooleanInputValue, BooleanPropertyValue
     InputType inputType = InputType::UNKNOWN;  // For InputInfoResult
     std::string inputName;       // For InputInfoResult
+
+    // Property operation results (Phase D.2)
+    std::string stringValue;     // For StringPropertyValue
 
     Message() = default;
     explicit Message(MessageType t, int64_t reqID = 0)
@@ -436,6 +456,67 @@ public:
      */
     void deleteVMI(int64_t requestID, int64_t vmiHandle);
 
+    // =========================================================================
+    // Property Operations (Phase D.2)
+    // =========================================================================
+
+    /**
+     * Enqueues a GetNumberProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     */
+    void getNumberProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a SetNumberProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    void setNumberProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, float value);
+
+    /**
+     * Enqueues a GetStringProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     */
+    void getStringProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a SetStringProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    void setStringProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, const std::string& value);
+
+    /**
+     * Enqueues a GetBooleanProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     */
+    void getBooleanProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath);
+
+    /**
+     * Enqueues a SetBooleanProperty command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance.
+     * @param propertyPath The path to the property.
+     * @param value The value to set.
+     */
+    void setBooleanProperty(int64_t requestID, int64_t vmiHandle, const std::string& propertyPath, bool value);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -549,6 +630,14 @@ private:
     void handleCreateDefaultVMI(const Command& cmd);
     void handleCreateNamedVMI(const Command& cmd);
     void handleDeleteVMI(const Command& cmd);
+
+    // Property handlers (Phase D.2)
+    void handleGetNumberProperty(const Command& cmd);
+    void handleSetNumberProperty(const Command& cmd);
+    void handleGetStringProperty(const Command& cmd);
+    void handleSetStringProperty(const Command& cmd);
+    void handleGetBooleanProperty(const Command& cmd);
+    void handleSetBooleanProperty(const Command& cmd);
 
     /**
      * Enqueues a message to be sent to Kotlin.
