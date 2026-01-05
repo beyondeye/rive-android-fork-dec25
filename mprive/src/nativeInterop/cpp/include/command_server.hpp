@@ -17,6 +17,8 @@
 // Rive headers
 #include "rive/file.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
 
 namespace rive_android {
 
@@ -55,7 +57,11 @@ enum class CommandType {
     GetBooleanInput,
     SetBooleanInput,
     FireTrigger,
-    // Phase D+: View models, etc.
+    // Phase D: View model operations
+    CreateBlankVMI,           // Create blank instance from named ViewModel
+    CreateDefaultVMI,         // Create default instance from named ViewModel
+    CreateNamedVMI,           // Create named instance from named ViewModel
+    DeleteVMI,                // Delete a ViewModelInstance
 };
 
 /**
@@ -76,7 +82,11 @@ struct Command {
     int32_t inputIndex = -1;     // For input operations by index
     float floatValue = 0.0f;     // For SetNumberInput
     bool boolValue = false;      // For SetBooleanInput
-    
+
+    // View model operation data (Phase D)
+    std::string viewModelName;   // For CreateBlankVMI, CreateDefaultVMI, CreateNamedVMI
+    std::string instanceName;    // For CreateNamedVMI
+
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
         : type(t), requestID(reqID) {}
@@ -113,6 +123,10 @@ enum class MessageType {
     BooleanInputValue,
     InputOperationSuccess,
     InputOperationError,
+    // Phase D: View model operations
+    VMICreated,
+    VMIError,
+    VMIDeleted,
 };
 
 /**
@@ -378,6 +392,50 @@ public:
      */
     void fireTrigger(int64_t requestID, int64_t smHandle, const std::string& inputName);
 
+    // =========================================================================
+    // View Model Instance Operations (Phase D)
+    // =========================================================================
+
+    /**
+     * Enqueues a CreateBlankVMI command.
+     * Creates a blank (default-initialized) ViewModelInstance from a named ViewModel.
+     *
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file containing the ViewModel.
+     * @param viewModelName The name of the ViewModel to instantiate.
+     */
+    void createBlankVMI(int64_t requestID, int64_t fileHandle, const std::string& viewModelName);
+
+    /**
+     * Enqueues a CreateDefaultVMI command.
+     * Creates the default ViewModelInstance from a named ViewModel.
+     *
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file containing the ViewModel.
+     * @param viewModelName The name of the ViewModel to instantiate.
+     */
+    void createDefaultVMI(int64_t requestID, int64_t fileHandle, const std::string& viewModelName);
+
+    /**
+     * Enqueues a CreateNamedVMI command.
+     * Creates a named ViewModelInstance from a named ViewModel.
+     *
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file containing the ViewModel.
+     * @param viewModelName The name of the ViewModel to instantiate.
+     * @param instanceName The name of the instance to create.
+     */
+    void createNamedVMI(int64_t requestID, int64_t fileHandle,
+                        const std::string& viewModelName, const std::string& instanceName);
+
+    /**
+     * Enqueues a DeleteVMI command.
+     *
+     * @param requestID The request ID for async completion.
+     * @param vmiHandle The handle of the ViewModelInstance to delete.
+     */
+    void deleteVMI(int64_t requestID, int64_t vmiHandle);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -486,6 +544,12 @@ private:
     void handleSetBooleanInput(const Command& cmd);
     void handleFireTrigger(const Command& cmd);
 
+    // View model instance handlers (Phase D)
+    void handleCreateBlankVMI(const Command& cmd);
+    void handleCreateDefaultVMI(const Command& cmd);
+    void handleCreateNamedVMI(const Command& cmd);
+    void handleDeleteVMI(const Command& cmd);
+
     /**
      * Enqueues a message to be sent to Kotlin.
      * Thread-safe.
@@ -528,6 +592,9 @@ private:
     
     // Phase C: State machine resource map
     std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;
+
+    // Phase D: View model instance resource map
+    std::map<int64_t, rive::rcp<rive::ViewModelInstanceRuntime>> m_viewModelInstances;
 };
 
 } // namespace rive_android

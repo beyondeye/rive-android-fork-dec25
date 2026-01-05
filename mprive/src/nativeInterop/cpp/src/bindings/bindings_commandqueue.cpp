@@ -30,6 +30,10 @@ static jmethodID g_onNumberInputValueMethodID = nullptr;
 static jmethodID g_onBooleanInputValueMethodID = nullptr;
 static jmethodID g_onInputOperationSuccessMethodID = nullptr;
 static jmethodID g_onInputOperationErrorMethodID = nullptr;
+// ViewModelInstance callbacks
+static jmethodID g_onVMICreatedMethodID = nullptr;
+static jmethodID g_onVMIErrorMethodID = nullptr;
+static jmethodID g_onVMIDeletedMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -167,6 +171,25 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onInputOperationError",
         "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    // ViewModelInstance callbacks
+    g_onVMICreatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onVMICreated",
+        "(JJ)V"  // (requestID: Long, vmiHandle: Long) -> Unit
+    );
+
+    g_onVMIErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onVMIError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    g_onVMIDeletedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onVMIDeleted",
+        "(JJ)V"  // (requestID: Long, vmiHandle: Long) -> Unit
     );
 
     env->DeleteLocalRef(commandQueueClass);
@@ -437,6 +460,29 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
                         errorStr);
                     env->DeleteLocalRef(errorStr);
                 }
+                break;
+
+            // ViewModelInstance messages
+            case rive_android::MessageType::VMICreated:
+                env->CallVoidMethod(thiz, g_onVMICreatedMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jlong>(msg.handle));
+                break;
+
+            case rive_android::MessageType::VMIError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onVMIErrorMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+
+            case rive_android::MessageType::VMIDeleted:
+                env->CallVoidMethod(thiz, g_onVMIDeletedMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jlong>(msg.handle));
                 break;
 
             default:
@@ -1030,6 +1076,118 @@ Java_app_rive_mp_CommandQueue_cppFireTrigger(
     env->ReleaseStringUTFChars(inputName, nameChars);
 
     server->fireTrigger(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), name);
+}
+
+// =============================================================================
+// Phase D.1: ViewModelInstance Creation
+// =============================================================================
+
+/**
+ * Creates a blank ViewModelInstance from a named ViewModel.
+ *
+ * JNI signature: cppCreateBlankVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateBlankVMI(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jstring viewModelName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to create blank VMI on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(viewModelName, nullptr);
+    std::string vmName(nameChars);
+    env->ReleaseStringUTFChars(viewModelName, nameChars);
+
+    server->createBlankVMI(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), vmName);
+}
+
+/**
+ * Creates a default ViewModelInstance from a named ViewModel.
+ *
+ * JNI signature: cppCreateDefaultVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateDefaultVMI(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jstring viewModelName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to create default VMI on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(viewModelName, nullptr);
+    std::string vmName(nameChars);
+    env->ReleaseStringUTFChars(viewModelName, nameChars);
+
+    server->createDefaultVMI(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), vmName);
+}
+
+/**
+ * Creates a named ViewModelInstance from a named ViewModel.
+ *
+ * JNI signature: cppCreateNamedVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String, instanceName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateNamedVMI(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jstring viewModelName,
+    jstring instanceName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to create named VMI on null CommandServer");
+        return;
+    }
+
+    const char* vmNameChars = env->GetStringUTFChars(viewModelName, nullptr);
+    std::string vmName(vmNameChars);
+    env->ReleaseStringUTFChars(viewModelName, vmNameChars);
+
+    const char* instNameChars = env->GetStringUTFChars(instanceName, nullptr);
+    std::string instName(instNameChars);
+    env->ReleaseStringUTFChars(instanceName, instNameChars);
+
+    server->createNamedVMI(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), vmName, instName);
+}
+
+/**
+ * Deletes a ViewModelInstance.
+ *
+ * JNI signature: cppDeleteVMI(ptr: Long, requestID: Long, vmiHandle: Long): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppDeleteVMI(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong vmiHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to delete VMI on null CommandServer");
+        return;
+    }
+
+    server->deleteVMI(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle));
 }
 
 } // extern "C"

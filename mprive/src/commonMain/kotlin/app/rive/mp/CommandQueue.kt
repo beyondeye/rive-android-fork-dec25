@@ -329,6 +329,12 @@ class CommandQueue(
     private external fun cppGetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
     private external fun cppSetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Boolean)
     private external fun cppFireTrigger(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
+
+    // External JNI methods for ViewModelInstance (Phase D.1)
+    private external fun cppCreateBlankVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String)
+    private external fun cppCreateDefaultVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String)
+    private external fun cppCreateNamedVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String, instanceName: String)
+    private external fun cppDeleteVMI(ptr: Long, requestID: Long, vmiHandle: Long)
     
     /**
      * Create the default state machine from an artboard.
@@ -522,6 +528,88 @@ class CommandQueue(
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
         cppFireTrigger(cppPointer.pointer, requestID, smHandle.handle, inputName)
+    }
+
+    // =============================================================================
+    // Phase D.1: ViewModelInstance Creation
+    // =============================================================================
+
+    /**
+     * Create a blank ViewModelInstance from a named ViewModel.
+     * A blank instance has all properties set to their default values.
+     *
+     * @param fileHandle The handle of the file containing the ViewModel.
+     * @param viewModelName The name of the ViewModel to create an instance of.
+     * @return A handle to the created ViewModelInstance.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid or ViewModel not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createBlankViewModelInstance(
+        fileHandle: FileHandle,
+        viewModelName: String
+    ): ViewModelInstanceHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateBlankVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+        }
+    }
+
+    /**
+     * Create a default ViewModelInstance from a named ViewModel.
+     * A default instance uses the ViewModel's default instance values if available.
+     *
+     * @param fileHandle The handle of the file containing the ViewModel.
+     * @param viewModelName The name of the ViewModel to create an instance of.
+     * @return A handle to the created ViewModelInstance.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid or ViewModel not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createDefaultViewModelInstance(
+        fileHandle: FileHandle,
+        viewModelName: String
+    ): ViewModelInstanceHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateDefaultVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+        }
+    }
+
+    /**
+     * Create a named ViewModelInstance from a named ViewModel.
+     * Uses the values defined for the named instance in the Rive file.
+     *
+     * @param fileHandle The handle of the file containing the ViewModel.
+     * @param viewModelName The name of the ViewModel to create an instance of.
+     * @param instanceName The name of the specific instance to create.
+     * @return A handle to the created ViewModelInstance.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid, ViewModel not found, or instance not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createNamedViewModelInstance(
+        fileHandle: FileHandle,
+        viewModelName: String,
+        instanceName: String
+    ): ViewModelInstanceHandle {
+        return suspendNativeRequest { requestID ->
+            cppCreateNamedVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName, instanceName)
+        }
+    }
+
+    /**
+     * Delete a ViewModelInstance and free its resources.
+     *
+     * @param vmiHandle The handle of the ViewModelInstance to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteViewModelInstance(vmiHandle: ViewModelInstanceHandle) {
+        // Fire and forget - don't wait for completion
+        val requestID = nextRequestID.getAndIncrement()
+        cppDeleteVMI(cppPointer.pointer, requestID, vmiHandle.handle)
     }
 
     // =============================================================================
@@ -930,5 +1018,64 @@ class CommandQueue(
                 "Input operation error (requestID=$requestID): $error"
             }
         }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for ViewModelInstance (Phase D.1)
+    // =============================================================================
+
+    /**
+     * Called from C++ when a ViewModelInstance has been successfully created.
+     * This resumes the suspended coroutine waiting for the VMI.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param vmiHandle The handle to the created ViewModelInstance.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onVMICreated(requestID: Long, vmiHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle>
+            typedCont.resume(ViewModelInstanceHandle(vmiHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received VMI created callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a ViewModelInstance creation has failed.
+     * This resumes the suspended coroutine with an error.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onVMIError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ViewModelInstanceHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("ViewModelInstance operation failed: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received VMI error callback for unknown requestID: $requestID - $error"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a ViewModelInstance has been deleted.
+     *
+     * @param requestID The request ID (currently unused for delete operations).
+     * @param vmiHandle The handle of the deleted ViewModelInstance.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onVMIDeleted(requestID: Long, vmiHandle: Long) {
+        RiveLog.d(COMMAND_QUEUE_TAG) { "ViewModelInstance deleted: handle=$vmiHandle" }
     }
 }

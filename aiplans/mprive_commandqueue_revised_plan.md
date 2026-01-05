@@ -1607,72 +1607,272 @@ void CommandServer::handleGetInputInfo(const Command& cmd) {
 
 ### Phase D: View Models & Properties (Week 4-5)
 
-#### D.1: View Model Instance Creation
+**Status**: 🚧 **IN PROGRESS (Android)** - 14% (1/7 subtasks complete)
+**Milestone D**: ⏳ **IN PROGRESS** - View model operations
+**Updated**: January 5, 2026
+
+Phase D is broken into 7 subtasks for incremental implementation:
+
+| Subtask | Description | Status |
+|---------|-------------|--------|
+| D.1 | VMI Creation (basic: blank, default, by name) | ✅ Complete |
+| D.2 | Basic Property Operations (number, string, boolean) | ⏳ Pending |
+| D.3 | Additional Property Types (enum, color, trigger) | ⏳ Pending |
+| D.4 | Property Flows & Subscriptions | ⏳ Pending |
+| D.5 | Advanced Features (lists, nested VMI, images, artboards) | ⏳ Pending |
+| D.6 | VMI Binding to State Machine | ⏳ Pending |
+| D.7 | Testing - Port MpRiveDataBindingTest | ⏳ Pending |
+
+---
+
+#### D.1: ViewModelInstance Creation ✅ **COMPLETE**
+
+**Scope**: Basic VMI creation from file with 3 core variants.
 
 **Kotlin API:**
 ```kotlin
-fun createViewModelInstance(
-    fileHandle: FileHandle,
-    source: ViewModelInstanceSource
-): ViewModelInstanceHandle
+// Creation methods (implemented with individual suspend functions)
+suspend fun createBlankViewModelInstance(fileHandle: FileHandle, viewModelName: String): ViewModelInstanceHandle
+suspend fun createDefaultViewModelInstance(fileHandle: FileHandle, viewModelName: String): ViewModelInstanceHandle
+suspend fun createNamedViewModelInstance(fileHandle: FileHandle, viewModelName: String, instanceName: String): ViewModelInstanceHandle
+fun deleteViewModelInstance(vmiHandle: ViewModelInstanceHandle)
 ```
 
 **C++ Implementation:**
 ```cpp
-int64_t CommandServer::handleCreateViewModelInstance(const CreateVMICommand& cmd) {
-    // Complex logic - multiple creation paths
-    // Named VM + Blank instance
-    // Named VM + Default instance
-    // Named VM + Named instance
-    // Default VM (from artboard) + variations
-    // Reference nested VMI
-    
-    // ... implementation
-}
+// Command types
+CommandType::CreateBlankVMI      // Blank instance from named VM
+CommandType::CreateDefaultVMI    // Default instance from named VM
+CommandType::CreateNamedVMI      // Named instance from named VM
+CommandType::DeleteVMI           // Delete VMI
+
+// Message types
+MessageType::VMICreated          // Success with handle
+MessageType::VMIError            // Error with message
+MessageType::VMIDeleted          // Deletion confirmed
+
+// Storage (uses rcp smart pointer for reference counting)
+std::map<int64_t, rive::rcp<rive::ViewModelInstanceRuntime>> m_viewModelInstances;
 ```
 
-- [ ] Implement VMI creation (all 6 variants)
-- [ ] Implement VMI storage
-- [ ] Implement VMI deletion
+**Files Modified:**
+- `CommandQueue.kt` - Added external JNI methods, public API, callbacks
+- `command_server.hpp` - Added command/message types, VMI storage map
+- `command_server.cpp` - Implemented VMI handlers
+- `bindings_commandqueue.cpp` - Added JNI bindings
 
-#### D.2: Property Operations
+**Tasks:**
+- [x] Add JNI external methods for VMI creation/deletion
+- [x] Add C++ command types and message types
+- [x] Implement VMI creation handlers in C++
+- [x] Implement VMI storage map (using rcp<ViewModelInstanceRuntime>)
+- [x] Add JNI bindings
+- [x] Add Kotlin callbacks
+- [x] Test compilation
+
+---
+
+#### D.2: Basic Property Operations ⏳ **PENDING**
+
+**Scope**: Get/set for number, string, and boolean properties.
 
 **Kotlin API:**
 ```kotlin
-fun setNumberProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: Float)
+// Number properties
 suspend fun getNumberProperty(vmiHandle: ViewModelInstanceHandle, path: String): Float
-// ... string, boolean, enum, color, trigger
+fun setNumberProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: Float)
+
+// String properties
+suspend fun getStringProperty(vmiHandle: ViewModelInstanceHandle, path: String): String
+fun setStringProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: String)
+
+// Boolean properties
+suspend fun getBooleanProperty(vmiHandle: ViewModelInstanceHandle, path: String): Boolean
+fun setBooleanProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: Boolean)
 ```
 
 **C++ Implementation:**
 ```cpp
-void CommandServer::handleSetNumberProperty(const SetNumberPropertyCommand& cmd) {
-    auto it = m_viewModelInstances.find(cmd.vmiHandle);
-    if (it == m_viewModelInstances.end()) {
-        return;
-    }
-    
-    // Navigate property path
-    auto property = findPropertyByPath(it->second.get(), cmd.path);
-    if (!property || property->type() != PropertyType::Number) {
-        return;
-    }
-    
-    property->setValue(cmd.value);
-    
-    // Emit to property flow
-    callJavaMethod("onNumberPropertyUpdated", 0, cmd.vmiHandle, cmd.path, cmd.value);
-}
+// Command types
+CommandType::GetNumberProperty, CommandType::SetNumberProperty
+CommandType::GetStringProperty, CommandType::SetStringProperty
+CommandType::GetBooleanProperty, CommandType::SetBooleanProperty
+
+// Message types
+MessageType::NumberPropertyValue    // Returns float
+MessageType::StringPropertyValue    // Returns string
+MessageType::BooleanPropertyValue   // Returns bool
+MessageType::PropertyError          // Error with message
+MessageType::PropertySetSuccess     // Set operation succeeded
 ```
 
-- [ ] Implement set property operations (6 types)
-- [ ] Implement get property operations (6 types)
-- [ ] Implement property flows
-- [ ] Implement subscription mechanism
+**Tasks:**
+- [ ] Add JNI external methods for property get/set
+- [ ] Add C++ command types and message types
+- [ ] Implement property handlers using path navigation
+- [ ] Add JNI bindings with type conversions
+- [ ] Add Kotlin callbacks
+- [ ] Test compilation
 
-**Milestone D**: View models working ✅
+---
 
-#### D.3: Testing (Phase D)
+#### D.3: Additional Property Types ⏳ **PENDING**
+
+**Scope**: Enum, color, and trigger properties.
+
+**Kotlin API:**
+```kotlin
+// Enum properties (stored as strings)
+suspend fun getEnumProperty(vmiHandle: ViewModelInstanceHandle, path: String): String
+fun setEnumProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: String)
+
+// Color properties (0xAARRGGBB format)
+suspend fun getColorProperty(vmiHandle: ViewModelInstanceHandle, path: String): Int
+fun setColorProperty(vmiHandle: ViewModelInstanceHandle, path: String, value: Int)
+
+// Trigger properties (fire only, no value)
+fun fireTriggerProperty(vmiHandle: ViewModelInstanceHandle, path: String)
+```
+
+**Tasks:**
+- [ ] Add JNI external methods for enum/color/trigger
+- [ ] Add C++ command types and message types
+- [ ] Implement property handlers
+- [ ] Add JNI bindings
+- [ ] Add Kotlin callbacks
+- [ ] Test compilation
+
+---
+
+#### D.4: Property Flows & Subscriptions ⏳ **PENDING**
+
+**Scope**: Reactive property flows using SharedFlow.
+
+**Kotlin API:**
+```kotlin
+// Property update data class
+data class PropertyUpdate<T>(
+    val handle: ViewModelInstanceHandle,
+    val propertyPath: String,
+    val value: T
+)
+
+// SharedFlow channels for each property type
+val numberPropertyFlow: SharedFlow<PropertyUpdate<Float>>
+val stringPropertyFlow: SharedFlow<PropertyUpdate<String>>
+val booleanPropertyFlow: SharedFlow<PropertyUpdate<Boolean>>
+val enumPropertyFlow: SharedFlow<PropertyUpdate<String>>
+val colorPropertyFlow: SharedFlow<PropertyUpdate<Int>>
+val triggerPropertyFlow: SharedFlow<PropertyUpdate<Unit>>
+
+// Subscription method
+fun subscribeToProperty(
+    vmiHandle: ViewModelInstanceHandle,
+    propertyPath: String,
+    propertyType: PropertyDataType
+)
+```
+
+**C++ Implementation:**
+```cpp
+// Subscription tracking
+struct Subscription {
+    int64_t vmiHandle;
+    std::string propertyPath;
+    PropertyDataType propertyType;
+};
+std::vector<Subscription> m_propertySubscriptions;
+
+// Commands
+CommandType::SubscribeToProperty
+CommandType::UnsubscribeFromProperty
+
+// Messages (sent on property change)
+MessageType::NumberPropertyUpdated
+MessageType::StringPropertyUpdated
+MessageType::BooleanPropertyUpdated
+MessageType::EnumPropertyUpdated
+MessageType::ColorPropertyUpdated
+MessageType::TriggerPropertyFired
+```
+
+**Tasks:**
+- [ ] Add PropertyDataType enum to Kotlin
+- [ ] Add PropertyUpdate data class
+- [ ] Add MutableSharedFlow channels for each property type
+- [ ] Add subscription JNI methods
+- [ ] Implement subscription tracking in C++
+- [ ] Implement property change callbacks
+- [ ] Add JNI bindings for subscription
+- [ ] Add Kotlin callback emitters to flows
+- [ ] Test compilation
+
+---
+
+#### D.5: Advanced Features ⏳ **PENDING**
+
+**Scope**: Lists, nested VMI, images, and artboard properties.
+
+**Kotlin API:**
+```kotlin
+// List operations
+suspend fun getListSize(vmiHandle: ViewModelInstanceHandle, path: String): Int
+suspend fun getListItem(vmiHandle: ViewModelInstanceHandle, path: String, index: Int): ViewModelInstanceHandle
+fun addListItem(vmiHandle: ViewModelInstanceHandle, path: String)
+fun addListItemAt(vmiHandle: ViewModelInstanceHandle, path: String, index: Int)
+fun removeListItem(vmiHandle: ViewModelInstanceHandle, path: String, itemHandle: ViewModelInstanceHandle)
+fun removeListItemAt(vmiHandle: ViewModelInstanceHandle, path: String, index: Int)
+fun swapListItems(vmiHandle: ViewModelInstanceHandle, path: String, index1: Int, index2: Int)
+
+// Nested VMI
+suspend fun getInstanceProperty(vmiHandle: ViewModelInstanceHandle, path: String): ViewModelInstanceHandle
+fun setInstanceProperty(vmiHandle: ViewModelInstanceHandle, path: String, nestedHandle: ViewModelInstanceHandle)
+
+// Image property (write-only)
+fun setImageProperty(vmiHandle: ViewModelInstanceHandle, path: String, imageHandle: ImageHandle?)
+
+// Artboard property (write-only)
+fun setArtboardProperty(vmiHandle: ViewModelInstanceHandle, path: String, artboardHandle: ArtboardHandle?)
+```
+
+**Tasks:**
+- [ ] Add list operation JNI methods
+- [ ] Add nested VMI operation JNI methods
+- [ ] Add image/artboard property JNI methods
+- [ ] Implement C++ handlers
+- [ ] Add JNI bindings
+- [ ] Test compilation
+
+---
+
+#### D.6: VMI Binding to State Machine ⏳ **PENDING**
+
+**Scope**: Bind VMI to state machine for property-driven animations.
+
+**Kotlin API:**
+```kotlin
+// Bind VMI to state machine
+fun bindViewModelInstance(
+    smHandle: StateMachineHandle,
+    vmiHandle: ViewModelInstanceHandle
+)
+
+// Query default VMI for artboard
+suspend fun getDefaultViewModelInstance(
+    artboardHandle: ArtboardHandle
+): ViewModelInstanceHandle?
+```
+
+**Tasks:**
+- [ ] Add binding JNI methods
+- [ ] Add default VMI query
+- [ ] Implement C++ handlers
+- [ ] Add JNI bindings
+- [ ] Test compilation
+
+---
+
+#### D.7: Testing (Phase D) ⏳ **PENDING**
 
 See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensive test strategy.
 
