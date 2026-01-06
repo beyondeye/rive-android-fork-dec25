@@ -323,6 +323,11 @@ void CommandServer::executeCommand(const Command& cmd)
             handleGetDefaultVMI(cmd);
             break;
 
+        // Phase C.2.6: Rendering operations
+        case CommandType::Draw:
+            handleDraw(cmd);
+            break;
+
         default:
             LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
@@ -3004,6 +3009,122 @@ void CommandServer::handleGetDefaultVMI(const Command& cmd)
 
     Message msg(MessageType::DefaultVMIResult, cmd.requestID);
     msg.handle = vmiHandle;
+    enqueueMessage(std::move(msg));
+}
+
+// =============================================================================
+// Phase C.2.6: Rendering Operations - Public API
+// =============================================================================
+
+void CommandServer::draw(int64_t requestID,
+                          int64_t artboardHandle,
+                          int64_t smHandle,
+                          int64_t surfacePtr,
+                          int64_t renderTargetPtr,
+                          int64_t drawKey,
+                          int32_t width,
+                          int32_t height,
+                          int32_t fitMode,
+                          int32_t alignmentMode,
+                          uint32_t clearColor,
+                          float scaleFactor)
+{
+    LOGI("CommandServer: Enqueuing Draw command (requestID=%lld, artboard=%lld, sm=%lld)",
+         static_cast<long long>(requestID),
+         static_cast<long long>(artboardHandle),
+         static_cast<long long>(smHandle));
+
+    Command cmd(CommandType::Draw, requestID);
+    cmd.artboardHandle = artboardHandle;
+    cmd.smHandle = smHandle;
+    cmd.surfacePtr = surfacePtr;
+    cmd.renderTargetPtr = renderTargetPtr;
+    cmd.drawKey = drawKey;
+    cmd.surfaceWidth = width;
+    cmd.surfaceHeight = height;
+    cmd.fitMode = fitMode;
+    cmd.alignmentMode = alignmentMode;
+    cmd.clearColor = clearColor;
+    cmd.scaleFactor = scaleFactor;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Phase C.2.6: Rendering Operations - Handler
+// =============================================================================
+
+void CommandServer::handleDraw(const Command& cmd)
+{
+    LOGI("CommandServer: Handling Draw command (requestID=%lld, artboard=%lld, sm=%lld, %dx%d)",
+         static_cast<long long>(cmd.requestID),
+         static_cast<long long>(cmd.artboardHandle),
+         static_cast<long long>(cmd.smHandle),
+         cmd.surfaceWidth, cmd.surfaceHeight);
+
+    // 1. Validate artboard handle
+    auto artboardIt = m_artboards.find(cmd.artboardHandle);
+    if (artboardIt == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(cmd.artboardHandle));
+
+        Message msg(MessageType::DrawError, cmd.requestID);
+        msg.error = "Invalid artboard handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // 2. Validate state machine handle (optional - can be 0 for static artboards)
+    rive::StateMachineInstance* sm = nullptr;
+    if (cmd.smHandle != 0) {
+        auto smIt = m_stateMachines.find(cmd.smHandle);
+        if (smIt == m_stateMachines.end()) {
+            LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.smHandle));
+
+            Message msg(MessageType::DrawError, cmd.requestID);
+            msg.error = "Invalid state machine handle";
+            enqueueMessage(std::move(msg));
+            return;
+        }
+        sm = smIt->second.get();
+    }
+
+    auto& artboard = artboardIt->second;
+
+    // 3. Check render context
+    if (m_renderContext == nullptr) {
+        LOGW("CommandServer: No render context available");
+
+        Message msg(MessageType::DrawError, cmd.requestID);
+        msg.error = "No render context available";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // TODO (Phase C.2.6 continued): Implement actual rendering
+    // This requires:
+    // - RenderContext::beginFrame(surfacePtr)
+    // - rive::gpu::RenderContext for GPU rendering
+    // - rive::RiveRenderer for drawing
+    // - Fit & alignment transformation
+    // - RenderContext::present(surfacePtr)
+    //
+    // For now, we just log and send success to unblock Kotlin-side development.
+    // The actual rendering implementation requires integrating with the PLS renderer
+    // which is complex and will be done in a subsequent step.
+
+    LOGI("CommandServer: Draw command processed (rendering not yet implemented)");
+    LOGI("  - Artboard: %s (%dx%d)",
+         artboard->name().c_str(),
+         static_cast<int>(artboard->width()),
+         static_cast<int>(artboard->height()));
+    LOGI("  - Surface: %dx%d, fit=%d, align=%d, clear=0x%08X",
+         cmd.surfaceWidth, cmd.surfaceHeight,
+         cmd.fitMode, cmd.alignmentMode, cmd.clearColor);
+
+    // For now, send success to unblock Kotlin development
+    // Actual rendering will be implemented when we integrate the PLS renderer
+    Message msg(MessageType::DrawComplete, cmd.requestID);
+    msg.handle = cmd.drawKey;  // Return the draw key for correlation
     enqueueMessage(std::move(msg));
 }
 

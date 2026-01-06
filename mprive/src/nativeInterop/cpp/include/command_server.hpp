@@ -96,6 +96,8 @@ enum class CommandType {
     // Phase D.6: VMI Binding to State Machine
     BindViewModelInstance,    // Bind VMI to state machine for data binding
     GetDefaultVMI,            // Get the default VMI for an artboard (from file)
+    // Phase C.2.6: Rendering operations
+    Draw,                     // Draw artboard to surface
 };
 
 /**
@@ -145,6 +147,19 @@ struct Command {
 
     // VMI binding operation data (Phase D.6)
     int64_t vmiHandle = 0;       // For BindViewModelInstance (VMI to bind to SM)
+
+    // Draw operation data (Phase C.2.6)
+    int64_t artboardHandle = 0;  // For Draw
+    int64_t smHandle = 0;        // For Draw (state machine to get animation state)
+    int64_t surfacePtr = 0;      // For Draw (native EGL surface pointer)
+    int64_t renderTargetPtr = 0; // For Draw (Rive render target pointer)
+    int64_t drawKey = 0;         // For Draw (unique draw operation key)
+    int32_t surfaceWidth = 0;    // For Draw
+    int32_t surfaceHeight = 0;   // For Draw
+    int32_t fitMode = 0;         // For Draw (Fit enum ordinal)
+    int32_t alignmentMode = 0;   // For Draw (Alignment enum ordinal)
+    uint32_t clearColor = 0xFF000000; // For Draw (0xAARRGGBB format)
+    float scaleFactor = 1.0f;    // For Draw (for high DPI displays)
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -220,6 +235,9 @@ enum class MessageType {
     VMIBindingError,          // VMI binding failed
     DefaultVMIResult,         // Default VMI query result (returns VMI handle or 0)
     DefaultVMIError,          // Default VMI query failed
+    // Phase C.2.6: Rendering results
+    DrawComplete,             // Draw operation completed successfully
+    DrawError,                // Draw operation failed
 };
 
 /**
@@ -793,6 +811,40 @@ public:
      */
     void getDefaultViewModelInstance(int64_t requestID, int64_t fileHandle, int64_t artboardHandle);
 
+    // ==========================================================================
+    // Phase C.2.6: Rendering Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a Draw command.
+     * Draws an artboard with its state machine state to a surface.
+     *
+     * @param requestID The request ID for async completion.
+     * @param artboardHandle Handle to the artboard to draw.
+     * @param smHandle Handle to the state machine (for animation state).
+     * @param surfacePtr Native EGL surface pointer.
+     * @param renderTargetPtr Rive render target pointer.
+     * @param drawKey Unique draw operation key.
+     * @param width Surface width in pixels.
+     * @param height Surface height in pixels.
+     * @param fitMode Fit enum ordinal (0=FILL, 1=CONTAIN, etc.).
+     * @param alignmentMode Alignment enum ordinal.
+     * @param clearColor Background clear color (0xAARRGGBB format).
+     * @param scaleFactor Scale factor for high DPI displays (default 1.0).
+     */
+    void draw(int64_t requestID,
+              int64_t artboardHandle,
+              int64_t smHandle,
+              int64_t surfacePtr,
+              int64_t renderTargetPtr,
+              int64_t drawKey,
+              int32_t width,
+              int32_t height,
+              int32_t fitMode,
+              int32_t alignmentMode,
+              uint32_t clearColor,
+              float scaleFactor);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -946,6 +998,9 @@ private:
     // VMI binding operation handlers (Phase D.6)
     void handleBindViewModelInstance(const Command& cmd);
     void handleGetDefaultVMI(const Command& cmd);
+
+    // Rendering operation handlers (Phase C.2.6)
+    void handleDraw(const Command& cmd);
 
     /**
      * Checks subscriptions and emits property updates.
