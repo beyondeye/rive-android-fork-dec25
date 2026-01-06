@@ -2368,4 +2368,58 @@ Java_app_rive_mp_CommandQueue_cppGetDefaultViewModelInstance(
     server->getDefaultViewModelInstance(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), static_cast<int64_t>(artboardHandle));
 }
 
+/**
+ * Creates a Rive render target on the worker thread.
+ * This is a synchronous operation - it blocks until the render target is created.
+ * 
+ * @param ptr CommandServer pointer
+ * @param width Width of the render target
+ * @param height Height of the render target
+ * @return Native pointer to the created render target (FramebufferRenderTargetGL)
+ */
+JNIEXPORT jlong JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateRiveRenderTarget(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jint width,
+    jint height
+) {
+    LOGD(TAG, "Creating Rive render target");
+    
+    // For now, return 0 as placeholder until full Rive renderer integration
+    // TODO: In Phase C.2.6, implement actual render target creation using
+    //       rive::gpu::FramebufferRenderTargetGL when GL context is available
+    
+    // The render target will be created on the worker thread where GL context is active
+    // This requires runOnce() or similar mechanism to execute on the command server thread
+    
+    LOGD(TAG, "Render target creation (placeholder)");
+    return 0L;
+}
+
+/**
+ * Deletes a Rive render target.
+ * 
+ * @param ptr Native pointer to the render target
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_RiveSurface_cppDeleteRenderTarget(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr
+) {
+    if (ptr == 0) {
+        return;
+    }
+    
+    LOGD(TAG, "Deleting Rive render target");
+    
+    // TODO: In Phase C.2.6, implement actual render target deletion
+    // auto* renderTarget = reinterpret_cast<rive::gpu::RenderTargetGL*>(ptr);
+    // delete renderTarget;
+    
+    LOGD(TAG, "Render target deleted (placeholder)");
+}
+
 } // extern "C"

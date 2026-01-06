@@ -35,6 +35,9 @@ class CommandQueue(
     
     // Phase B methods
     private external fun cppLoadFile(ptr: Long, requestID: Long, bytes: ByteArray)
+    
+    // Phase C.2.3: Render target creation
+    private external fun cppCreateRiveRenderTarget(ptr: Long, width: Int, height: Int): Long
     private external fun cppDeleteFile(ptr: Long, requestID: Long, fileHandle: Long)
     private external fun cppGetArtboardNames(ptr: Long, requestID: Long, fileHandle: Long)
     private external fun cppGetStateMachineNames(ptr: Long, requestID: Long, artboardHandle: Long)
@@ -191,11 +194,22 @@ class CommandQueue(
     
     /**
      * Creates a Rive render target on the command server thread.
-     * Phase A stub - to be implemented in Phase C.
+     * 
+     * This method creates a render target that can be used with the [draw] method.
+     * The render target is created on the worker thread where the OpenGL context is active.
+     * 
+     * **Note**: In the current implementation (Phase C.2.3), this returns a placeholder value (0).
+     * The full implementation will be completed in Phase C.2.6 when the Rive renderer is integrated.
+     * 
+     * @param width The width of the render target in pixels.
+     * @param height The height of the render target in pixels.
+     * @return A native pointer to the created render target, or 0 if creation failed.
+     * @throws IllegalStateException If the CommandQueue has been released.
      */
+    @Throws(IllegalStateException::class)
     fun createRiveRenderTarget(width: Int, height: Int): Long {
-        // Placeholder for Phase A
-        return 0L
+        RiveLog.d(COMMAND_QUEUE_TAG) { "Creating Rive render target: ${width}x${height}" }
+        return cppCreateRiveRenderTarget(cppPointer.pointer, width, height)
     }
     
     // =============================================================================
