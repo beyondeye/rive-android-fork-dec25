@@ -1357,69 +1357,479 @@ void CommandServer::handleAdvanceStateMachine(const Command& cmd) {
 - [x] Implement deletion
 - [x] Test compilation
 
-#### C.2: Rendering Operations 🔨 **PARTIAL - Foundation Complete**
+#### C.2: Rendering Operations 🚧 **IN PROGRESS**
 
-**Status**: 🔨 **PARTIAL** - January 4, 2026  
-**Progress**: Foundation classes created (Fit.kt ✅, Alignment.kt ✅), draw implementation pending
+**Status**: 🚧 **IN PROGRESS** - January 5, 2026  
+**Progress**: Foundation classes created (Fit.kt ✅, Alignment.kt ✅), detailed substeps planned
 
-**Completed:**
+**Completed Foundation:**
 - ✅ `Fit.kt` - Created with 8 fit modes (FILL, CONTAIN, COVER, FIT_WIDTH, FIT_HEIGHT, NONE, SCALE_DOWN, LAYOUT)
 - ✅ `Alignment.kt` - Created with 9 alignment positions (TOP_LEFT, TOP_CENTER, TOP_RIGHT, CENTER_LEFT, CENTER, CENTER_RIGHT, BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT)
+- ✅ `RiveSurface.kt` - Abstract surface class exists
+- ✅ `RenderContext.kt` - Abstract render context exists
+- 🔨 `RenderContext.android.kt` - Stub only (TODO placeholders)
 
-**Pending Implementation:**
+---
 
-**Kotlin API:**
+##### C.2 Substep Implementation Plan
+
+**Implementation Order** (for incremental validation):
+1. C.2.4 (DrawKey) - Simplest, pure Kotlin
+2. C.2.1 (C++ RenderContext) - Core infrastructure
+3. C.2.2 (Kotlin RenderContext) - Bridges to C++
+4. C.2.3 (RenderTarget) - Depends on RenderContext
+5. C.2.5 (RiveSurface) - Combines RenderTarget + DrawKey
+6. C.2.6 (C++ Draw Handler) - Core rendering logic
+7. C.2.7 (Kotlin Draw API) - Exposes to Kotlin
+8. C.2.8 (E2E Tests) - Validates everything together
+
+**Deferred Features** (documented in code):
+- `drawMultiple()` - Batch rendering for multiple sprites (Phase E)
+- `drawToBuffer()` - Offscreen rendering to pixel buffer (Phase E)
+- Compose Integration - `RiveCanvas` Composable (Later phase)
+- Desktop RenderContext - GLFW/Skia implementation (Phase F)
+
+---
+
+##### C.2.4: DrawKey Generation ✅ **COMPLETE**
+
+**Status**: ✅ **COMPLETE** - January 5, 2026
+
+**Scope**: Implement unique draw key creation
+
+**Files Modified**:
+- `CommandQueue.kt` - Added `nextDrawKeyCounter` atomic and `createDrawKey()` method
+
+**Implementation** (simple Kotlin-only):
 ```kotlin
+private val nextDrawKeyCounter = atomic(0L)
+
+fun createDrawKey(): DrawKey {
+    return DrawKey(nextDrawKeyCounter.incrementAndGet())
+}
+```
+
+**Test**: `MpDrawKeyTest.kt` - (Deferred - basic functionality verified via compilation)
+
+- [x] Add AtomicLong counter to CommandQueue
+- [x] Implement createDrawKey() method
+- [ ] Create test for draw key uniqueness (deferred)
+- [x] Test compilation ✅ BUILD SUCCESSFUL
+
+---
+
+##### C.2.1: C++ RenderContext Infrastructure (EGL) ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Port `render_context.hpp` from kotlin module to mprive
+
+**Files to Create/Modify**:
+- `mprive/src/nativeInterop/cpp/include/render_context.hpp` - RenderContext base class, RenderContextGL implementation
+- `mprive/src/nativeInterop/cpp/src/render_context/render_context_gl.cpp` - EGL initialization, PBuffer creation
+
+**Key Implementation** (based on kotlin module):
+```cpp
+// Android: Uses EGL (eglMakeCurrent, eglSwapBuffers)
+// Desktop: Could use GLFW (glfwMakeContextCurrent, glfwSwapBuffers)
+// iOS: Could use EAGLContext or Metal
+
+struct StartupResult {
+    bool success;
+    int32_t errorCode;
+    std::string message;
+};
+
+class RenderContext {
+public:
+    virtual ~RenderContext() = default;
+    virtual StartupResult initialize() = 0;
+    virtual void destroy() = 0;
+    virtual void beginFrame(void* surface) = 0;
+    virtual void present(void* surface) = 0;
+    
+    std::unique_ptr<rive::gpu::RenderContext> riveContext;
+};
+
+struct RenderContextGL : RenderContext {
+    RenderContextGL(EGLDisplay eglDisplay, EGLContext eglContext);
+    StartupResult initialize() override;
+    void destroy() override;
+    void beginFrame(void* surface) override;
+    void present(void* surface) override;
+    
+    EGLDisplay eglDisplay;
+    EGLContext eglContext;
+private:
+    EGLSurface pBuffer;  // 1x1 PBuffer for initial context binding
+};
+```
+
+**Test**: `MpRenderContextTest.kt` - Verify RenderContext initialization
+
+- [ ] Create render_context.hpp with base class
+- [ ] Implement RenderContextGL with EGL support
+- [ ] Implement initialize() - make context current, create Rive RenderContext
+- [ ] Implement destroy() - release EGL resources
+- [ ] Implement beginFrame() - eglMakeCurrent
+- [ ] Implement present() - eglSwapBuffers
+- [ ] Add platform comments for Desktop/iOS alternatives
+- [ ] Test compilation
+
+---
+
+##### C.2.2: Kotlin RenderContext Android Implementation ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Replace Android stub with real EGL-based implementation
+
+**Files to Modify**:
+- `mprive/src/androidMain/kotlin/app/rive/mp/RenderContext.android.kt`
+- `mprive/src/nativeInterop/cpp/src/bindings/bindings_rendercontext.cpp` (new file)
+
+**New JNI Methods**:
+```kotlin
+// Android: Uses EGL context from SurfaceView/TextureView
+// Desktop: Would create GLFW context or use existing OpenGL context
+// iOS: Would use EAGLContext
+
+class RenderContextGL(
+    eglDisplay: Long,
+    eglContext: Long
+) : RenderContext() {
+    private external fun cppConstructor(eglDisplay: Long, eglContext: Long): Long
+    private external fun cppDelete(ptr: Long)
+    private external fun cppInitialize(ptr: Long): Boolean
+    private external fun cppDestroy(ptr: Long)
+    
+    override val nativeObjectPointer: Long = cppConstructor(eglDisplay, eglContext)
+    
+    override fun close() {
+        cppDelete(nativeObjectPointer)
+    }
+}
+```
+
+**Test**: `MpRenderContextTest.kt` - Verify Kotlin RenderContextGL instantiation
+
+- [ ] Replace stub with real RenderContextGL class
+- [ ] Add JNI external method declarations
+- [ ] Create bindings_rendercontext.cpp with JNI implementations
+- [ ] Add platform comments
+- [ ] Test compilation
+
+---
+
+##### C.2.3: RenderTarget Creation ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Implement render target creation via CommandQueue
+
+**Files to Modify**:
+- `command_server.hpp/cpp` - Add `CommandType::CreateRenderTarget`, storage map
+- `bindings_commandqueue.cpp` - JNI `cppCreateRenderTarget`
+- `CommandQueue.kt` - `suspend fun createRenderTarget(width, height, sampleCount): Long`
+
+**C++ Implementation**:
+```cpp
+// Command types
+CommandType::CreateRenderTarget
+CommandType::DeleteRenderTarget
+
+// Storage
+std::map<int64_t, rive::gpu::RenderTargetGL*> m_renderTargets;
+
+// Handler
+void CommandServer::handleCreateRenderTarget(const Command& cmd) {
+    auto renderTarget = new rive::gpu::FramebufferRenderTargetGL(
+        cmd.width, cmd.height, cmd.sampleCount
+    );
+    int64_t handle = m_nextHandle.fetch_add(1);
+    m_renderTargets[handle] = renderTarget;
+    // callback to Kotlin with handle
+}
+```
+
+**Test**: `MpRenderTargetTest.kt` - Verify render target creation and deletion
+
+- [ ] Add CreateRenderTarget/DeleteRenderTarget command types
+- [ ] Add render target storage map
+- [ ] Implement handler in C++
+- [ ] Add JNI bindings
+- [ ] Add Kotlin suspend function
+- [ ] Test compilation
+
+---
+
+##### C.2.5: Android RiveSurface Implementation ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Create concrete RiveSurface for Android OpenGL
+
+**Files to Create**:
+- `mprive/src/androidMain/kotlin/app/rive/mp/RiveSurfaceGL.kt`
+
+**Implementation**:
+```kotlin
+/**
+ * Android OpenGL implementation of RiveSurface.
+ * 
+ * Android: Uses EGLSurface pointer
+ * Desktop: Would be GLFW window handle or FBO
+ * iOS: Would be CAEAGLLayer or MTLTexture
+ */
+class RiveSurfaceGL(
+    renderTargetPointer: Long,
+    drawKey: DrawKey,
+    width: Int,
+    height: Int,
+    private val eglSurface: Long
+) : RiveSurface(renderTargetPointer, drawKey, width, height) {
+    
+    override val surfaceNativePointer: Long get() = eglSurface
+    
+    override fun dispose(renderTargetPointer: Long) {
+        // Cleanup EGL surface if needed
+        super.dispose(renderTargetPointer)
+    }
+}
+```
+
+**RenderContext.createSurface Implementation**:
+```kotlin
+override fun createSurface(drawKey: DrawKey, commandQueue: CommandQueue): RiveSurface {
+    // Create EGL window surface from SurfaceTexture
+    // Create render target via CommandQueue
+    // Return RiveSurfaceGL
+}
+```
+
+**Test**: `MpRiveSurfaceTest.kt` - Verify surface creation
+
+- [ ] Create RiveSurfaceGL class
+- [ ] Implement createSurface in RenderContextGL
+- [ ] Add platform comments
+- [ ] Test compilation
+
+---
+
+##### C.2.6: Draw Command - C++ Handler ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Implement C++ draw command handler (only single `draw()`)
+
+**Files to Modify**:
+- `command_server.hpp` - Add `CommandType::Draw`, draw-related fields
+- `command_server.cpp` - Implement `handleDraw()`
+
+**Implementation**:
+```cpp
+// Command type
+CommandType::Draw
+
+// Command fields for Draw
+struct Command {
+    // ... existing fields ...
+    
+    // Draw-specific
+    void* nativeSurface;          // EGL surface pointer
+    rive::gpu::RenderTargetGL* renderTarget;
+    int width;
+    int height;
+    int fit;                       // Fit enum ordinal
+    int alignment;                 // Alignment enum ordinal
+    uint32_t clearColor;
+    float scaleFactor;
+};
+
+void CommandServer::handleDraw(const Command& cmd) {
+    // 1. Get artboard and state machine
+    auto artboard = m_artboards.find(cmd.artboardHandle);
+    auto sm = m_stateMachines.find(cmd.smHandle);
+    if (artboard == m_artboards.end() || sm == m_stateMachines.end()) {
+        return; // Log error
+    }
+    
+    // 2. Make context current (Android: EGL, Desktop: GLFW)
+    m_renderContext->beginFrame(cmd.nativeSurface);
+    
+    // 3. Begin Rive frame
+    m_riveContext->beginFrame({
+        .renderTargetWidth = static_cast<uint32_t>(cmd.width),
+        .renderTargetHeight = static_cast<uint32_t>(cmd.height),
+        .loadAction = rive::gpu::LoadAction::clear,
+        .clearColor = cmd.clearColor
+    });
+    
+    // 4. Create renderer and draw
+    auto renderer = rive::RiveRenderer(m_riveContext);
+    renderer.save();
+    
+    // Apply fit & alignment transform
+    auto fit = static_cast<rive::Fit>(cmd.fit);
+    auto alignment = GetAlignment(cmd.alignment);
+    renderer.align(fit, alignment, 
+        rive::AABB(0, 0, cmd.width, cmd.height),
+        artboard->second->bounds(),
+        cmd.scaleFactor);
+    
+    artboard->second->draw(&renderer);
+    renderer.restore();
+    
+    // 5. Flush and present
+    m_riveContext->flush({.renderTarget = cmd.renderTarget});
+    m_renderContext->present(cmd.nativeSurface);
+}
+
+// TODO (Phase E): drawMultiple() for batch rendering of multiple sprites
+// TODO (Phase E): drawToBuffer() for offscreen rendering to pixel buffer
+```
+
+**Test**: `MpDrawCommandTest.kt` - Verify draw command enqueues correctly
+
+- [ ] Add CommandType::Draw
+- [ ] Add draw-specific fields to Command struct
+- [ ] Implement handleDraw() in command_server.cpp
+- [ ] Add fit/alignment enum conversion helpers
+- [ ] Add TODO comments for deferred features
+- [ ] Test compilation
+
+---
+
+##### C.2.7: Draw Command - Kotlin API & JNI ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Implement Kotlin `draw()` method and JNI bindings
+
+**Files to Modify**:
+- `CommandQueue.kt` - Add `draw()` method
+- `bindings_commandqueue.cpp` - Add JNI `cppDraw()`
+
+**Kotlin API**:
+```kotlin
+/**
+ * Draw the artboard with its current state machine state to the given surface.
+ *
+ * This is a fire-and-forget operation that enqueues a draw command on the
+ * render thread. The actual rendering happens asynchronously.
+ *
+ * @param artboardHandle Handle to the artboard to draw
+ * @param smHandle Handle to the state machine (for animation state)
+ * @param surface The surface to render to
+ * @param fit How to fit the artboard into the surface bounds
+ * @param alignment How to align the artboard within the surface
+ * @param clearColor Background clear color (0xAARRGGBB format)
+ *
+ * @see drawMultiple Not yet implemented - use for batch rendering (Phase E)
+ * @see drawToBuffer Not yet implemented - use for offscreen rendering (Phase E)
+ */
 fun draw(
     artboardHandle: ArtboardHandle,
     smHandle: StateMachineHandle,
     surface: RiveSurface,
-    fit: Fit,
-    alignment: Alignment,
-    clearColor: Int
-)
+    fit: Fit = Fit.CONTAIN,
+    alignment: Alignment = Alignment.CENTER,
+    clearColor: Int = 0xFF000000.toInt()
+) {
+    cppDraw(
+        cppPointer.pointer,
+        surface.renderTargetPointer.pointer,
+        surface.surfaceNativePointer,
+        surface.drawKey.handle,
+        artboardHandle.handle,
+        smHandle.handle,
+        fit.ordinal,
+        alignment.ordinal,
+        surface.width,
+        surface.height,
+        clearColor
+    )
+}
+
+// TODO (Phase E): Implement drawMultiple for batch sprite rendering
+// TODO (Phase E): Implement drawToBuffer for offscreen rendering
 ```
 
-**C++ Implementation:**
+**JNI Implementation**:
 ```cpp
-void CommandServer::handleDraw(const DrawCommand& cmd) {
-    auto artboard = m_artboards.find(cmd.artboardHandle);
-    auto sm = m_stateMachines.find(cmd.smHandle);
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppDraw(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong renderTargetPtr,
+    jlong surfacePtr,
+    jlong drawKey,
+    jlong artboardHandle,
+    jlong smHandle,
+    jint fit,
+    jint alignment,
+    jint width,
+    jint height,
+    jint clearColor
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
     
-    if (artboard == m_artboards.end() || sm == m_stateMachines.end()) {
-        return;
-    }
+    Command cmd;
+    cmd.type = CommandType::Draw;
+    cmd.renderTarget = reinterpret_cast<rive::gpu::RenderTargetGL*>(renderTargetPtr);
+    cmd.nativeSurface = reinterpret_cast<void*>(surfacePtr);
+    cmd.artboardHandle = artboardHandle;
+    cmd.smHandle = smHandle;
+    cmd.fit = fit;
+    cmd.alignment = alignment;
+    cmd.width = width;
+    cmd.height = height;
+    cmd.clearColor = static_cast<uint32_t>(clearColor);
     
-    // Make OpenGL context current for this surface
-    m_renderContext->makeCurrent(cmd.surface);
-    
-    // Clear
-    glClearColor(/* clearColor */);
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    // Render
-    auto renderer = m_renderContext->createRenderer();
-    renderer->save();
-    
-    // Apply fit & alignment transform
-    // ... (rive standard fit/alignment logic)
-    
-    // Draw artboard
-    artboard->second->draw(renderer.get());
-    
-    renderer->restore();
-    
-    // Swap buffers
-    m_renderContext->swapBuffers(cmd.surface);
+    server->enqueueCommand(std::move(cmd));
 }
 ```
 
-- [ ] Implement draw command
-- [ ] Implement surface management
-- [ ] Implement renderer creation
-- [ ] Add fit & alignment logic
+**Test**: `MpDrawApiTest.kt` - Integration test for draw() API
 
-**Milestone C**: Can render animations ✅
+- [ ] Add external cppDraw declaration
+- [ ] Implement draw() public method
+- [ ] Add JNI cppDraw function
+- [ ] Add TODO comments for deferred features
+- [ ] Test compilation
+
+---
+
+##### C.2.8: End-to-End Rendering Test ⏳ **PENDING**
+
+**Status**: ⏳ **PENDING**
+
+**Scope**: Full Android instrumented test that renders to a real surface
+
+**Files to Create**:
+- `mprive/src/commonTest/kotlin/app/rive/mp/test/rendering/MpRiveRenderingTest.kt`
+- `mprive/src/androidInstrumentedTest/kotlin/app/rive/mp/test/rendering/MpRiveRenderingTest.android.kt`
+
+**Tests to Implement**:
+1. `renderSingleFrame` - Load file, create artboard, SM, surface, call draw(), verify no crash
+2. `renderWithFitContain` - Verify CONTAIN fit mode
+3. `renderWithFitFill` - Verify FILL fit mode
+4. `renderWithAlignments` - Test all 9 alignment positions
+5. `renderAnimationLoop` - Multiple frames with advanceStateMachine + draw()
+6. `renderWithDifferentClearColors` - Verify clear color is applied
+
+- [ ] Create test file structure (common + androidInstrumentedTest)
+- [ ] Implement renderSingleFrame test
+- [ ] Implement fit mode tests
+- [ ] Implement alignment tests
+- [ ] Implement animation loop test
+- [ ] Implement clear color test
+- [ ] Run tests on Android device/emulator
+
+---
+
+**Milestone C.2**: ✅ Can render animations to surface with fit & alignment
 
 #### C.3: Testing (Phase C)
 

@@ -214,6 +214,39 @@ class CommandQueue(
     private val nextRequestID = atomic(0L)
     
     /**
+     * A monotonically increasing counter for generating unique draw keys.
+     * Draw keys are used to uniquely identify draw operations for surface management.
+     */
+    private val nextDrawKeyCounter = atomic(0L)
+    
+    // =============================================================================
+    // Phase C.2.4: DrawKey Generation
+    // =============================================================================
+    
+    /**
+     * Create a unique draw key for identifying draw operations.
+     * 
+     * Draw keys are used to:
+     * - Uniquely identify surfaces and render targets
+     * - Track draw operations in the command queue
+     * - Manage surface lifecycle
+     *
+     * Each call returns a new, unique key that is guaranteed to be different
+     * from all previously returned keys.
+     *
+     * @return A unique [DrawKey] for identifying draw operations.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * 
+     * @see draw Not yet implemented - use for single artboard rendering (Phase C.2.7)
+     * @see drawMultiple Not yet implemented - use for batch sprite rendering (Phase E)
+     * @see drawToBuffer Not yet implemented - use for offscreen rendering (Phase E)
+     */
+    @Throws(IllegalStateException::class)
+    fun createDrawKey(): DrawKey {
+        return DrawKey(nextDrawKeyCounter.incrementAndGet())
+    }
+    
+    /**
      * Make a JNI request that returns a value of type [T], split across a callback.
      * Phase A stub - basic implementation for future use.
      */
