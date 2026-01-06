@@ -1,5 +1,7 @@
 package app.rive.mp
 
+import app.rive.mp.core.Alignment
+import app.rive.mp.core.Fit
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -46,6 +48,23 @@ class CommandQueue(
     // Phase C.2.3: Render target methods
     private external fun cppCreateRenderTarget(ptr: Long, requestID: Long, width: Int, height: Int, sampleCount: Int)
     private external fun cppDeleteRenderTarget(ptr: Long, requestID: Long, renderTargetHandle: Long)
+
+    // Phase C.2.7: Draw method
+    private external fun cppDraw(
+        ptr: Long,
+        requestID: Long,
+        artboardHandle: Long,
+        smHandle: Long,
+        surfacePtr: Long,
+        renderTargetPtr: Long,
+        drawKey: Long,
+        surfaceWidth: Int,
+        surfaceHeight: Int,
+        fitMode: Int,
+        alignmentMode: Int,
+        clearColor: Int,
+        scaleFactor: Float
+    )
 
     companion object {
         /**
@@ -445,6 +464,57 @@ class CommandQueue(
     fun deleteRenderTarget(renderTargetHandle: Long) {
         val requestID = nextRequestID.getAndIncrement()
         cppDeleteRenderTarget(cppPointer.pointer, requestID, renderTargetHandle)
+    }
+
+    // =============================================================================
+    // Phase C.2.7: Draw Operations
+    // =============================================================================
+
+    /**
+     * Draw the artboard with its current state machine state to the given surface.
+     *
+     * This is a fire-and-forget operation that enqueues a draw command on the
+     * render thread. The actual rendering happens asynchronously.
+     *
+     * @param artboardHandle Handle to the artboard to draw.
+     * @param smHandle Handle to the state machine (for animation state). Pass 0 for static artboards.
+     * @param surface The surface to render to.
+     * @param fit How to fit the artboard into the surface bounds. Defaults to CONTAIN.
+     * @param alignment How to align the artboard within the surface. Defaults to CENTER.
+     * @param clearColor Background clear color in 0xAARRGGBB format. Defaults to opaque black.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see Fit For available fit modes.
+     * @see Alignment For available alignment positions.
+     */
+    @Throws(IllegalStateException::class)
+    fun draw(
+        artboardHandle: ArtboardHandle,
+        smHandle: StateMachineHandle,
+        surface: RiveSurface,
+        fit: Fit = Fit.CONTAIN,
+        alignment: Alignment = Alignment.CENTER,
+        clearColor: Int = 0xFF000000.toInt(),
+        scaleFactor: Float = 1.0f
+    ) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppDraw(
+            cppPointer.pointer,
+            requestID,
+            artboardHandle.handle,
+            smHandle.handle,
+            surface.surfaceNativePointer,
+            surface.renderTargetPointer.pointer,
+            surface.drawKey.handle,
+            surface.width,
+            surface.height,
+            fit.ordinal,
+            alignment.ordinal,
+            clearColor,
+            scaleFactor
+        )
     }
 
     // =============================================================================

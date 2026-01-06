@@ -1,4 +1,5 @@
 #include "command_server.hpp"
+#include "render_context.hpp"
 #include "rive_log.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/animation/state_machine_instance.hpp"
@@ -6,6 +7,9 @@
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
+#include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/gl/render_target_gl.hpp"
+#include "rive/math/aabb.hpp"
 #include "utils/no_op_factory.hpp"
 #include <cassert>
 
@@ -3161,6 +3165,55 @@ void CommandServer::handleDeleteRenderTarget(const Command& cmd)
 // Phase C.2.6: Rendering Operations - Handler
 // =============================================================================
 
+/**
+ * Convert Fit ordinal to rive::Fit enum.
+ * Ordinal mapping:
+ * 0=FILL, 1=CONTAIN, 2=COVER, 3=FIT_WIDTH, 4=FIT_HEIGHT, 5=NONE, 6=SCALE_DOWN, 7=LAYOUT
+ */
+static rive::Fit getFitFromOrdinal(int32_t ordinal)
+{
+    switch (ordinal)
+    {
+        case 0: return rive::Fit::fill;
+        case 1: return rive::Fit::contain;
+        case 2: return rive::Fit::cover;
+        case 3: return rive::Fit::fitWidth;
+        case 4: return rive::Fit::fitHeight;
+        case 5: return rive::Fit::none;
+        case 6: return rive::Fit::scaleDown;
+        case 7: return rive::Fit::layout;
+        default:
+            LOGW("CommandServer: Invalid Fit ordinal %d, defaulting to CONTAIN", ordinal);
+            return rive::Fit::contain;
+    }
+}
+
+/**
+ * Convert Alignment ordinal to rive::Alignment enum.
+ * Ordinal mapping:
+ * 0=TOP_LEFT, 1=TOP_CENTER, 2=TOP_RIGHT,
+ * 3=CENTER_LEFT, 4=CENTER, 5=CENTER_RIGHT,
+ * 6=BOTTOM_LEFT, 7=BOTTOM_CENTER, 8=BOTTOM_RIGHT
+ */
+static rive::Alignment getAlignmentFromOrdinal(int32_t ordinal)
+{
+    switch (ordinal)
+    {
+        case 0: return rive::Alignment::topLeft;
+        case 1: return rive::Alignment::topCenter;
+        case 2: return rive::Alignment::topRight;
+        case 3: return rive::Alignment::centerLeft;
+        case 4: return rive::Alignment::center;
+        case 5: return rive::Alignment::centerRight;
+        case 6: return rive::Alignment::bottomLeft;
+        case 7: return rive::Alignment::bottomCenter;
+        case 8: return rive::Alignment::bottomRight;
+        default:
+            LOGW("CommandServer: Invalid Alignment ordinal %d, defaulting to CENTER", ordinal);
+            return rive::Alignment::center;
+    }
+}
+
 void CommandServer::handleDraw(const Command& cmd)
 {
     LOGI("CommandServer: Handling Draw command (requestID=%lld, artboard=%lld, sm=%lld, %dx%d)",
@@ -3207,29 +3260,80 @@ void CommandServer::handleDraw(const Command& cmd)
         return;
     }
 
-    // TODO (Phase C.2.6 continued): Implement actual rendering
-    // This requires:
-    // - RenderContext::beginFrame(surfacePtr)
-    // - rive::gpu::RenderContext for GPU rendering
-    // - rive::RiveRenderer for drawing
-    // - Fit & alignment transformation
-    // - RenderContext::present(surfacePtr)
-    //
-    // For now, we just log and send success to unblock Kotlin-side development.
-    // The actual rendering implementation requires integrating with the PLS renderer
-    // which is complex and will be done in a subsequent step.
+    // 4. Get RenderContext and validate Rive GPU RenderContext
+    auto* renderContext = static_cast<rive_mp::RenderContext*>(m_renderContext);
+    if (renderContext->riveContext == nullptr) {
+        LOGW("CommandServer: Rive GPU RenderContext not initialized");
 
-    LOGI("CommandServer: Draw command processed (rendering not yet implemented)");
-    LOGI("  - Artboard: %s (%dx%d)",
+        Message msg(MessageType::DrawError, cmd.requestID);
+        msg.error = "Rive GPU RenderContext not initialized";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // 5. Get render target
+    auto* renderTarget = reinterpret_cast<rive::gpu::RenderTargetGL*>(cmd.renderTargetPtr);
+    if (renderTarget == nullptr) {
+        LOGW("CommandServer: Invalid render target pointer");
+
+        Message msg(MessageType::DrawError, cmd.requestID);
+        msg.error = "Invalid render target pointer";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // 6. Make EGL context current for this surface
+    void* surfacePtr = reinterpret_cast<void*>(cmd.surfacePtr);
+    renderContext->beginFrame(surfacePtr);
+
+    // 7. Begin Rive GPU frame with clear
+    // Extract RGBA components from 0xAARRGGBB format
+    uint32_t clearColor = cmd.clearColor;
+    renderContext->riveContext->beginFrame({
+        .renderTargetWidth = static_cast<uint32_t>(cmd.surfaceWidth),
+        .renderTargetHeight = static_cast<uint32_t>(cmd.surfaceHeight),
+        .loadAction = rive::gpu::LoadAction::clear,
+        .clearColor = clearColor
+    });
+
+    // 8. Create renderer and apply fit/alignment transformation
+    auto renderer = rive::RiveRenderer(renderContext->riveContext.get());
+
+    // Convert ordinals to rive enums
+    rive::Fit fit = getFitFromOrdinal(cmd.fitMode);
+    rive::Alignment alignment = getAlignmentFromOrdinal(cmd.alignmentMode);
+
+    // Save renderer state before transformation
+    renderer.save();
+
+    // Apply fit & alignment to map artboard bounds to surface bounds
+    rive::AABB surfaceBounds(0, 0,
+                             static_cast<float>(cmd.surfaceWidth),
+                             static_cast<float>(cmd.surfaceHeight));
+    renderer.align(fit,
+                   alignment,
+                   surfaceBounds,
+                   artboard->bounds(),
+                   cmd.scaleFactor);
+
+    // 9. Draw the artboard
+    artboard->draw(&renderer);
+
+    // Restore renderer state
+    renderer.restore();
+
+    // 10. Flush Rive GPU context to submit rendering commands
+    renderContext->riveContext->flush({.renderTarget = renderTarget});
+
+    // 11. Present the frame (swap buffers)
+    renderContext->present(surfacePtr);
+
+    // 12. Send success message
+    LOGI("CommandServer: Draw command completed successfully (artboard=%s, %dx%d)",
          artboard->name().c_str(),
          static_cast<int>(artboard->width()),
          static_cast<int>(artboard->height()));
-    LOGI("  - Surface: %dx%d, fit=%d, align=%d, clear=0x%08X",
-         cmd.surfaceWidth, cmd.surfaceHeight,
-         cmd.fitMode, cmd.alignmentMode, cmd.clearColor);
 
-    // For now, send success to unblock Kotlin development
-    // Actual rendering will be implemented when we integrate the PLS renderer
     Message msg(MessageType::DrawComplete, cmd.requestID);
     msg.handle = cmd.drawKey;  // Return the draw key for correlation
     enqueueMessage(std::move(msg));
