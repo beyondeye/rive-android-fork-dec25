@@ -289,8 +289,9 @@ internal class RenderContextGL(
         val height = dimensions[1]
         RiveLog.d(TAG) { "Created EGL surface ($width x $height)" }
 
-        // TODO: Create render target via CommandQueue when C.2.3 is implemented
-        val renderTargetPointer = 0L // Placeholder
+        // Create Rive render target via CommandQueue (on worker thread)
+        // Note: Currently returns 0 (placeholder) until full Rive renderer integration in C.2.6
+        val renderTargetPointer = commandQueue.createRiveRenderTarget(width, height)
 
         return RiveEGLSurface(
             surfaceTexture,
@@ -332,8 +333,9 @@ internal class RenderContextGL(
             throw RuntimeException("Unable to create EGL PBuffer surface: $error")
         }
 
-        // TODO: Create render target via CommandQueue when C.2.3 is implemented
-        val renderTargetPointer = 0L // Placeholder
+        // Create Rive render target via CommandQueue (on worker thread)
+        // Note: Currently returns 0 (placeholder) until full Rive renderer integration in C.2.6
+        val renderTargetPointer = commandQueue.createRiveRenderTarget(width, height)
 
         return RiveEGLPBufferSurface(
             eglSurface,
