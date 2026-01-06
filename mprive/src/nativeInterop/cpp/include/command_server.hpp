@@ -21,6 +21,13 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
 #include "utils/no_op_factory.hpp"
 
+// Forward declarations for Rive GPU types
+namespace rive {
+namespace gpu {
+class RenderTargetGL;
+}
+}
+
 namespace rive_android {
 
 using rive_mp::GlobalRef;
@@ -96,6 +103,9 @@ enum class CommandType {
     // Phase D.6: VMI Binding to State Machine
     BindViewModelInstance,    // Bind VMI to state machine for data binding
     GetDefaultVMI,            // Get the default VMI for an artboard (from file)
+    // Phase C.2.3: Render target operations
+    CreateRenderTarget,       // Create a render target for offscreen rendering
+    DeleteRenderTarget,       // Delete a render target
     // Phase C.2.6: Rendering operations
     Draw,                     // Draw artboard to surface
 };
@@ -147,6 +157,11 @@ struct Command {
 
     // VMI binding operation data (Phase D.6)
     int64_t vmiHandle = 0;       // For BindViewModelInstance (VMI to bind to SM)
+
+    // Render target operation data (Phase C.2.3)
+    int32_t rtWidth = 0;         // For CreateRenderTarget (width in pixels)
+    int32_t rtHeight = 0;        // For CreateRenderTarget (height in pixels)
+    int32_t sampleCount = 0;     // For CreateRenderTarget (MSAA sample count, 0 = no MSAA)
 
     // Draw operation data (Phase C.2.6)
     int64_t artboardHandle = 0;  // For Draw
@@ -235,6 +250,10 @@ enum class MessageType {
     VMIBindingError,          // VMI binding failed
     DefaultVMIResult,         // Default VMI query result (returns VMI handle or 0)
     DefaultVMIError,          // Default VMI query failed
+    // Phase C.2.3: Render target results
+    RenderTargetCreated,      // Render target created successfully (returns handle)
+    RenderTargetError,        // Render target operation failed
+    RenderTargetDeleted,      // Render target deleted successfully
     // Phase C.2.6: Rendering results
     DrawComplete,             // Draw operation completed successfully
     DrawError,                // Draw operation failed
@@ -812,6 +831,30 @@ public:
     void getDefaultViewModelInstance(int64_t requestID, int64_t fileHandle, int64_t artboardHandle);
 
     // ==========================================================================
+    // Phase C.2.3: Render Target Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a CreateRenderTarget command.
+     * Creates an offscreen render target for rendering Rive content.
+     *
+     * @param requestID The request ID for async completion.
+     * @param width The width of the render target in pixels.
+     * @param height The height of the render target in pixels.
+     * @param sampleCount MSAA sample count (0 = no MSAA, typical values: 4, 8, 16).
+     */
+    void createRenderTarget(int64_t requestID, int32_t width, int32_t height, int32_t sampleCount);
+
+    /**
+     * Enqueues a DeleteRenderTarget command.
+     * Deletes a render target and frees its resources.
+     *
+     * @param requestID The request ID for async completion.
+     * @param renderTargetHandle The handle of the render target to delete.
+     */
+    void deleteRenderTarget(int64_t requestID, int64_t renderTargetHandle);
+
+    // ==========================================================================
     // Phase C.2.6: Rendering Operations
     // ==========================================================================
 
@@ -999,6 +1042,10 @@ private:
     void handleBindViewModelInstance(const Command& cmd);
     void handleGetDefaultVMI(const Command& cmd);
 
+    // Render target operation handlers (Phase C.2.3)
+    void handleCreateRenderTarget(const Command& cmd);
+    void handleDeleteRenderTarget(const Command& cmd);
+
     // Rendering operation handlers (Phase C.2.6)
     void handleDraw(const Command& cmd);
 
@@ -1057,6 +1104,9 @@ private:
     
     // Phase C: State machine resource map
     std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;
+
+    // Phase C.2.3: Render target resource map
+    std::map<int64_t, rive::gpu::RenderTargetGL*> m_renderTargets;
 
     // Phase D: View model instance resource map
     std::map<int64_t, rive::rcp<rive::ViewModelInstanceRuntime>> m_viewModelInstances;

@@ -68,6 +68,10 @@ static jmethodID g_onVMIBindingSuccessMethodID = nullptr;
 static jmethodID g_onVMIBindingErrorMethodID = nullptr;
 static jmethodID g_onDefaultVMIResultMethodID = nullptr;
 static jmethodID g_onDefaultVMIErrorMethodID = nullptr;
+// Render target operation callbacks (Phase C.2.3)
+static jmethodID g_onRenderTargetCreatedMethodID = nullptr;
+static jmethodID g_onRenderTargetErrorMethodID = nullptr;
+static jmethodID g_onRenderTargetDeletedMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -393,6 +397,25 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onDefaultVMIError",
         "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    // Phase C.2.3: Render target operations
+    g_onRenderTargetCreatedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onRenderTargetCreated",
+        "(JJ)V"  // (requestID: Long, renderTargetHandle: Long) -> Unit
+    );
+
+    g_onRenderTargetErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onRenderTargetError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    g_onRenderTargetDeletedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onRenderTargetDeleted",
+        "(J)V"  // (requestID: Long) -> Unit
     );
 
     env->DeleteLocalRef(commandQueueClass);
@@ -914,6 +937,28 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
                         errorStr);
                     env->DeleteLocalRef(errorStr);
                 }
+                break;
+
+            // Phase C.2.3: Render target operations
+            case rive_android::MessageType::RenderTargetCreated:
+                env->CallVoidMethod(thiz, g_onRenderTargetCreatedMethodID,
+                    static_cast<jlong>(msg.requestID),
+                    static_cast<jlong>(msg.handle));
+                break;
+
+            case rive_android::MessageType::RenderTargetError:
+                {
+                    jstring errorStr = env->NewStringUTF(msg.error.c_str());
+                    env->CallVoidMethod(thiz, g_onRenderTargetErrorMethodID,
+                        static_cast<jlong>(msg.requestID),
+                        errorStr);
+                    env->DeleteLocalRef(errorStr);
+                }
+                break;
+
+            case rive_android::MessageType::RenderTargetDeleted:
+                env->CallVoidMethod(thiz, g_onRenderTargetDeletedMethodID,
+                    static_cast<jlong>(msg.requestID));
                 break;
 
             default:
@@ -2369,33 +2414,71 @@ Java_app_rive_mp_CommandQueue_cppGetDefaultViewModelInstance(
 }
 
 /**
- * Creates a Rive render target on the worker thread.
- * This is a synchronous operation - it blocks until the render target is created.
- * 
- * @param ptr CommandServer pointer
- * @param width Width of the render target
- * @param height Height of the render target
- * @return Native pointer to the created render target (FramebufferRenderTargetGL)
+ * Creates a Rive render target on the render thread (Phase C.2.3).
+ * Enqueues a CreateRenderTarget command and returns asynchronously via pollMessages.
+ *
+ * JNI signature: cppCreateRenderTarget(ptr: Long, requestID: Long, width: Int, height: Int, sampleCount: Int): Unit
+ *
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param width The width of the render target in pixels.
+ * @param height The height of the render target in pixels.
+ * @param sampleCount MSAA sample count (0 = no MSAA).
  */
-JNIEXPORT jlong JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateRiveRenderTarget(
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppCreateRenderTarget(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
+    jlong requestID,
     jint width,
-    jint height
+    jint height,
+    jint sampleCount
 ) {
-    LOGD(TAG, "Creating Rive render target");
-    
-    // For now, return 0 as placeholder until full Rive renderer integration
-    // TODO: In Phase C.2.6, implement actual render target creation using
-    //       rive::gpu::FramebufferRenderTargetGL when GL context is available
-    
-    // The render target will be created on the worker thread where GL context is active
-    // This requires runOnce() or similar mechanism to execute on the command server thread
-    
-    LOGD(TAG, "Render target creation (placeholder)");
-    return 0L;
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW(TAG, "CommandQueue JNI: Attempted to create render target on null CommandServer");
+        return;
+    }
+
+    // Enqueue the create render target command
+    server->createRenderTarget(static_cast<int64_t>(requestID),
+                               static_cast<int32_t>(width),
+                               static_cast<int32_t>(height),
+                               static_cast<int32_t>(sampleCount));
+}
+
+/**
+ * Deletes a Rive render target on the render thread (Phase C.2.3).
+ * Enqueues a DeleteRenderTarget command and returns asynchronously via pollMessages.
+ *
+ * JNI signature: cppDeleteRenderTarget(ptr: Long, requestID: Long, renderTargetHandle: Long): Unit
+ *
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param renderTargetHandle The handle of the render target to delete.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppDeleteRenderTarget(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong renderTargetHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW(TAG, "CommandQueue JNI: Attempted to delete render target on null CommandServer");
+        return;
+    }
+
+    // Enqueue the delete render target command
+    server->deleteRenderTarget(static_cast<int64_t>(requestID),
+                               static_cast<int64_t>(renderTargetHandle));
 }
 
 /**
