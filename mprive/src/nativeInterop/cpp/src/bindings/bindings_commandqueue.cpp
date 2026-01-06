@@ -2482,8 +2482,76 @@ Java_app_rive_mp_CommandQueue_cppDeleteRenderTarget(
 }
 
 /**
+ * Enqueues a draw command to render an artboard to a surface.
+ *
+ * This is a fire-and-forget operation. The actual rendering happens asynchronously
+ * on the CommandServer thread with the PLS renderer.
+ *
+ * JNI signature: cppDraw(ptr: Long, requestID: Long, artboardHandle: Long, smHandle: Long,
+ *                        surfacePtr: Long, renderTargetPtr: Long, drawKey: Long,
+ *                        surfaceWidth: Int, surfaceHeight: Int, fitMode: Int, alignmentMode: Int,
+ *                        clearColor: Int, scaleFactor: Float): Unit
+ *
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param artboardHandle Handle to the artboard to draw.
+ * @param smHandle Handle to the state machine (0 for static artboards).
+ * @param surfacePtr Native EGL surface pointer.
+ * @param renderTargetPtr Rive render target pointer.
+ * @param drawKey Unique draw operation key for correlation.
+ * @param surfaceWidth Surface width in pixels.
+ * @param surfaceHeight Surface height in pixels.
+ * @param fitMode Fit enum ordinal (0=FILL, 1=CONTAIN, etc.).
+ * @param alignmentMode Alignment enum ordinal (0=TOP_LEFT, 1=TOP_CENTER, etc.).
+ * @param clearColor Background clear color in 0xAARRGGBB format.
+ * @param scaleFactor Scale factor for high DPI displays.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_CommandQueue_cppDraw(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong artboardHandle,
+    jlong smHandle,
+    jlong surfacePtr,
+    jlong renderTargetPtr,
+    jlong drawKey,
+    jint surfaceWidth,
+    jint surfaceHeight,
+    jint fitMode,
+    jint alignmentMode,
+    jint clearColor,
+    jfloat scaleFactor
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW(TAG, "CommandQueue JNI: Attempted to draw on null CommandServer");
+        return;
+    }
+
+    // Enqueue the draw command
+    server->draw(
+        static_cast<int64_t>(requestID),
+        static_cast<int64_t>(artboardHandle),
+        static_cast<int64_t>(smHandle),
+        static_cast<int64_t>(surfacePtr),
+        static_cast<int64_t>(renderTargetPtr),
+        static_cast<int64_t>(drawKey),
+        static_cast<int32_t>(surfaceWidth),
+        static_cast<int32_t>(surfaceHeight),
+        static_cast<int32_t>(fitMode),
+        static_cast<int32_t>(alignmentMode),
+        static_cast<uint32_t>(clearColor),
+        static_cast<float>(scaleFactor)
+    );
+}
+
+/**
  * Deletes a Rive render target.
- * 
+ *
  * @param ptr Native pointer to the render target
  */
 JNIEXPORT void JNICALL
