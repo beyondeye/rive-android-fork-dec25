@@ -35,9 +35,6 @@ class CommandQueue(
     
     // Phase B methods
     private external fun cppLoadFile(ptr: Long, requestID: Long, bytes: ByteArray)
-    
-    // Phase C.2.3: Render target creation
-    private external fun cppCreateRiveRenderTarget(ptr: Long, width: Int, height: Int): Long
     private external fun cppDeleteFile(ptr: Long, requestID: Long, fileHandle: Long)
     private external fun cppGetArtboardNames(ptr: Long, requestID: Long, fileHandle: Long)
     private external fun cppGetStateMachineNames(ptr: Long, requestID: Long, artboardHandle: Long)
@@ -45,7 +42,11 @@ class CommandQueue(
     private external fun cppCreateDefaultArtboard(ptr: Long, requestID: Long, fileHandle: Long)
     private external fun cppCreateArtboardByName(ptr: Long, requestID: Long, fileHandle: Long, name: String)
     private external fun cppDeleteArtboard(ptr: Long, requestID: Long, artboardHandle: Long)
-    
+
+    // Phase C.2.3: Render target methods
+    private external fun cppCreateRenderTarget(ptr: Long, requestID: Long, width: Int, height: Int, sampleCount: Int)
+    private external fun cppDeleteRenderTarget(ptr: Long, requestID: Long, renderTargetHandle: Long)
+
     companion object {
         /**
          * Maximum number of concurrent subscribers that can safely use this CommandQueue.
@@ -408,7 +409,44 @@ class CommandQueue(
         val requestID = nextRequestID.getAndIncrement()
         cppDeleteArtboard(cppPointer.pointer, requestID, artboardHandle.handle)
     }
-    
+
+    // =============================================================================
+    // Phase C.2.3: Render Target Operations
+    // =============================================================================
+
+    /**
+     * Create a render target for offscreen rendering.
+     *
+     * A render target is a GPU resource used for rendering Rive content.
+     * It must be created on the render thread where the GL context is active.
+     *
+     * @param width The width of the render target in pixels.
+     * @param height The height of the render target in pixels.
+     * @param sampleCount MSAA sample count (0 = no MSAA, typical values: 4, 8, 16).
+     * @return A handle to the created render target.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the dimensions are invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun createRenderTarget(width: Int, height: Int, sampleCount: Int = 0): Long {
+        return suspendNativeRequest { requestID ->
+            cppCreateRenderTarget(cppPointer.pointer, requestID, width, height, sampleCount)
+        }
+    }
+
+    /**
+     * Delete a render target and free its resources.
+     *
+     * @param renderTargetHandle The handle of the render target to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteRenderTarget(renderTargetHandle: Long) {
+        val requestID = nextRequestID.getAndIncrement()
+        cppDeleteRenderTarget(cppPointer.pointer, requestID, renderTargetHandle)
+    }
+
     // =============================================================================
     // Phase C: State Machine Operations
     // =============================================================================
@@ -2192,6 +2230,55 @@ class CommandQueue(
             RiveLog.w(COMMAND_QUEUE_TAG) {
                 "Received default VMI error callback for unknown requestID: $requestID"
             }
+        }
+    }
+
+    // =========================================================================
+    // Phase C.2.3: Render Target Operations - JNI Callbacks
+    // =========================================================================
+
+    /**
+     * Called from JNI when a render target is successfully created.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onRenderTargetCreated(requestID: Long, renderTargetHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Long>
+            typedCont.resume(renderTargetHandle)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received render target created callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from JNI when render target creation fails.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onRenderTargetError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<Long>
+            typedCont.resumeWithException(IllegalArgumentException(error))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received render target error callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from JNI when a render target is successfully deleted.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onRenderTargetDeleted(requestID: Long) {
+        // Fire-and-forget operation, no continuation to resume
+        RiveLog.d(COMMAND_QUEUE_TAG) {
+            "Render target deleted successfully (requestID: $requestID)"
         }
     }
 }

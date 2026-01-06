@@ -323,6 +323,15 @@ void CommandServer::executeCommand(const Command& cmd)
             handleGetDefaultVMI(cmd);
             break;
 
+        // Phase C.2.3: Render target operations
+        case CommandType::CreateRenderTarget:
+            handleCreateRenderTarget(cmd);
+            break;
+
+        case CommandType::DeleteRenderTarget:
+            handleDeleteRenderTarget(cmd);
+            break;
+
         // Phase C.2.6: Rendering operations
         case CommandType::Draw:
             handleDraw(cmd);
@@ -3013,6 +3022,34 @@ void CommandServer::handleGetDefaultVMI(const Command& cmd)
 }
 
 // =============================================================================
+// Phase C.2.3: Render Target Operations - Public API
+// =============================================================================
+
+void CommandServer::createRenderTarget(int64_t requestID, int32_t width, int32_t height, int32_t sampleCount)
+{
+    LOGI("CommandServer: Enqueuing CreateRenderTarget command (requestID=%lld, width=%d, height=%d, sampleCount=%d)",
+         static_cast<long long>(requestID), width, height, sampleCount);
+
+    Command cmd(CommandType::CreateRenderTarget, requestID);
+    cmd.rtWidth = width;
+    cmd.rtHeight = height;
+    cmd.sampleCount = sampleCount;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::deleteRenderTarget(int64_t requestID, int64_t renderTargetHandle)
+{
+    LOGI("CommandServer: Enqueuing DeleteRenderTarget command (requestID=%lld, handle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(renderTargetHandle));
+
+    Command cmd(CommandType::DeleteRenderTarget, requestID);
+    cmd.handle = renderTargetHandle;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
 // Phase C.2.6: Rendering Operations - Public API
 // =============================================================================
 
@@ -3048,6 +3085,76 @@ void CommandServer::draw(int64_t requestID,
     cmd.scaleFactor = scaleFactor;
 
     enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Phase C.2.3: Render Target Operations - Handlers
+// =============================================================================
+
+void CommandServer::handleCreateRenderTarget(const Command& cmd)
+{
+    LOGI("CommandServer: Handling CreateRenderTarget command (requestID=%lld, %dx%d, samples=%d)",
+         static_cast<long long>(cmd.requestID), cmd.rtWidth, cmd.rtHeight, cmd.sampleCount);
+
+    // Validate dimensions
+    if (cmd.rtWidth <= 0 || cmd.rtHeight <= 0) {
+        LOGW("CommandServer: Invalid render target dimensions: %dx%d", cmd.rtWidth, cmd.rtHeight);
+
+        Message msg(MessageType::RenderTargetError, cmd.requestID);
+        msg.error = "Invalid render target dimensions";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // TODO (Phase C.2.6 full rendering): Create actual rive::gpu::FramebufferRenderTargetGL
+    // This requires:
+    // - rive::gpu::RenderContext to be available and initialized
+    // - GL context to be current on this thread
+    // - Proper GPU renderer setup
+    //
+    // Placeholder implementation:
+    // For now, we create a placeholder handle to unblock development.
+    // The actual render target creation will be implemented when full GPU rendering
+    // is integrated in Phase C.2.6.
+
+    int64_t handle = m_nextHandle.fetch_add(1);
+
+    // Store nullptr for now - will be replaced with actual RenderTargetGL in Phase C.2.6
+    m_renderTargets[handle] = nullptr;
+
+    LOGI("CommandServer: Created render target handle %lld (placeholder)", static_cast<long long>(handle));
+
+    Message msg(MessageType::RenderTargetCreated, cmd.requestID);
+    msg.handle = handle;
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleDeleteRenderTarget(const Command& cmd)
+{
+    LOGI("CommandServer: Handling DeleteRenderTarget command (requestID=%lld, handle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+
+    auto it = m_renderTargets.find(cmd.handle);
+    if (it == m_renderTargets.end()) {
+        LOGW("CommandServer: Invalid render target handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::RenderTargetError, cmd.requestID);
+        msg.error = "Invalid render target handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // TODO (Phase C.2.6 full rendering): Delete actual rive::gpu::RenderTargetGL
+    // if (it->second != nullptr) {
+    //     delete it->second;
+    // }
+
+    m_renderTargets.erase(it);
+
+    LOGI("CommandServer: Deleted render target handle %lld", static_cast<long long>(cmd.handle));
+
+    Message msg(MessageType::RenderTargetDeleted, cmd.requestID);
+    enqueueMessage(std::move(msg));
 }
 
 // =============================================================================
