@@ -6,7 +6,6 @@ import android.graphics.Bitmap
 import android.opengl.EGL14
 import app.rive.mp.ArtboardHandle
 import app.rive.mp.CommandQueue
-import app.rive.mp.RiveEGLPBufferSurface
 import app.rive.mp.RiveLog
 import app.rive.mp.RiveSurface
 import app.rive.mp.StateMachineHandle
@@ -74,7 +73,7 @@ object DebugRenderPreview {
      * @param surface The PBuffer surface to read pixels from.
      * @return A [Bitmap] containing the rendered content.
      */
-    fun readPixels(surface: RiveEGLPBufferSurface): Bitmap {
+    fun readPixels(surface: RiveSurface): Bitmap {
         val width = surface.width
         val height = surface.height
         
@@ -170,7 +169,7 @@ object DebugRenderPreview {
         renderTestUtil: AndroidRenderTestUtil,
         artboardHandle: ArtboardHandle,
         smHandle: StateMachineHandle,
-        surface: RiveEGLPBufferSurface,
+        surface: RiveSurface,
         duration: Duration = 5.seconds,
         fit: Fit = Fit.CONTAIN,
         alignment: Alignment = Alignment.CENTER,
@@ -210,7 +209,7 @@ data class AnimationLoopConfig(
     val renderTestUtil: AndroidRenderTestUtil,
     val artboardHandle: ArtboardHandle,
     val smHandle: StateMachineHandle,
-    val surface: RiveEGLPBufferSurface,
+    val surface: RiveSurface,
     val fit: Fit,
     val alignment: Alignment
 )

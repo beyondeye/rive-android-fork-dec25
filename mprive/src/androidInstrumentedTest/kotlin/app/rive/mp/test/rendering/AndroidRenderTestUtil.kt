@@ -2,8 +2,8 @@ package app.rive.mp.test.rendering
 
 import app.rive.mp.CommandQueue
 import app.rive.mp.DrawKey
-import app.rive.mp.RiveEGLPBufferSurface
-import app.rive.mp.RenderContextGL
+import app.rive.mp.RenderContext
+import app.rive.mp.RiveSurface
 import app.rive.mp.createDefaultRenderContext
 import app.rive.mp.test.utils.MpTestContext
 import kotlinx.coroutines.CoroutineScope
@@ -47,7 +47,7 @@ class AndroidRenderTestUtil(
      * The RenderContext used for creating surfaces.
      * This is an EGL-based context on Android.
      */
-    val renderContext: RenderContextGL = createDefaultRenderContext() as RenderContextGL
+    val renderContext: RenderContext = createDefaultRenderContext()
     
     /**
      * The CommandQueue instance managed by this utility.
@@ -85,11 +85,11 @@ class AndroidRenderTestUtil(
      * 
      * @param width The width of the surface in pixels.
      * @param height The height of the surface in pixels.
-     * @return A [RiveEGLPBufferSurface] ready for rendering.
+     * @return A [RiveSurface] ready for rendering.
      */
-    fun createTestSurface(width: Int, height: Int): RiveEGLPBufferSurface {
+    fun createTestSurface(width: Int, height: Int): RiveSurface {
         val drawKey = commandQueue.createDrawKey()
-        return renderContext.createImageSurface(width, height, drawKey, commandQueue) as RiveEGLPBufferSurface
+        return renderContext.createImageSurface(width, height, drawKey, commandQueue)
     }
     
     /**
