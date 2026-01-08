@@ -6,7 +6,7 @@
 **Date**: January 1, 2026  
 **Updated**: January 4, 2026  
 **Note**: mprive uses `androidInstrumentedTest` directory (KMP Source Set Layout V2)
-**Status**: Phase A, B & C.1 Tests Implemented
+**Status**: Phase A, B, C.1 **Status**: Phase A, B & C.1 Tests Implemented C.2 (Rendering) Tests Implemented
 
 ---
 
@@ -24,7 +24,14 @@
 - ✅ `MpRiveFileLoadTest.kt` - 6 test methods (file loading, error handling, handle uniqueness)
 - ✅ `MpRiveArtboardLoadTest.kt` - 10 test methods (artboard queries, creation, edge cases)
 
-**Phase C.1: State Machine Operations (100% Complete)**
+**\*\*Phase C.1: State Machine Operations (100% Complete)\*\*
+
+\*\*Phase C.2: Rendering Operations (100% Complete)\*\*
+- ✅ `MpRiveRenderingTest.kt` - 6 test methods (single frame, fit modes, alignments, animation loop, clear colors)
+- ✅ `MpRiveDebugPreviewTest.kt` - 4 test methods (debug preview infrastructure)
+- ✅ `AndroidRenderTestUtil.kt` - PBuffer surface creation + test utilities
+- ✅ `DebugRenderPreview.kt` - Debug UI infrastructure (readPixels, showBitmap, showAnimationLoop)
+- ✅ `DebugRenderPreviewActivity.kt` - Activity for displaying rendered content with FPS counter**
 - ✅ `MpRiveStateMachineLoadTest.kt` - 10 test methods (SM creation, queries, error handling)
 - ✅ `MpRiveStateMachineInstanceTest.kt` - 8 test methods (SM advancement, settled events)
 
@@ -1354,3 +1361,165 @@ mprive testing is complete when:
 ---
 
 **End of mprive Testing Strategy**
+
+---
+
+## Phase C.2: Rendering Tests (Added January 8, 2026)
+
+### Overview
+
+Phase C.2 implements end-to-end rendering tests that verify the complete rendering pipeline:
+- PBuffer surface creation (off-screen EGL surfaces)
+- CommandQueue draw() operations
+- Fit modes and alignment positions
+- Animation loops with multiple frames
+- Clear color application
+
+### Test Files
+
+| File | Description | Tests |
+|------|-------------|-------|
+| `MpRiveRenderingTest.kt` | Core E2E rendering tests | 6 tests |
+| `MpRiveDebugPreviewTest.kt` | Debug preview infrastructure tests | 4 tests |
+| `AndroidRenderTestUtil.kt` | Test utilities (PBuffer, CommandQueue) | N/A |
+| `DebugRenderPreview.kt` | Debug UI infrastructure | N/A |
+| `DebugRenderPreviewActivity.kt` | Activity for displaying rendered content | N/A |
+
+**Location**: `mprive/src/androidInstrumentedTest/kotlin/app/rive/mp/test/rendering/`
+
+### Running Phase C Rendering Tests
+
+**Run All Rendering Tests:**
+```bash
+# Requires connected Android device/emulator
+./gradlew :mprive:connectedAndroidTest --tests "app.rive.mp.test.rendering.*"
+```
+
+**Run Specific Test Classes:**
+```bash
+# Run only MpRiveRenderingTest (6 E2E tests)
+./gradlew :mprive:connectedAndroidTest --tests "app.rive.mp.test.rendering.MpRiveRenderingTest"
+
+# Run only MpRiveDebugPreviewTest (debug infrastructure tests)
+./gradlew :mprive:connectedAndroidTest --tests "app.rive.mp.test.rendering.MpRiveDebugPreviewTest"
+```
+
+**Run Individual Tests:**
+```bash
+# Single frame rendering test
+./gradlew :mprive:connectedAndroidTest --tests "*.MpRiveRenderingTest.renderSingleFrame"
+
+# Animation loop test
+./gradlew :mprive:connectedAndroidTest --tests "*.MpRiveRenderingTest.renderAnimationLoop"
+
+# All fit mode tests
+./gradlew :mprive:connectedAndroidTest --tests "*.MpRiveRenderingTest.renderWithFit*"
+```
+
+### Enabling Debug Preview (Visual Test Output)
+
+The rendering tests include an optional debug preview feature that displays rendered content on screen during test execution. This is **disabled by default** for CI/CD compatibility.
+
+#### How to Enable Debug Preview
+
+**Method 1: Modify Test Code (Recommended for Local Debugging)**
+
+In any test file, enable the debug preview before your test runs:
+
+```kotlin
+@Test
+fun myRenderingTest() = runTest {
+    // Enable debug preview
+    DebugRenderPreview.isEnabled = true
+    DebugRenderPreview.staticDisplayDuration = 3.seconds // How long to show static images
+    
+    val testUtil = AndroidRenderTestUtil(this)
+    try {
+        // ... your rendering code ...
+        
+        // Show rendered content
+        val bitmap = DebugRenderPreview.readPixels(surface)
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        DebugRenderPreview.showBitmap(context, bitmap, "My Test Preview")
+        
+    } finally {
+        DebugRenderPreview.isEnabled = false // Always disable in finally block
+        testUtil.cleanup()
+    }
+}
+```
+
+**Method 2: Show Animation Loop**
+
+For animated content, use `showAnimationLoop()`:
+
+```kotlin
+@Test
+fun myAnimationTest() = runTest {
+    DebugRenderPreview.isEnabled = true
+    
+    val testUtil = AndroidRenderTestUtil(this)
+    try {
+        val surface = testUtil.createTestSurface(300, 300)
+        // ... setup file, artboard, state machine ...
+        
+        // Show live animation for 5 seconds
+        DebugRenderPreview.showAnimationLoop(
+            context = InstrumentationRegistry.getInstrumentation().targetContext,
+            renderTestUtil = testUtil,
+            artboardHandle = artboardHandle,
+            smHandle = smHandle,
+            surface = surface,
+            duration = 5.seconds,
+            fit = Fit.CONTAIN,
+            alignment = Alignment.CENTER,
+            title = "Animation Preview"
+        )
+        
+        delay(5.seconds) // Wait for animation to complete
+        
+    } finally {
+        DebugRenderPreview.isEnabled = false
+        testUtil.cleanup()
+    }
+}
+```
+
+#### Debug Preview Features
+
+| Feature | Description |
+|---------|-------------|
+| `isEnabled` | Master toggle for debug preview (default: `false`) |
+| `staticDisplayDuration` | How long static images are shown (default: 3 seconds) |
+| `readPixels(surface)` | Read rendered content into a Bitmap |
+| `showBitmap(context, bitmap, title)` | Display a static image in a preview activity |
+| `showAnimationLoop(...)` | Display a live animation loop with FPS counter |
+
+#### Debug Preview Activity
+
+When enabled, the debug preview launches `DebugRenderPreviewActivity` which shows:
+- **Title bar**: Test name/description
+- **Image view**: Rendered content (fit to center)
+- **FPS counter**: For animation loops (bottom-right corner)
+
+The activity auto-closes after the specified duration.
+
+### Test Resources (Phase C.2)
+
+The following test resources are used by rendering tests:
+
+| Resource | Used By | Location |
+|----------|---------|----------|
+| `shapes.riv` | Basic rendering, alignment tests | `commonTest/resources/rive/` |
+| `flux_capacitor.riv` | Fit mode tests | `commonTest/resources/rive/` |
+| `basketball.riv` | Animation loop tests | `commonTest/resources/rive/` |
+
+### Notes
+
+1. **CI/CD Compatibility**: Debug preview is disabled by default. Tests pass without visual output.
+2. **PBuffer Surfaces**: Tests use off-screen EGL PBuffer surfaces, not visible UI.
+3. **GL Context**: `readPixels()` requires an active GL context. It's called from the test thread.
+4. **Memory**: Bitmaps are recycled after display to avoid memory leaks.
+
+---
+
