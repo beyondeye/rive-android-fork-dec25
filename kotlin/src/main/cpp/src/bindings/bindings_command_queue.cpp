@@ -2616,7 +2616,7 @@ extern "C"
      * @param jBuffer Output buffer for pixel data (RGBA, 4 bytes per pixel)
      */
     JNIEXPORT void JNICALL
-    Java_app_rive_core_CommandQueue_cppDrawMultipleToBuffer(
+    Java_app_rive_core_CommandQueueJNIBridge_cppDrawMultipleToBuffer(
         JNIEnv* env,
         jobject,
         jlong ref,
@@ -2712,8 +2712,9 @@ extern "C"
             renderContext->beginFrame(nativeSurface);
 
             // Retrieve the Rive RenderContext from the CommandServer
-            auto riveContext =
-                static_cast<rive::gpu::RenderContext*>(server->factory());
+            auto factory =
+                reinterpret_cast<CommandServerFactory*>(server->factory());
+            auto riveContext = factory->getRenderContext()->riveContext.get();
 
             riveContext->beginFrame(rive::gpu::RenderContext::FrameDescriptor{
                 .renderTargetWidth = static_cast<uint32_t>(widthInt),
@@ -2805,7 +2806,7 @@ extern "C"
     }
 
     JNIEXPORT void JNICALL
-    Java_app_rive_core_CommandQueue_cppDrawMultiple(JNIEnv* env,
+    Java_app_rive_core_CommandQueueJNIBridge_cppDrawMultiple(JNIEnv* env,
                                                     jobject,
                                                     jlong ref,
                                                     jlong renderContextRef,
@@ -2886,8 +2887,9 @@ extern "C"
             renderContext->beginFrame(nativeSurface);
 
             // Retrieve the Rive RenderContext from the CommandServer
-            auto riveContext =
-                static_cast<rive::gpu::RenderContext*>(server->factory());
+            auto factory =
+                reinterpret_cast<CommandServerFactory*>(server->factory());
+            auto riveContext = factory->getRenderContext()->riveContext.get();
 
             riveContext->beginFrame(rive::gpu::RenderContext::FrameDescriptor{
                 .renderTargetWidth = static_cast<uint32_t>(widthInt),
@@ -3028,7 +3030,7 @@ extern "C"
      * @note This executes asynchronously on the command server thread.
      */
     JNIEXPORT void JNICALL
-    Java_app_rive_core_CommandQueue_cppSetStateMachineNumberInput(
+    Java_app_rive_core_CommandQueueJNIBridge_cppSetStateMachineNumberInput(
         JNIEnv* env,
         jobject,
         jlong ref,
@@ -3080,7 +3082,7 @@ extern "C"
      * @note This executes asynchronously on the command server thread.
      */
     JNIEXPORT void JNICALL
-    Java_app_rive_core_CommandQueue_cppSetStateMachineBooleanInput(
+    Java_app_rive_core_CommandQueueJNIBridge_cppSetStateMachineBooleanInput(
         JNIEnv* env,
         jobject,
         jlong ref,
@@ -3131,7 +3133,7 @@ extern "C"
      * @note This executes asynchronously on the command server thread.
      */
     JNIEXPORT void JNICALL
-    Java_app_rive_core_CommandQueue_cppFireStateMachineTrigger(
+    Java_app_rive_core_CommandQueueJNIBridge_cppFireStateMachineTrigger(
         JNIEnv* env,
         jobject,
         jlong ref,
