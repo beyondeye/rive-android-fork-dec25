@@ -62,7 +62,7 @@ import app.rive.ExperimentalRiveComposeAPI
 import app.rive.Result
 import app.rive.RiveFileSource
 import app.rive.RiveLog
-import app.rive.rememberCommandQueueOrNull
+import app.rive.rememberRiveWorkerOrNull
 import app.rive.rememberRiveFile
 import app.rive.runtime.example.R
 import app.rive.sprites.RiveSprite
@@ -414,9 +414,9 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
 
     // Create command queue
     val errorState = remember { mutableStateOf<Throwable?>(null) }
-    val commandQueue = rememberCommandQueueOrNull(errorState)
+    val riveWorker = rememberRiveWorkerOrNull(errorState)
 
-    if (commandQueue == null) {
+    if (riveWorker == null) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Text("Error: ${errorState.value?.message ?: "Failed to create command queue"}")
         }
@@ -424,20 +424,20 @@ private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     }
 
     // Create sprite scene
-    val scene = rememberRiveSpriteScene(commandQueue)
+    val scene = rememberRiveSpriteScene(riveWorker)
 
     // Load Rive files for each movement group
     val horizontalFileResult = rememberRiveFile(
         RiveFileSource.RawRes(SpriteSceneDemoActivity.HORIZONTAL_RIV, resources),
-        commandQueue
+        riveWorker
     )
     val verticalFileResult = rememberRiveFile(
         RiveFileSource.RawRes(SpriteSceneDemoActivity.VERTICAL_RIV, resources),
-        commandQueue
+        riveWorker
     )
     val diagonalFileResult = rememberRiveFile(
         RiveFileSource.RawRes(SpriteSceneDemoActivity.DIAGONAL_RIV, resources),
-        commandQueue
+        riveWorker
     )
 
     // Track canvas size for sprite positioning
