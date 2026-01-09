@@ -610,40 +610,25 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     // STATE MACHINE INPUT MANIPULATION (Legacy SMI Support for RiveSprite)
     // TODO: These methods require C++ JNI implementation in bindings_command_queue.cpp
     // and corresponding additions to rive-runtime's command_queue.hpp/command_server.cpp
-    override fun cppSetStateMachineNumberInput(
+    external override fun cppSetStateMachineNumberInput(
         pointer: Long,
         stateMachineHandle: Long,
         inputName: String,
         value: Float
-    ) {
-        throw UnsupportedOperationException(
-            "SMI methods not yet implemented. Use ViewModel properties instead, or implement " +
-            "the JNI bindings in bindings_command_queue.cpp"
-        )
-    }
+    )
 
-    override fun cppSetStateMachineBooleanInput(
+    external override fun cppSetStateMachineBooleanInput(
         pointer: Long,
         stateMachineHandle: Long,
         inputName: String,
         value: Boolean
-    ) {
-        throw UnsupportedOperationException(
-            "SMI methods not yet implemented. Use ViewModel properties instead, or implement " +
-            "the JNI bindings in bindings_command_queue.cpp"
-        )
-    }
+    )
 
-    override fun cppFireStateMachineTrigger(
+    external override fun cppFireStateMachineTrigger(
         pointer: Long,
         stateMachineHandle: Long,
         inputName: String
-    ) {
-        throw UnsupportedOperationException(
-            "SMI methods not yet implemented. Use ViewModel properties instead, or implement " +
-            "the JNI bindings in bindings_command_queue.cpp"
-        )
-    }
+    )
 
     external override fun cppNamedVMCreateBlankVMI(
         pointer: Long,
@@ -1026,3 +1011,4 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
         buffer: ByteArray
     )
 }
+
