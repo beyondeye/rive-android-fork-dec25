@@ -13,11 +13,11 @@ import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.createBitmap
 import app.rive.ExperimentalRiveComposeAPI
 import app.rive.RenderBuffer
+import app.rive.Alignment
+import app.rive.Fit
 import app.rive.RiveLog
 import app.rive.core.CommandQueue
 import app.rive.core.RiveSurface
-import app.rive.runtime.kotlin.core.Alignment
-import app.rive.runtime.kotlin.core.Fit
 
 private const val RENDERER_TAG = "Rive/SpriteRenderer"
 
@@ -465,11 +465,9 @@ private fun renderSpriteToCanvas(
 
     // Render the sprite's artboard to the buffer
     spriteBuffer.snapshot(
-        sprite.artboard,
-        sprite.stateMachine,
-        Fit.FILL,  // Fill the sprite size
-        Alignment.CENTER,
-        scaleFactor = 1f,
+        artboard = sprite.artboard,
+        stateMachine = sprite.stateMachine,
+        fit = Fit.Fill,  // Fill the sprite size
         clearColor = Color.TRANSPARENT
     )
 
@@ -567,3 +565,4 @@ internal fun DrawScope.drawRiveSprites(
  */
 private val DrawScope.intSize: IntSize
     get() = IntSize(size.width.toInt(), size.height.toInt())
+

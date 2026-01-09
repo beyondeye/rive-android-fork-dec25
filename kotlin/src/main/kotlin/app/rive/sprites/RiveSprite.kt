@@ -11,11 +11,11 @@ import app.rive.RiveLog
 import app.rive.StateMachine
 import app.rive.ViewModelInstance
 import app.rive.ViewModelSource
+import app.rive.Alignment
+import app.rive.Fit
 import app.rive.core.ArtboardHandle
 import app.rive.core.CommandQueue
 import app.rive.core.StateMachineHandle
-import app.rive.runtime.kotlin.core.Alignment
-import app.rive.runtime.kotlin.core.Fit
 import app.rive.sprites.matrix.TransMatrix
 import app.rive.sprites.matrix.TransMatrixData
 import app.rive.sprites.props.SpriteControlProp
@@ -422,14 +422,11 @@ class RiveSprite internal constructor(
         }
 
         // Forward to state machine using artboard coordinates
-        // Use FILL fit and artboard size as surface size so coords pass through unchanged
-        // layoutScale is 1f because it only applies to Fit.LAYOUT; for other fit types it's always 1f
+        // Use Fill fit and artboard size as surface size so coords pass through unchanged
         val displaySize = effectiveSize
         commandQueue.pointerDown(
             stateMachineHandle = stateMachineHandle,
-            fit = Fit.FILL,
-            alignment = Alignment.CENTER,
-            layoutScale = 1f,
+            fit = Fit.Fill,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -459,9 +456,7 @@ class RiveSprite internal constructor(
         val displaySize = effectiveSize
         commandQueue.pointerMove(
             stateMachineHandle = stateMachineHandle,
-            fit = Fit.FILL,
-            alignment = Alignment.CENTER,
-            layoutScale = 1f,
+            fit = Fit.Fill,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -490,9 +485,7 @@ class RiveSprite internal constructor(
         val displaySize = effectiveSize
         commandQueue.pointerUp(
             stateMachineHandle = stateMachineHandle,
-            fit = Fit.FILL,
-            alignment = Alignment.CENTER,
-            layoutScale = 1f,
+            fit = Fit.Fill,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -515,9 +508,7 @@ class RiveSprite internal constructor(
         // Use a point outside the bounds to signal exit
         commandQueue.pointerExit(
             stateMachineHandle = stateMachineHandle,
-            fit = Fit.FILL,
-            alignment = Alignment.CENTER,
-            layoutScale = 1f,
+            fit = Fit.Fill,
             surfaceWidth = displaySize.width,
             surfaceHeight = displaySize.height,
             pointerID = pointerID,
@@ -619,7 +610,7 @@ class RiveSprite internal constructor(
             // Bind VMI to state machine if available
             if (vmi != null) {
                 try {
-                    file.commandQueue.bindViewModelInstance(
+                    file.riveWorker.bindViewModelInstance(
                         stateMachine.stateMachineHandle,
                         vmi.instanceHandle
                     )
@@ -633,7 +624,7 @@ class RiveSprite internal constructor(
             return RiveSprite(
                 artboard = artboard,
                 stateMachine = stateMachine,
-                commandQueue = file.commandQueue,
+                commandQueue = file.riveWorker,
                 viewModelInstance = vmi,
                 initialTags = tags,
                 ownsViewModelInstance = ownsVmi
@@ -691,3 +682,4 @@ class RiveSprite internal constructor(
         }
     }
 }
+

@@ -103,6 +103,68 @@ const val COMMAND_QUEUE_TAG = "Rive/CQ"
  *    for testing.
  * @throws RiveInitializationException If the command queue cannot be created for any reason.
  */
+
+/**
+ * A command for drawing a sprite as part of a batch rendering operation.
+ *
+ * Used with [CommandQueue.drawMultiple] for efficient batch rendering of sprites.
+ * Each command specifies an artboard/state machine pair along with a transform
+ * to apply during rendering.
+ *
+ * The transform is a 6-element affine transform in the format:
+ * `[scaleX, skewY, skewX, scaleY, translateX, translateY]`
+ *
+ * This corresponds to the matrix:
+ * ```
+ * | scaleX  skewX   translateX |
+ * | skewY   scaleY  translateY |
+ * | 0       0       1          |
+ * ```
+ *
+ * @param artboardHandle The handle of the artboard to draw.
+ * @param stateMachineHandle The handle of the state machine associated with the artboard.
+ * @param transform 6-element affine transform array.
+ * @param artboardWidth The width of the artboard in pixels (used for scaling calculations).
+ * @param artboardHeight The height of the artboard in pixels (used for scaling calculations).
+ */
+data class SpriteDrawCommand(
+    var artboardHandle: ArtboardHandle,
+    var stateMachineHandle: StateMachineHandle,
+    val transform: FloatArray,  // Keep as val - it is a reference to pre-allocated buffer
+    var artboardWidth: Float,
+    var artboardHeight: Float,
+) {
+    init {
+        require(transform.size == 6) {
+            "Transform must have exactly 6 elements, got ${transform.size}"
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is SpriteDrawCommand) return false
+        return artboardHandle == other.artboardHandle &&
+               stateMachineHandle == other.stateMachineHandle &&
+               transform.contentEquals(other.transform) &&
+               artboardWidth == other.artboardWidth &&
+               artboardHeight == other.artboardHeight
+    }
+
+    override fun hashCode(): Int {
+        var result = artboardHandle.hashCode()
+        result = 31 * result + stateMachineHandle.hashCode()
+        result = 31 * result + transform.contentHashCode()
+        result = 31 * result + artboardWidth.hashCode()
+        result = 31 * result + artboardHeight.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "SpriteDrawCommand(artboard=$artboardHandle, stateMachine=$stateMachineHandle, " +
+               "size=${artboardWidth}x$artboardHeight, transform=[${transform.joinToString()}])"
+    }
+}
+
 class CommandQueue(
     private val renderContext: RenderContext = RenderContextGL(),
     private val bridge: CommandQueueBridge = CommandQueueJNIBridge(),
@@ -2277,6 +2339,141 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     private fun runOnCommandServer(work: () -> Unit) =
         bridge.cppRunOnCommandServer(cppPointer.pointer, work)
+
+    // ===========================================================================
+    // BATCH SPRITE RENDERING
+    // ===========================================================================
+
+    /**
+     * Draw multiple sprites in a single batch operation (async, no pixel readback).
+     *
+     * This method renders all sprites to a GPU surface in a single native call.
+     * The sprites are rendered in the order they appear in the [commands] list.
+     * For correct z-ordering, ensure the list is sorted by z-index before calling.
+     *
+     * For Compose Canvas scenarios where you need synchronous pixel readback,
+     * use [drawMultipleToBuffer] instead.
+     *
+     * @param commands The list of sprite draw commands to execute.
+     * @param surface The surface to draw to.
+     * @param viewportWidth The width of the viewport in pixels.
+     * @param viewportHeight The height of the viewport in pixels.
+     * @param clearColor The color to clear the surface with before drawing.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws UnsatisfiedLinkError If the native implementation is not available.
+     */
+    @Throws(IllegalStateException::class, UnsatisfiedLinkError::class)
+    fun drawMultiple(
+        commands: List<SpriteDrawCommand>,
+        surface: RiveSurface,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int = Color.TRANSPARENT
+    ) {
+        if (commands.isEmpty()) return
+
+        val count = commands.size
+
+        // Pre-allocate arrays for JNI
+        val artboardHandles = LongArray(count)
+        val stateMachineHandles = LongArray(count)
+        val transforms = FloatArray(count * 6)
+        val artboardWidths = FloatArray(count)
+        val artboardHeights = FloatArray(count)
+
+        // Flatten command data into arrays for efficient JNI transfer
+        commands.forEachIndexed { index, command ->
+            artboardHandles[index] = command.artboardHandle.handle
+            stateMachineHandles[index] = command.stateMachineHandle.handle
+            System.arraycopy(command.transform, 0, transforms, index * 6, 6)
+            artboardWidths[index] = command.artboardWidth
+            artboardHeights[index] = command.artboardHeight
+        }
+
+        bridge.cppDrawMultiple(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            surface.renderTargetPointer.pointer,
+            viewportWidth,
+            viewportHeight,
+            clearColor,
+            artboardHandles,
+            stateMachineHandles,
+            transforms,
+            artboardWidths,
+            artboardHeights,
+            count
+        )
+    }
+
+    /**
+     * Draw multiple sprites in a single batch operation with pixel readback (synchronous).
+     *
+     * This method renders all sprites to a GPU surface and reads the pixels back into the
+     * provided buffer. The method blocks until rendering is complete and pixels are available.
+     *
+     * Use this for Compose Canvas scenarios where you need the rendered pixels immediately.
+     * For async rendering without pixel readback, use [drawMultiple] instead.
+     *
+     * @param commands The list of sprite draw commands to execute.
+     * @param surface The surface to draw to.
+     * @param buffer The byte array buffer to render into (must be width * height * 4 bytes).
+     * @param viewportWidth The width of the viewport in pixels.
+     * @param viewportHeight The height of the viewport in pixels.
+     * @param clearColor The color to clear the surface with before drawing.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws UnsatisfiedLinkError If the native implementation is not available.
+     */
+    @Throws(IllegalStateException::class, UnsatisfiedLinkError::class)
+    fun drawMultipleToBuffer(
+        commands: List<SpriteDrawCommand>,
+        surface: RiveSurface,
+        buffer: ByteArray,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int = Color.TRANSPARENT
+    ) {
+        if (commands.isEmpty()) return
+
+        val count = commands.size
+
+        // Pre-allocate arrays for JNI
+        val artboardHandles = LongArray(count)
+        val stateMachineHandles = LongArray(count)
+        val transforms = FloatArray(count * 6)
+        val artboardWidths = FloatArray(count)
+        val artboardHeights = FloatArray(count)
+
+        // Flatten command data into arrays for efficient JNI transfer
+        commands.forEachIndexed { index, command ->
+            artboardHandles[index] = command.artboardHandle.handle
+            stateMachineHandles[index] = command.stateMachineHandle.handle
+            System.arraycopy(command.transform, 0, transforms, index * 6, 6)
+            artboardWidths[index] = command.artboardWidth
+            artboardHeights[index] = command.artboardHeight
+        }
+
+        bridge.cppDrawMultipleToBuffer(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            surface.renderTargetPointer.pointer,
+            viewportWidth,
+            viewportHeight,
+            clearColor,
+            artboardHandles,
+            stateMachineHandles,
+            transforms,
+            artboardWidths,
+            artboardHeights,
+            count,
+            buffer
+        )
+    }
+
 
     /**
      * The map of all pending continuations, keyed by request ID. Entries are added when a suspend

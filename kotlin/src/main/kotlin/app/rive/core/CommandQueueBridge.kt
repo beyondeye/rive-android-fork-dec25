@@ -467,6 +467,51 @@ interface CommandQueueBridge {
     )
 
     fun cppRunOnCommandServer(pointer: Long, work: () -> Unit)
+
+    // ===========================================================================
+    // BATCH SPRITE RENDERING (RiveSpriteScene support)
+    // ===========================================================================
+
+    /**
+     * Draw multiple sprites in a single batch operation (async, no pixel readback).
+     */
+    fun cppDrawMultiple(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        renderTargetPointer: Long,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int,
+        artboardHandles: LongArray,
+        stateMachineHandles: LongArray,
+        transforms: FloatArray,
+        artboardWidths: FloatArray,
+        artboardHeights: FloatArray,
+        count: Int
+    )
+
+    /**
+     * Draw multiple sprites in a single batch operation with pixel readback (synchronous).
+     */
+    fun cppDrawMultipleToBuffer(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        renderTargetPointer: Long,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int,
+        artboardHandles: LongArray,
+        stateMachineHandles: LongArray,
+        transforms: FloatArray,
+        artboardWidths: FloatArray,
+        artboardHeights: FloatArray,
+        count: Int,
+        buffer: ByteArray
+    )
 }
 
 /** Concrete JNI bridge implementation of [CommandQueueBridge]. */
@@ -941,4 +986,43 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     )
 
     external override fun cppRunOnCommandServer(pointer: Long, work: () -> Unit)
+
+    // BATCH SPRITE RENDERING
+    // Note: These methods will throw UnsatisfiedLinkError if the C++ JNI bindings
+    // are not yet implemented. The calling code (RiveSpriteSceneRenderer) handles
+    // this by falling back to per-sprite rendering.
+    external override fun cppDrawMultiple(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        renderTargetPointer: Long,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int,
+        artboardHandles: LongArray,
+        stateMachineHandles: LongArray,
+        transforms: FloatArray,
+        artboardWidths: FloatArray,
+        artboardHeights: FloatArray,
+        count: Int
+    )
+
+    external override fun cppDrawMultipleToBuffer(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        renderTargetPointer: Long,
+        viewportWidth: Int,
+        viewportHeight: Int,
+        clearColor: Int,
+        artboardHandles: LongArray,
+        stateMachineHandles: LongArray,
+        transforms: FloatArray,
+        artboardWidths: FloatArray,
+        artboardHeights: FloatArray,
+        count: Int,
+        buffer: ByteArray
+    )
 }
