@@ -652,6 +652,201 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Phase C.5: Pointer Events
+    // =============================================================================
+
+    /**
+     * Send a pointer move event to a state machine.
+     *
+     * This is used for hover effects and drag operations. The coordinates should be
+     * in surface/view coordinates (pixels from top-left of the rendering surface).
+     * The native layer will transform these to artboard coordinates using the fit
+     * and alignment settings.
+     *
+     * This is a fire-and-forget operation that enqueues the event on the render thread.
+     *
+     * @param smHandle Handle to the state machine to receive the event.
+     * @param surface The surface being rendered to (for coordinate transformation).
+     * @param x The x coordinate in surface pixels.
+     * @param y The y coordinate in surface pixels.
+     * @param fit How the artboard is fit into the surface. Defaults to CONTAIN.
+     * @param alignment How the artboard is aligned within the surface. Defaults to CENTER.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     * @param pointerID Identifier for multi-touch support. Defaults to 0.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see pointerDown For press/click start events.
+     * @see pointerUp For press/click end events.
+     * @see pointerExit For when pointer leaves the surface.
+     */
+    @Throws(IllegalStateException::class)
+    fun pointerMove(
+        smHandle: StateMachineHandle,
+        surface: RiveSurface,
+        x: Float,
+        y: Float,
+        fit: Fit = Fit.CONTAIN,
+        alignment: Alignment = Alignment.CENTER,
+        scaleFactor: Float = 1.0f,
+        pointerID: Int = 0
+    ) {
+        bridge.cppPointerMove(
+            cppPointer.pointer,
+            smHandle.handle,
+            fit.ordinal.toByte(),
+            alignment.ordinal.toByte(),
+            scaleFactor,
+            surface.width.toFloat(),
+            surface.height.toFloat(),
+            pointerID,
+            x,
+            y
+        )
+    }
+
+    /**
+     * Send a pointer down (press/click start) event to a state machine.
+     *
+     * This is used for button clicks and touch start events. The coordinates should be
+     * in surface/view coordinates (pixels from top-left of the rendering surface).
+     * The native layer will transform these to artboard coordinates using the fit
+     * and alignment settings.
+     *
+     * This is a fire-and-forget operation that enqueues the event on the render thread.
+     *
+     * @param smHandle Handle to the state machine to receive the event.
+     * @param surface The surface being rendered to (for coordinate transformation).
+     * @param x The x coordinate in surface pixels.
+     * @param y The y coordinate in surface pixels.
+     * @param fit How the artboard is fit into the surface. Defaults to CONTAIN.
+     * @param alignment How the artboard is aligned within the surface. Defaults to CENTER.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     * @param pointerID Identifier for multi-touch support. Defaults to 0.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see pointerUp For the corresponding release event.
+     * @see pointerMove For hover/drag events.
+     */
+    @Throws(IllegalStateException::class)
+    fun pointerDown(
+        smHandle: StateMachineHandle,
+        surface: RiveSurface,
+        x: Float,
+        y: Float,
+        fit: Fit = Fit.CONTAIN,
+        alignment: Alignment = Alignment.CENTER,
+        scaleFactor: Float = 1.0f,
+        pointerID: Int = 0
+    ) {
+        bridge.cppPointerDown(
+            cppPointer.pointer,
+            smHandle.handle,
+            fit.ordinal.toByte(),
+            alignment.ordinal.toByte(),
+            scaleFactor,
+            surface.width.toFloat(),
+            surface.height.toFloat(),
+            pointerID,
+            x,
+            y
+        )
+    }
+
+    /**
+     * Send a pointer up (press/click end) event to a state machine.
+     *
+     * This is used for button clicks and touch end events. The coordinates should be
+     * in surface/view coordinates (pixels from top-left of the rendering surface).
+     * The native layer will transform these to artboard coordinates using the fit
+     * and alignment settings.
+     *
+     * This is a fire-and-forget operation that enqueues the event on the render thread.
+     *
+     * @param smHandle Handle to the state machine to receive the event.
+     * @param surface The surface being rendered to (for coordinate transformation).
+     * @param x The x coordinate in surface pixels.
+     * @param y The y coordinate in surface pixels.
+     * @param fit How the artboard is fit into the surface. Defaults to CONTAIN.
+     * @param alignment How the artboard is aligned within the surface. Defaults to CENTER.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     * @param pointerID Identifier for multi-touch support. Defaults to 0.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see pointerDown For the corresponding press event.
+     * @see pointerMove For hover/drag events.
+     */
+    @Throws(IllegalStateException::class)
+    fun pointerUp(
+        smHandle: StateMachineHandle,
+        surface: RiveSurface,
+        x: Float,
+        y: Float,
+        fit: Fit = Fit.CONTAIN,
+        alignment: Alignment = Alignment.CENTER,
+        scaleFactor: Float = 1.0f,
+        pointerID: Int = 0
+    ) {
+        bridge.cppPointerUp(
+            cppPointer.pointer,
+            smHandle.handle,
+            fit.ordinal.toByte(),
+            alignment.ordinal.toByte(),
+            scaleFactor,
+            surface.width.toFloat(),
+            surface.height.toFloat(),
+            pointerID,
+            x,
+            y
+        )
+    }
+
+    /**
+     * Send a pointer exit event to a state machine.
+     *
+     * This is used when the pointer leaves the rendering surface entirely.
+     * It allows the state machine to cancel any hover states.
+     *
+     * This is a fire-and-forget operation that enqueues the event on the render thread.
+     *
+     * @param smHandle Handle to the state machine to receive the event.
+     * @param surface The surface being rendered to (for coordinate transformation context).
+     * @param fit How the artboard is fit into the surface. Defaults to CONTAIN.
+     * @param alignment How the artboard is aligned within the surface. Defaults to CENTER.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     * @param pointerID Identifier for multi-touch support. Defaults to 0.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see pointerMove For re-entry events.
+     */
+    @Throws(IllegalStateException::class)
+    fun pointerExit(
+        smHandle: StateMachineHandle,
+        surface: RiveSurface,
+        fit: Fit = Fit.CONTAIN,
+        alignment: Alignment = Alignment.CENTER,
+        scaleFactor: Float = 1.0f,
+        pointerID: Int = 0
+    ) {
+        // For exit, we pass 0,0 as coordinates since they're not meaningful
+        bridge.cppPointerExit(
+            cppPointer.pointer,
+            smHandle.handle,
+            fit.ordinal.toByte(),
+            alignment.ordinal.toByte(),
+            scaleFactor,
+            surface.width.toFloat(),
+            surface.height.toFloat(),
+            pointerID,
+            0f,
+            0f
+        )
+    }
+
+    // =============================================================================
     // Phase C: State Machine Operations
     // =============================================================================
     

@@ -126,37 +126,38 @@ All resources use type-safe handle wrappers:
 
 **Motivation**: User interaction (touch/click/drag) on Rive animations requires pointer event handling. The bridge already has these methods but they're not exposed in `CommandQueue.kt`.
 
-**Status**: 🔴 Not Started
+**Status**: ✅ Completed (January 12, 2026)
 
 #### Tasks
 
-- [ ] **C.5.1**: Add `pointerMove()` method to CommandQueue
+- [x] **C.5.1**: Add `pointerMove()` method to CommandQueue
   ```kotlin
-  fun pointerMove(smHandle: StateMachineHandle, x: Float, y: Float, pointerID: Int = 0)
+  fun pointerMove(smHandle: StateMachineHandle, surface: RiveSurface, x: Float, y: Float, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
   ```
 
-- [ ] **C.5.2**: Add `pointerDown()` method to CommandQueue
+- [x] **C.5.2**: Add `pointerDown()` method to CommandQueue
   ```kotlin
-  fun pointerDown(smHandle: StateMachineHandle, x: Float, y: Float, pointerID: Int = 0)
+  fun pointerDown(smHandle: StateMachineHandle, surface: RiveSurface, x: Float, y: Float, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
   ```
 
-- [ ] **C.5.3**: Add `pointerUp()` method to CommandQueue
+- [x] **C.5.3**: Add `pointerUp()` method to CommandQueue
   ```kotlin
-  fun pointerUp(smHandle: StateMachineHandle, x: Float, y: Float, pointerID: Int = 0)
+  fun pointerUp(smHandle: StateMachineHandle, surface: RiveSurface, x: Float, y: Float, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
   ```
 
-- [ ] **C.5.4**: Add `pointerExit()` method to CommandQueue
+- [x] **C.5.4**: Add `pointerExit()` method to CommandQueue
   ```kotlin
-  fun pointerExit(smHandle: StateMachineHandle, pointerID: Int = 0)
+  fun pointerExit(smHandle: StateMachineHandle, surface: RiveSurface, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
   ```
 
-- [ ] **C.5.5**: Document coordinate transformation requirements
-  - Surface coordinates → artboard coordinates
-  - Fit & alignment must be considered
+- [x] **C.5.5**: Document coordinate transformation requirements
+  - Surface coordinates → artboard coordinates handled by native layer
+  - Fit & alignment passed to native for proper transformation
+  - All methods include comprehensive KDoc documentation
 
 - [ ] **C.5.6**: Write pointer event tests
 
-**Bridge methods already exist**:
+**Bridge methods used**:
 - `cppPointerMove()`, `cppPointerDown()`, `cppPointerUp()`, `cppPointerExit()`
 
 ---
