@@ -520,6 +520,138 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Phase 0.4: Batch Sprite Rendering (RiveSpriteScene support)
+    // =============================================================================
+
+    /**
+     * Draw multiple sprites in a single batch operation.
+     *
+     * This is an efficient way to render many Rive sprites in a single draw call.
+     * All sprites share the same viewport and clear color, but each can have its
+     * own artboard, state machine, transform, and dimensions.
+     *
+     * This is a fire-and-forget operation that enqueues a draw command on the
+     * render thread. The actual rendering happens asynchronously.
+     *
+     * @param surface The surface to render to.
+     * @param commands List of sprite draw commands specifying what to draw and how.
+     * @param clearColor Background clear color in 0xAARRGGBB format. Defaults to transparent.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws IllegalArgumentException If commands is empty.
+     *
+     * @see SpriteDrawCommand For the structure of each draw command.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun drawMultiple(
+        surface: RiveSurface,
+        commands: List<SpriteDrawCommand>,
+        clearColor: Int = 0x00000000
+    ) {
+        require(commands.isNotEmpty()) { "Commands list cannot be empty" }
+        
+        val count = commands.size
+        val artboardHandles = LongArray(count)
+        val stateMachineHandles = LongArray(count)
+        val transforms = FloatArray(count * 6)  // 6 elements per transform
+        val artboardWidths = FloatArray(count)
+        val artboardHeights = FloatArray(count)
+        
+        commands.forEachIndexed { index, cmd ->
+            artboardHandles[index] = cmd.artboardHandle.handle
+            stateMachineHandles[index] = cmd.stateMachineHandle.handle
+            System.arraycopy(cmd.transform, 0, transforms, index * 6, 6)
+            artboardWidths[index] = cmd.artboardWidth
+            artboardHeights[index] = cmd.artboardHeight
+        }
+        
+        bridge.cppDrawMultiple(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            surface.renderTargetPointer.pointer,
+            surface.width,
+            surface.height,
+            clearColor,
+            artboardHandles,
+            stateMachineHandles,
+            transforms,
+            artboardWidths,
+            artboardHeights,
+            count
+        )
+    }
+
+    /**
+     * Draw multiple sprites in a single batch operation and read the result into a buffer.
+     *
+     * This is similar to [drawMultiple] but also copies the rendered pixels back into
+     * the provided byte buffer. This is useful for offscreen rendering or when you need
+     * to process the rendered image.
+     *
+     * This is a synchronous operation that blocks until rendering is complete and the
+     * pixel data has been copied to the buffer.
+     *
+     * @param surface The surface to render to.
+     * @param commands List of sprite draw commands specifying what to draw and how.
+     * @param clearColor Background clear color in 0xAARRGGBB format. Defaults to transparent.
+     * @param buffer ByteArray to receive the rendered pixels. Must be sized correctly for
+     *               the surface dimensions (width * height * 4 bytes for RGBA).
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws IllegalArgumentException If commands is empty or buffer size is incorrect.
+     *
+     * @see SpriteDrawCommand For the structure of each draw command.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun drawMultipleToBuffer(
+        surface: RiveSurface,
+        commands: List<SpriteDrawCommand>,
+        clearColor: Int = 0x00000000,
+        buffer: ByteArray
+    ) {
+        require(commands.isNotEmpty()) { "Commands list cannot be empty" }
+        val expectedSize = surface.width * surface.height * 4  // RGBA
+        require(buffer.size >= expectedSize) {
+            "Buffer size ${buffer.size} is too small. Expected at least $expectedSize bytes for ${surface.width}x${surface.height} RGBA."
+        }
+        
+        val count = commands.size
+        val artboardHandles = LongArray(count)
+        val stateMachineHandles = LongArray(count)
+        val transforms = FloatArray(count * 6)  // 6 elements per transform
+        val artboardWidths = FloatArray(count)
+        val artboardHeights = FloatArray(count)
+        
+        commands.forEachIndexed { index, cmd ->
+            artboardHandles[index] = cmd.artboardHandle.handle
+            stateMachineHandles[index] = cmd.stateMachineHandle.handle
+            System.arraycopy(cmd.transform, 0, transforms, index * 6, 6)
+            artboardWidths[index] = cmd.artboardWidth
+            artboardHeights[index] = cmd.artboardHeight
+        }
+        
+        bridge.cppDrawMultipleToBuffer(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            surface.renderTargetPointer.pointer,
+            surface.width,
+            surface.height,
+            clearColor,
+            artboardHandles,
+            stateMachineHandles,
+            transforms,
+            artboardWidths,
+            artboardHeights,
+            count,
+            buffer
+        )
+    }
+
+    // =============================================================================
     // Phase C: State Machine Operations
     // =============================================================================
     
