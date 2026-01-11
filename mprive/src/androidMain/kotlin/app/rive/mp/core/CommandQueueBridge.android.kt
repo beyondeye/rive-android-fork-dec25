@@ -16,7 +16,7 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     external override fun cppConstructor(renderContextPointer: Long): Long
     external override fun cppDelete(pointer: Long)
     external override fun cppCreateListeners(pointer: Long, receiver: CommandQueue): Listeners
-    external override fun cppPollMessages(pointer: Long)
+    external override fun cppPollMessages(pointer: Long, receiver: CommandQueue)
     
     // =========================================================================
     // File Operations

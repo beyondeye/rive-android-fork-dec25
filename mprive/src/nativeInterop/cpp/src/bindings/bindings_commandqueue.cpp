@@ -477,17 +477,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDelete(
 /**
  * Polls messages from the CommandServer and delivers them to Kotlin.
  * 
- * JNI signature: cppPollMessages(ptr: Long): Unit
+ * JNI signature: cppPollMessages(ptr: Long, receiver: CommandQueue): Unit
  * 
  * @param env The JNI environment.
- * @param thiz The Java CommandQueue object.
+ * @param thiz The Java CommandQueueJNIBridge object.
  * @param ptr The native pointer to the CommandServer.
+ * @param receiver The CommandQueue instance to receive callbacks.
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
     JNIEnv* env,
     jobject thiz,
-    jlong ptr
+    jlong ptr,
+    jobject receiver
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
@@ -495,17 +497,22 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
         return;
     }
     
-    // Initialize callback method IDs if needed
-    initCallbackMethodIDs(env, thiz);
+    if (receiver == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to poll messages with null receiver");
+        return;
+    }
+    
+    // Initialize callback method IDs using the CommandQueue receiver class
+    initCallbackMethodIDs(env, receiver);
     
     // Get messages from the server
     auto messages = server->getMessages();
     
-    // Deliver messages to Kotlin by calling the appropriate callbacks
+    // Deliver messages to Kotlin by calling the appropriate callbacks on the receiver
     for (const auto& msg : messages) {
         switch (msg.type) {
             case rive_android::MessageType::FileLoaded:
-                env->CallVoidMethod(thiz, g_onFileLoadedMethodID, 
+                env->CallVoidMethod(receiver, g_onFileLoadedMethodID, 
                     static_cast<jlong>(msg.requestID), 
                     static_cast<jlong>(msg.handle));
                 break;
@@ -513,7 +520,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::FileError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onFileErrorMethodID, 
+                    env->CallVoidMethod(receiver, g_onFileErrorMethodID, 
                         static_cast<jlong>(msg.requestID), 
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -521,7 +528,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
                 
             case rive_android::MessageType::FileDeleted:
-                env->CallVoidMethod(thiz, g_onFileDeletedMethodID, 
+                env->CallVoidMethod(receiver, g_onFileDeletedMethodID, 
                     static_cast<jlong>(msg.requestID), 
                     static_cast<jlong>(msg.handle));
                 break;
@@ -545,13 +552,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                     
                     // Call the appropriate callback based on message type
                     if (msg.type == rive_android::MessageType::ArtboardNamesListed) {
-                        env->CallVoidMethod(thiz, g_onArtboardNamesListedMethodID, 
+                        env->CallVoidMethod(receiver, g_onArtboardNamesListedMethodID, 
                             static_cast<jlong>(msg.requestID), arrayList);
                     } else if (msg.type == rive_android::MessageType::StateMachineNamesListed) {
-                        env->CallVoidMethod(thiz, g_onStateMachineNamesListedMethodID, 
+                        env->CallVoidMethod(receiver, g_onStateMachineNamesListedMethodID, 
                             static_cast<jlong>(msg.requestID), arrayList);
                     } else if (msg.type == rive_android::MessageType::ViewModelNamesListed) {
-                        env->CallVoidMethod(thiz, g_onViewModelNamesListedMethodID, 
+                        env->CallVoidMethod(receiver, g_onViewModelNamesListedMethodID, 
                             static_cast<jlong>(msg.requestID), arrayList);
                     }
                     
@@ -563,7 +570,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::QueryError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onQueryErrorMethodID, 
+                    env->CallVoidMethod(receiver, g_onQueryErrorMethodID, 
                         static_cast<jlong>(msg.requestID), 
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -571,7 +578,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
                 
             case rive_android::MessageType::ArtboardCreated:
-                env->CallVoidMethod(thiz, g_onArtboardCreatedMethodID, 
+                env->CallVoidMethod(receiver, g_onArtboardCreatedMethodID, 
                     static_cast<jlong>(msg.requestID), 
                     static_cast<jlong>(msg.handle));
                 break;
@@ -579,7 +586,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::ArtboardError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onArtboardErrorMethodID, 
+                    env->CallVoidMethod(receiver, g_onArtboardErrorMethodID, 
                         static_cast<jlong>(msg.requestID), 
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -587,13 +594,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
                 
             case rive_android::MessageType::ArtboardDeleted:
-                env->CallVoidMethod(thiz, g_onArtboardDeletedMethodID, 
+                env->CallVoidMethod(receiver, g_onArtboardDeletedMethodID, 
                     static_cast<jlong>(msg.requestID), 
                     static_cast<jlong>(msg.handle));
                 break;
                 
             case rive_android::MessageType::StateMachineCreated:
-                env->CallVoidMethod(thiz, g_onStateMachineCreatedMethodID, 
+                env->CallVoidMethod(receiver, g_onStateMachineCreatedMethodID, 
                     static_cast<jlong>(msg.requestID), 
                     static_cast<jlong>(msg.handle));
                 break;
@@ -601,7 +608,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::StateMachineError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onStateMachineErrorMethodID, 
+                    env->CallVoidMethod(receiver, g_onStateMachineErrorMethodID, 
                         static_cast<jlong>(msg.requestID), 
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -609,20 +616,20 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
                 
             case rive_android::MessageType::StateMachineDeleted:
-                env->CallVoidMethod(thiz, g_onStateMachineDeletedMethodID, 
+                env->CallVoidMethod(receiver, g_onStateMachineDeletedMethodID, 
                     static_cast<jlong>(msg.requestID), 
                     static_cast<jlong>(msg.handle));
                 break;
                 
             case rive_android::MessageType::StateMachineSettled:
-                env->CallVoidMethod(thiz, g_onStateMachineSettledMethodID,
+                env->CallVoidMethod(receiver, g_onStateMachineSettledMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
 
             // Input operation messages
             case rive_android::MessageType::InputCountResult:
-                env->CallVoidMethod(thiz, g_onInputCountResultMethodID,
+                env->CallVoidMethod(receiver, g_onInputCountResultMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jint>(msg.intValue));
                 break;
@@ -642,7 +649,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                         env->DeleteLocalRef(nameStr);
                     }
 
-                    env->CallVoidMethod(thiz, g_onInputNamesListedMethodID,
+                    env->CallVoidMethod(receiver, g_onInputNamesListedMethodID,
                         static_cast<jlong>(msg.requestID), arrayList);
 
                     env->DeleteLocalRef(arrayList);
@@ -653,7 +660,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::InputInfoResult:
                 {
                     jstring nameStr = env->NewStringUTF(msg.inputName.c_str());
-                    env->CallVoidMethod(thiz, g_onInputInfoResultMethodID,
+                    env->CallVoidMethod(receiver, g_onInputInfoResultMethodID,
                         static_cast<jlong>(msg.requestID),
                         nameStr,
                         static_cast<jint>(msg.inputType));
@@ -662,26 +669,26 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::NumberInputValue:
-                env->CallVoidMethod(thiz, g_onNumberInputValueMethodID,
+                env->CallVoidMethod(receiver, g_onNumberInputValueMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jfloat>(msg.floatValue));
                 break;
 
             case rive_android::MessageType::BooleanInputValue:
-                env->CallVoidMethod(thiz, g_onBooleanInputValueMethodID,
+                env->CallVoidMethod(receiver, g_onBooleanInputValueMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jboolean>(msg.boolValue));
                 break;
 
             case rive_android::MessageType::InputOperationSuccess:
-                env->CallVoidMethod(thiz, g_onInputOperationSuccessMethodID,
+                env->CallVoidMethod(receiver, g_onInputOperationSuccessMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
             case rive_android::MessageType::InputOperationError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onInputOperationErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onInputOperationErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -690,7 +697,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // ViewModelInstance messages
             case rive_android::MessageType::VMICreated:
-                env->CallVoidMethod(thiz, g_onVMICreatedMethodID,
+                env->CallVoidMethod(receiver, g_onVMICreatedMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
@@ -698,7 +705,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::VMIError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onVMIErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onVMIErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -706,14 +713,14 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::VMIDeleted:
-                env->CallVoidMethod(thiz, g_onVMIDeletedMethodID,
+                env->CallVoidMethod(receiver, g_onVMIDeletedMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
 
             // Property operation messages (Phase D.2)
             case rive_android::MessageType::NumberPropertyValue:
-                env->CallVoidMethod(thiz, g_onNumberPropertyValueMethodID,
+                env->CallVoidMethod(receiver, g_onNumberPropertyValueMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jfloat>(msg.floatValue));
                 break;
@@ -721,7 +728,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::StringPropertyValue:
                 {
                     jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
-                    env->CallVoidMethod(thiz, g_onStringPropertyValueMethodID,
+                    env->CallVoidMethod(receiver, g_onStringPropertyValueMethodID,
                         static_cast<jlong>(msg.requestID),
                         valueStr);
                     env->DeleteLocalRef(valueStr);
@@ -729,7 +736,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::BooleanPropertyValue:
-                env->CallVoidMethod(thiz, g_onBooleanPropertyValueMethodID,
+                env->CallVoidMethod(receiver, g_onBooleanPropertyValueMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jboolean>(msg.boolValue));
                 break;
@@ -737,7 +744,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::PropertyError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onPropertyErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onPropertyErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -745,7 +752,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::PropertySetSuccess:
-                env->CallVoidMethod(thiz, g_onPropertySetSuccessMethodID,
+                env->CallVoidMethod(receiver, g_onPropertySetSuccessMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
@@ -753,7 +760,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::EnumPropertyValue:
                 {
                     jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
-                    env->CallVoidMethod(thiz, g_onEnumPropertyValueMethodID,
+                    env->CallVoidMethod(receiver, g_onEnumPropertyValueMethodID,
                         static_cast<jlong>(msg.requestID),
                         valueStr);
                     env->DeleteLocalRef(valueStr);
@@ -761,13 +768,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::ColorPropertyValue:
-                env->CallVoidMethod(thiz, g_onColorPropertyValueMethodID,
+                env->CallVoidMethod(receiver, g_onColorPropertyValueMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jint>(msg.colorValue));
                 break;
 
             case rive_android::MessageType::TriggerFired:
-                env->CallVoidMethod(thiz, g_onTriggerFiredMethodID,
+                env->CallVoidMethod(receiver, g_onTriggerFiredMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
@@ -775,7 +782,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::NumberPropertyUpdated:
                 {
                     jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
-                    env->CallVoidMethod(thiz, g_onNumberPropertyUpdatedMethodID,
+                    env->CallVoidMethod(receiver, g_onNumberPropertyUpdatedMethodID,
                         static_cast<jlong>(msg.vmiHandle),
                         pathStr,
                         static_cast<jfloat>(msg.floatValue));
@@ -787,7 +794,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 {
                     jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
                     jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
-                    env->CallVoidMethod(thiz, g_onStringPropertyUpdatedMethodID,
+                    env->CallVoidMethod(receiver, g_onStringPropertyUpdatedMethodID,
                         static_cast<jlong>(msg.vmiHandle),
                         pathStr,
                         valueStr);
@@ -799,7 +806,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::BooleanPropertyUpdated:
                 {
                     jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
-                    env->CallVoidMethod(thiz, g_onBooleanPropertyUpdatedMethodID,
+                    env->CallVoidMethod(receiver, g_onBooleanPropertyUpdatedMethodID,
                         static_cast<jlong>(msg.vmiHandle),
                         pathStr,
                         static_cast<jboolean>(msg.boolValue));
@@ -811,7 +818,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 {
                     jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
                     jstring valueStr = env->NewStringUTF(msg.stringValue.c_str());
-                    env->CallVoidMethod(thiz, g_onEnumPropertyUpdatedMethodID,
+                    env->CallVoidMethod(receiver, g_onEnumPropertyUpdatedMethodID,
                         static_cast<jlong>(msg.vmiHandle),
                         pathStr,
                         valueStr);
@@ -823,7 +830,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::ColorPropertyUpdated:
                 {
                     jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
-                    env->CallVoidMethod(thiz, g_onColorPropertyUpdatedMethodID,
+                    env->CallVoidMethod(receiver, g_onColorPropertyUpdatedMethodID,
                         static_cast<jlong>(msg.vmiHandle),
                         pathStr,
                         static_cast<jint>(msg.colorValue));
@@ -834,7 +841,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::TriggerPropertyFired:
                 {
                     jstring pathStr = env->NewStringUTF(msg.propertyPath.c_str());
-                    env->CallVoidMethod(thiz, g_onTriggerPropertyFiredMethodID,
+                    env->CallVoidMethod(receiver, g_onTriggerPropertyFiredMethodID,
                         static_cast<jlong>(msg.vmiHandle),
                         pathStr);
                     env->DeleteLocalRef(pathStr);
@@ -843,26 +850,26 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // Phase D.5: List operation results
             case rive_android::MessageType::ListSizeResult:
-                env->CallVoidMethod(thiz, g_onListSizeResultMethodID,
+                env->CallVoidMethod(receiver, g_onListSizeResultMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jint>(msg.intValue));
                 break;
 
             case rive_android::MessageType::ListItemResult:
-                env->CallVoidMethod(thiz, g_onListItemResultMethodID,
+                env->CallVoidMethod(receiver, g_onListItemResultMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
 
             case rive_android::MessageType::ListOperationSuccess:
-                env->CallVoidMethod(thiz, g_onListOperationSuccessMethodID,
+                env->CallVoidMethod(receiver, g_onListOperationSuccessMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
             case rive_android::MessageType::ListOperationError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onListOperationErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onListOperationErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -871,20 +878,20 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // Phase D.5: Nested VMI operation results
             case rive_android::MessageType::InstancePropertyResult:
-                env->CallVoidMethod(thiz, g_onInstancePropertyResultMethodID,
+                env->CallVoidMethod(receiver, g_onInstancePropertyResultMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
 
             case rive_android::MessageType::InstancePropertySetSuccess:
-                env->CallVoidMethod(thiz, g_onInstancePropertySetSuccessMethodID,
+                env->CallVoidMethod(receiver, g_onInstancePropertySetSuccessMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
             case rive_android::MessageType::InstancePropertyError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onInstancePropertyErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onInstancePropertyErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -893,14 +900,14 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // Phase D.5: Asset property operation results
             case rive_android::MessageType::AssetPropertySetSuccess:
-                env->CallVoidMethod(thiz, g_onAssetPropertySetSuccessMethodID,
+                env->CallVoidMethod(receiver, g_onAssetPropertySetSuccessMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
             case rive_android::MessageType::AssetPropertyError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onAssetPropertyErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onAssetPropertyErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -909,14 +916,14 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // Phase D.6: VMI Binding operation results
             case rive_android::MessageType::VMIBindingSuccess:
-                env->CallVoidMethod(thiz, g_onVMIBindingSuccessMethodID,
+                env->CallVoidMethod(receiver, g_onVMIBindingSuccessMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 
             case rive_android::MessageType::VMIBindingError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onVMIBindingErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onVMIBindingErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -924,7 +931,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::DefaultVMIResult:
-                env->CallVoidMethod(thiz, g_onDefaultVMIResultMethodID,
+                env->CallVoidMethod(receiver, g_onDefaultVMIResultMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
@@ -932,7 +939,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::DefaultVMIError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onDefaultVMIErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onDefaultVMIErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -941,7 +948,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // Phase C.2.3: Render target operations
             case rive_android::MessageType::RenderTargetCreated:
-                env->CallVoidMethod(thiz, g_onRenderTargetCreatedMethodID,
+                env->CallVoidMethod(receiver, g_onRenderTargetCreatedMethodID,
                     static_cast<jlong>(msg.requestID),
                     static_cast<jlong>(msg.handle));
                 break;
@@ -949,7 +956,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::RenderTargetError:
                 {
                     jstring errorStr = env->NewStringUTF(msg.error.c_str());
-                    env->CallVoidMethod(thiz, g_onRenderTargetErrorMethodID,
+                    env->CallVoidMethod(receiver, g_onRenderTargetErrorMethodID,
                         static_cast<jlong>(msg.requestID),
                         errorStr);
                     env->DeleteLocalRef(errorStr);
@@ -957,7 +964,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 break;
 
             case rive_android::MessageType::RenderTargetDeleted:
-                env->CallVoidMethod(thiz, g_onRenderTargetDeletedMethodID,
+                env->CallVoidMethod(receiver, g_onRenderTargetDeletedMethodID,
                     static_cast<jlong>(msg.requestID));
                 break;
 

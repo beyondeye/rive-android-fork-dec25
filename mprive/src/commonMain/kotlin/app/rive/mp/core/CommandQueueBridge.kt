@@ -47,8 +47,9 @@ interface CommandQueueBridge {
     /**
      * Poll messages from the CommandServer.
      * @param pointer Pointer to the CommandQueue.
+     * @param receiver The CommandQueue instance to receive callbacks.
      */
-    fun cppPollMessages(pointer: Long)
+    fun cppPollMessages(pointer: Long, receiver: CommandQueue)
     
     // =========================================================================
     // File Operations

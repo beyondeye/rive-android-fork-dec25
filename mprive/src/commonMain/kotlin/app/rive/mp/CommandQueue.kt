@@ -182,7 +182,7 @@ class CommandQueue(
      * @throws IllegalStateException If the CommandQueue has been released.
      */
     @Throws(IllegalStateException::class)
-    fun pollMessages() = bridge.cppPollMessages(cppPointer.pointer)
+    fun pollMessages() = bridge.cppPollMessages(cppPointer.pointer, this)
     
     /**
      * Create a Rive rendering surface for Rive to draw into.
