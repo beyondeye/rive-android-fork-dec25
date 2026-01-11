@@ -1,10 +1,13 @@
 # mprive CommandQueue Implementation Plan (REVISED)
 
+> **⚠️ UPDATE (January 11, 2026)**: Phase 0 (CommandQueueBridge Refactoring) is now required before Phase E.
+> See [Phase 0 Plan](mprive_phase0_commandqueue_bridge_plan.md) for details.
+
 **Date**: January 1, 2026
 **Decision**: Full CommandQueue Architecture (Option A)
 **Scope**: Complete feature parity with kotlin module's CommandQueue
-**Estimated Timeline**: 4-7 weeks
-**Status**: ✅ Phase C Rendering Tests - COMPLETE (Android, 100%) | Updated: January 8, 2026
+**Estimated Timeline**: 5-8 weeks (includes Phase 0)
+**Status**: 🔄 Phase 0 (CommandQueueBridge) PENDING | Phases A-D COMPLETE | Updated: January 11, 2026
 
 ---
 
