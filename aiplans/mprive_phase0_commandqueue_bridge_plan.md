@@ -4,7 +4,7 @@
 **Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
-**Last Updated: January 11, 2026, 6:50 PM
+**Last Updated: January 11, 2026, 7:02 PM
 
 ---
 
@@ -40,11 +40,23 @@
 | Fix property setter signatures | ✅ Done | Removed `requestID` from setNumber/String/Boolean/Enum/Color/FireTrigger |
 | Android compilation passing | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
 
+### ✅ COMPLETED (Session 4 - Jan 11, 2026, 7:02 PM)
+
+| Item | Status | File |
+|------|--------|------|
+| Convert creation methods from suspend to sync | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
+| createDefaultArtboard (sync) | ✅ Done | Returns handle directly from bridge |
+| createArtboardByName (sync) | ✅ Done | Returns handle directly from bridge |
+| createDefaultStateMachine (sync) | ✅ Done | Returns handle directly from bridge |
+| createStateMachineByName (sync) | ✅ Done | Returns handle directly from bridge |
+| createBlankViewModelInstance (sync) | ✅ Done | Returns handle directly from bridge |
+| createDefaultViewModelInstance (sync) | ✅ Done | Returns handle directly from bridge |
+| createNamedViewModelInstance (sync) | ✅ Done | Returns handle directly from bridge |
+| Android compilation verified | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
+
 ### 🔄 IN PROGRESS
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Convert creation methods from suspend to sync | ❌ Pending | createDefaultArtboard, createArtboardByName, etc. |
+None - ready for Phase 0.3
 
 ### ❌ NOT STARTED
 
@@ -67,9 +79,10 @@
    - Replace calls like `cppPollMessages(ptr)` with `bridge.cppPollMessages(ptr)`
    - This affects approximately 40+ methods
 
-2. **Convert creation methods to synchronous**:
-   - Change return type from `suspend fun createDefaultArtboard(): ArtboardHandle` 
+2. ~~**Convert creation methods to synchronous**~~ ✅ DONE:
+   - Changed return type from `suspend fun createDefaultArtboard(): ArtboardHandle` 
    - To: `fun createDefaultArtboard(): ArtboardHandle` (returns handle directly from bridge)
+   - All 7 methods converted
 
 3. **Add missing methods** (SMI, pointer events, artboard resize, batch rendering)
 

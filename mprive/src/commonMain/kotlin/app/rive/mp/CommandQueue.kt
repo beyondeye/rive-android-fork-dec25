@@ -382,34 +382,40 @@ class CommandQueue(
     /**
      * Create the default artboard from a file.
      * 
+     * This is a synchronous operation that returns the artboard handle directly.
+     * 
      * @param fileHandle The handle of the file to create artboard from.
      * @return A handle to the created artboard.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the file handle is invalid or artboard creation fails.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createDefaultArtboard(fileHandle: FileHandle): ArtboardHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateDefaultArtboard(cppPointer.pointer, requestID, fileHandle.handle)
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createDefaultArtboard(fileHandle: FileHandle): ArtboardHandle {
+        val handle = bridge.cppCreateDefaultArtboard(cppPointer.pointer, 0L, fileHandle.handle)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create default artboard")
         }
+        return ArtboardHandle(handle)
     }
     
     /**
      * Create an artboard by name from a file.
      * 
+     * This is a synchronous operation that returns the artboard handle directly.
+     * 
      * @param fileHandle The handle of the file to create artboard from.
      * @param name The name of the artboard to create.
      * @return A handle to the created artboard.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the file handle is invalid or artboard not found.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createArtboardByName(fileHandle: FileHandle, name: String): ArtboardHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateArtboardByName(cppPointer.pointer, requestID, fileHandle.handle, name)
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createArtboardByName(fileHandle: FileHandle, name: String): ArtboardHandle {
+        val handle = bridge.cppCreateArtboardByName(cppPointer.pointer, 0L, fileHandle.handle, name)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create artboard '$name'")
         }
+        return ArtboardHandle(handle)
     }
     
     /**
@@ -524,34 +530,40 @@ class CommandQueue(
     /**
      * Create the default state machine from an artboard.
      * 
+     * This is a synchronous operation that returns the state machine handle directly.
+     * 
      * @param artboardHandle The handle of the artboard to create state machine from.
      * @return A handle to the created state machine.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the artboard handle is invalid or state machine creation fails.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createDefaultStateMachine(artboardHandle: ArtboardHandle): StateMachineHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateDefaultStateMachine(cppPointer.pointer, requestID, artboardHandle.handle)
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createDefaultStateMachine(artboardHandle: ArtboardHandle): StateMachineHandle {
+        val handle = bridge.cppCreateDefaultStateMachine(cppPointer.pointer, 0L, artboardHandle.handle)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create default state machine")
         }
+        return StateMachineHandle(handle)
     }
     
     /**
      * Create a state machine by name from an artboard.
      * 
+     * This is a synchronous operation that returns the state machine handle directly.
+     * 
      * @param artboardHandle The handle of the artboard to create state machine from.
      * @param name The name of the state machine to create.
      * @return A handle to the created state machine.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the artboard handle is invalid or state machine not found.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createStateMachineByName(artboardHandle: ArtboardHandle, name: String): StateMachineHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateStateMachineByName(cppPointer.pointer, requestID, artboardHandle.handle, name)
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createStateMachineByName(artboardHandle: ArtboardHandle, name: String): StateMachineHandle {
+        val handle = bridge.cppCreateStateMachineByName(cppPointer.pointer, 0L, artboardHandle.handle, name)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create state machine '$name'")
         }
+        return StateMachineHandle(handle)
     }
     
     /**
@@ -723,65 +735,74 @@ class CommandQueue(
      * Create a blank ViewModelInstance from a named ViewModel.
      * A blank instance has all properties set to their default values.
      *
+     * This is a synchronous operation that returns the VMI handle directly.
+     *
      * @param fileHandle The handle of the file containing the ViewModel.
      * @param viewModelName The name of the ViewModel to create an instance of.
      * @return A handle to the created ViewModelInstance.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the file handle is invalid or ViewModel not found.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createBlankViewModelInstance(
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createBlankViewModelInstance(
         fileHandle: FileHandle,
         viewModelName: String
     ): ViewModelInstanceHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateBlankVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+        val handle = bridge.cppCreateBlankVMI(cppPointer.pointer, 0L, fileHandle.handle, viewModelName)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create blank ViewModelInstance for '$viewModelName'")
         }
+        return ViewModelInstanceHandle(handle)
     }
 
     /**
      * Create a default ViewModelInstance from a named ViewModel.
      * A default instance uses the ViewModel's default instance values if available.
      *
+     * This is a synchronous operation that returns the VMI handle directly.
+     *
      * @param fileHandle The handle of the file containing the ViewModel.
      * @param viewModelName The name of the ViewModel to create an instance of.
      * @return A handle to the created ViewModelInstance.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the file handle is invalid or ViewModel not found.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createDefaultViewModelInstance(
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createDefaultViewModelInstance(
         fileHandle: FileHandle,
         viewModelName: String
     ): ViewModelInstanceHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateDefaultVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+        val handle = bridge.cppCreateDefaultVMI(cppPointer.pointer, 0L, fileHandle.handle, viewModelName)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create default ViewModelInstance for '$viewModelName'")
         }
+        return ViewModelInstanceHandle(handle)
     }
 
     /**
      * Create a named ViewModelInstance from a named ViewModel.
      * Uses the values defined for the named instance in the Rive file.
      *
+     * This is a synchronous operation that returns the VMI handle directly.
+     *
      * @param fileHandle The handle of the file containing the ViewModel.
      * @param viewModelName The name of the ViewModel to create an instance of.
      * @param instanceName The name of the specific instance to create.
      * @return A handle to the created ViewModelInstance.
      * @throws IllegalStateException If the CommandQueue has been released.
-     * @throws CancellationException If the operation is cancelled.
      * @throws IllegalArgumentException If the file handle is invalid, ViewModel not found, or instance not found.
      */
-    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
-    suspend fun createNamedViewModelInstance(
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createNamedViewModelInstance(
         fileHandle: FileHandle,
         viewModelName: String,
         instanceName: String
     ): ViewModelInstanceHandle {
-        return suspendNativeRequest { requestID ->
-            bridge.cppCreateNamedVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName, instanceName)
+        val handle = bridge.cppCreateNamedVMI(cppPointer.pointer, 0L, fileHandle.handle, viewModelName, instanceName)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create named ViewModelInstance '$instanceName' for '$viewModelName'")
         }
+        return ViewModelInstanceHandle(handle)
     }
 
     /**
@@ -2290,4 +2311,3 @@ class CommandQueue(
         }
     }
 }
-
