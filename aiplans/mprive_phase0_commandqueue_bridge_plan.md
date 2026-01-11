@@ -4,7 +4,7 @@
 **Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
-**Last Updated**: January 11, 2026, 11:48 AM
+**Last Updated: January 11, 2026, 12:27 PM
 
 ---
 
@@ -22,11 +22,19 @@
 | Bridge parameter in CommandQueue constructor | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
 | expect/actual for createCommandQueueBridge | ✅ Done | Both commonMain and androidMain |
 
+### ✅ COMPLETED (Session 2 - Jan 11, 2026, 12:27 PM)
+
+| Item | Status | File |
+|------|--------|------|
+| Add `bridge.` prefix to all cppXxx calls | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
+| Add PropertyUpdate<T> data class | ✅ Done | Inside CommandQueue class (line 66) |
+| Android compilation passing | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
+
 ### 🔄 IN PROGRESS
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Replace external fun declarations with bridge calls | ❌ Pending | CommandQueue.kt still has direct external fun declarations |
+| Replace external fun declarations with bridge calls | ✅ Done | All cppXxx calls now use bridge.cppXxx() |
 | Convert creation methods from suspend to sync | ❌ Pending | createDefaultArtboard, createArtboardByName, etc. |
 
 ### ❌ NOT STARTED
@@ -45,7 +53,7 @@
 
 ## Next Steps (Continue Here)
 
-1. **Replace external fun declarations in CommandQueue.kt**:
+1. ~~**Replace external fun declarations in CommandQueue.kt**~~ ✅ DONE:
    - Remove all `private external fun cppXxx(...)` declarations
    - Replace calls like `cppPollMessages(ptr)` with `bridge.cppPollMessages(ptr)`
    - This affects approximately 40+ methods
@@ -115,9 +123,12 @@ Create interface with all native method declarations, then create platform-speci
 - `androidMain/kotlin/.../CommandQueueBridge.android.kt` - JNI implementation ✅
 - `desktopMain/kotlin/.../CommandQueueBridge.desktop.kt` - JNA/Native implementation (pending)
 
-### Phase 0.2: Update CommandQueue to Use Bridge (Day 2-3) 🔄 IN PROGRESS
+### Phase 0.2: Update CommandQueue to Use Bridge (Day 2-3) 🔄 ~80% Complete
 
 - ✅ Modify constructor to accept bridge parameter
+- ✅ Add bridge. prefix to all native method calls
+- ✅ Add PropertyUpdate<T> data class
+- ✅ Android compilation passing
 - ❌ Convert creation operations from suspend to synchronous
 - ❌ Update advanceStateMachine to use Duration
 
@@ -191,7 +202,7 @@ typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 | Phase | Description | Duration | Status |
 |-------|-------------|----------|--------|
 | 0.1 | Create CommandQueueBridge interface | Day 1-2 | ✅ Done |
-| 0.2 | Update CommandQueue to use bridge | Day 2-3 | 🔄 In Progress |
+| 0.2 | Update CommandQueue to use bridge | Day 2-3 | 🔄 ~80% Done |
 | 0.3 | Add SMI methods | Day 3-4 | ❌ Pending |
 | 0.4 | Add batch rendering | Day 4-5 | ❌ Pending |
 | 0.5 | Add type aliases | Day 5 | ✅ Done |
@@ -218,7 +229,8 @@ mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt
   - Added imports for bridge classes
   - Added type aliases (RiveWorker, RivePropertyUpdate<T>)
   - Added bridge parameter to constructor
-  - TODO: Replace external fun declarations with bridge calls
+  - ✅ Added bridge. prefix to all native method calls
+  - ✅ Added PropertyUpdate<T> data class
 ```
 
 ### Files Pending Creation

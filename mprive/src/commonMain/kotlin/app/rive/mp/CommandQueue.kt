@@ -54,12 +54,26 @@ class CommandQueue(
          */
         const val MAX_CONCURRENT_SUBSCRIBERS = 32
     }
+
+    /**
+     * Represents an update to a property on a ViewModelInstance.
+     * Emitted on property flows when subscribed properties change.
+     *
+     * @param vmiHandle Handle to the ViewModelInstance that owns the property.
+     * @param propertyPath Path to the property that was updated.
+     * @param value The new value of the property.
+     */
+    data class PropertyUpdate<T>(
+        val vmiHandle: ViewModelInstanceHandle,
+        val propertyPath: String,
+        val value: T
+    )
     
     /**
      * The native pointer to the CommandServer C++ object, held in a reference-counted pointer.
      */
     private val cppPointer = RCPointer(
-        cppConstructor(renderContext.nativeObjectPointer),
+        bridge.cppConstructor(renderContext.nativeObjectPointer),
         COMMAND_QUEUE_TAG,
         ::dispose
     )
@@ -70,7 +84,7 @@ class CommandQueue(
      * Any pending continuations are cancelled to avoid callers hanging indefinitely.
      */
     private fun dispose(cppPointer: Long) {
-        cppDelete(cppPointer)
+        bridge.cppDelete(cppPointer)
         renderContext.close()
         
         // Cancel and clear any pending JNI continuations so callers don't hang.
@@ -168,7 +182,7 @@ class CommandQueue(
      * @throws IllegalStateException If the CommandQueue has been released.
      */
     @Throws(IllegalStateException::class)
-    fun pollMessages() = cppPollMessages(cppPointer.pointer)
+    fun pollMessages() = bridge.cppPollMessages(cppPointer.pointer)
     
     /**
      * Create a Rive rendering surface for Rive to draw into.
@@ -211,7 +225,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun createRiveRenderTarget(width: Int, height: Int): Long {
         RiveLog.d(COMMAND_QUEUE_TAG) { "Creating Rive render target: ${width}x${height}" }
-        return cppCreateRiveRenderTarget(cppPointer.pointer, width, height)
+        return bridge.cppCreateRiveRenderTarget(cppPointer.pointer, width, height)
     }
     
     // =============================================================================
@@ -299,7 +313,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun loadFile(bytes: ByteArray): FileHandle {
         return suspendNativeRequest { requestID ->
-            cppLoadFile(cppPointer.pointer, requestID, bytes)
+            bridge.cppLoadFile(cppPointer.pointer, requestID, bytes)
         }
     }
     
@@ -314,7 +328,7 @@ class CommandQueue(
         // For Phase B.1, we use a requestID but don't wait for completion
         // In the future, this could be made async if needed
         val requestID = nextRequestID.getAndIncrement()
-        cppDeleteFile(cppPointer.pointer, requestID, fileHandle.handle)
+        bridge.cppDeleteFile(cppPointer.pointer, requestID, fileHandle.handle)
     }
     
     /**
@@ -329,7 +343,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getArtboardNames(fileHandle: FileHandle): List<String> {
         return suspendNativeRequest { requestID ->
-            cppGetArtboardNames(cppPointer.pointer, requestID, fileHandle.handle)
+            bridge.cppGetArtboardNames(cppPointer.pointer, requestID, fileHandle.handle)
         }
     }
     
@@ -345,7 +359,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getStateMachineNames(artboardHandle: ArtboardHandle): List<String> {
         return suspendNativeRequest { requestID ->
-            cppGetStateMachineNames(cppPointer.pointer, requestID, artboardHandle.handle)
+            bridge.cppGetStateMachineNames(cppPointer.pointer, requestID, artboardHandle.handle)
         }
     }
     
@@ -361,7 +375,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getViewModelNames(fileHandle: FileHandle): List<String> {
         return suspendNativeRequest { requestID ->
-            cppGetViewModelNames(cppPointer.pointer, requestID, fileHandle.handle)
+            bridge.cppGetViewModelNames(cppPointer.pointer, requestID, fileHandle.handle)
         }
     }
     
@@ -377,7 +391,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun createDefaultArtboard(fileHandle: FileHandle): ArtboardHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateDefaultArtboard(cppPointer.pointer, requestID, fileHandle.handle)
+            bridge.cppCreateDefaultArtboard(cppPointer.pointer, requestID, fileHandle.handle)
         }
     }
     
@@ -394,7 +408,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun createArtboardByName(fileHandle: FileHandle, name: String): ArtboardHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateArtboardByName(cppPointer.pointer, requestID, fileHandle.handle, name)
+            bridge.cppCreateArtboardByName(cppPointer.pointer, requestID, fileHandle.handle, name)
         }
     }
     
@@ -408,7 +422,7 @@ class CommandQueue(
     fun deleteArtboard(artboardHandle: ArtboardHandle) {
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
-        cppDeleteArtboard(cppPointer.pointer, requestID, artboardHandle.handle)
+        bridge.cppDeleteArtboard(cppPointer.pointer, requestID, artboardHandle.handle)
     }
 
     // =============================================================================
@@ -432,7 +446,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun createRenderTarget(width: Int, height: Int, sampleCount: Int = 0): Long {
         return suspendNativeRequest { requestID ->
-            cppCreateRenderTarget(cppPointer.pointer, requestID, width, height, sampleCount)
+            bridge.cppCreateRenderTarget(cppPointer.pointer, requestID, width, height, sampleCount)
         }
     }
 
@@ -445,7 +459,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun deleteRenderTarget(renderTargetHandle: Long) {
         val requestID = nextRequestID.getAndIncrement()
-        cppDeleteRenderTarget(cppPointer.pointer, requestID, renderTargetHandle)
+        bridge.cppDeleteRenderTarget(cppPointer.pointer, requestID, renderTargetHandle)
     }
 
     // =============================================================================
@@ -482,7 +496,7 @@ class CommandQueue(
         scaleFactor: Float = 1.0f
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppDraw(
+        bridge.cppDraw(
             cppPointer.pointer,
             requestID,
             artboardHandle.handle,
