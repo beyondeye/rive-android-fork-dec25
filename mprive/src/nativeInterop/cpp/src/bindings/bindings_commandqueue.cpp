@@ -434,7 +434,7 @@ extern "C" {
  * @return The native pointer to the created CommandServer.
  */
 JNIEXPORT jlong JNICALL
-Java_app_rive_mp_CommandQueue_cppConstructor(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppConstructor(
     JNIEnv* env,
     jobject thiz,
     jlong renderContextPtr
@@ -458,7 +458,7 @@ Java_app_rive_mp_CommandQueue_cppConstructor(
  * @param ptr The native pointer to the CommandServer to delete.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDelete(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDelete(
     JNIEnv* env,
     jobject thiz,
     jlong ptr
@@ -484,7 +484,7 @@ Java_app_rive_mp_CommandQueue_cppDelete(
  * @param ptr The native pointer to the CommandServer.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppPollMessages(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
     JNIEnv* env,
     jobject thiz,
     jlong ptr
@@ -993,7 +993,7 @@ Java_app_rive_mp_CommandQueue_cppPollMessages(
  * @param bytes The Rive file bytes.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppLoadFile(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppLoadFile(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1033,7 +1033,7 @@ Java_app_rive_mp_CommandQueue_cppLoadFile(
  * @param fileHandle The handle of the file to delete.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDeleteFile(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteFile(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1062,7 +1062,7 @@ Java_app_rive_mp_CommandQueue_cppDeleteFile(
  * @param fileHandle The handle of the file to query.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetArtboardNames(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetArtboardNames(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1090,7 +1090,7 @@ Java_app_rive_mp_CommandQueue_cppGetArtboardNames(
  * @param artboardHandle The handle of the artboard to query.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetStateMachineNames(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetStateMachineNames(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1118,7 +1118,7 @@ Java_app_rive_mp_CommandQueue_cppGetStateMachineNames(
  * @param fileHandle The handle of the file to query.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetViewModelNames(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetViewModelNames(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1146,7 +1146,7 @@ Java_app_rive_mp_CommandQueue_cppGetViewModelNames(
  * @param fileHandle The handle of the file to create artboard from.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateDefaultArtboard(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultArtboard(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1175,7 +1175,7 @@ Java_app_rive_mp_CommandQueue_cppCreateDefaultArtboard(
  * @param name The name of the artboard to create.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateArtboardByName(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateArtboardByName(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1209,7 +1209,7 @@ Java_app_rive_mp_CommandQueue_cppCreateArtboardByName(
  * @param artboardHandle The handle of the artboard to delete.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDeleteArtboard(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteArtboard(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1237,7 +1237,7 @@ Java_app_rive_mp_CommandQueue_cppDeleteArtboard(
  * @param artboardHandle The handle of the artboard to create state machine from.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateDefaultStateMachine(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultStateMachine(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1266,7 +1266,7 @@ Java_app_rive_mp_CommandQueue_cppCreateDefaultStateMachine(
  * @param name The name of the state machine to create.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateStateMachineByName(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateStateMachineByName(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1301,7 +1301,7 @@ Java_app_rive_mp_CommandQueue_cppCreateStateMachineByName(
  * @param deltaTimeSeconds The time delta in seconds.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppAdvanceStateMachine(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppAdvanceStateMachine(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1330,7 +1330,7 @@ Java_app_rive_mp_CommandQueue_cppAdvanceStateMachine(
  * @param smHandle The handle of the state machine to delete.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDeleteStateMachine(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteStateMachine(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1356,7 +1356,7 @@ Java_app_rive_mp_CommandQueue_cppDeleteStateMachine(
  * JNI signature: cppGetInputCount(ptr: Long, requestID: Long, smHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetInputCount(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetInputCount(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1378,7 +1378,7 @@ Java_app_rive_mp_CommandQueue_cppGetInputCount(
  * JNI signature: cppGetInputNames(ptr: Long, requestID: Long, smHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetInputNames(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetInputNames(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1400,7 +1400,7 @@ Java_app_rive_mp_CommandQueue_cppGetInputNames(
  * JNI signature: cppGetInputInfo(ptr: Long, requestID: Long, smHandle: Long, inputIndex: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetInputInfo(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetInputInfo(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1423,7 +1423,7 @@ Java_app_rive_mp_CommandQueue_cppGetInputInfo(
  * JNI signature: cppGetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetNumberInput(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetNumberInput(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1450,7 +1450,7 @@ Java_app_rive_mp_CommandQueue_cppGetNumberInput(
  * JNI signature: cppSetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Float): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetNumberInput(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetNumberInput(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1478,7 +1478,7 @@ Java_app_rive_mp_CommandQueue_cppSetNumberInput(
  * JNI signature: cppGetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetBooleanInput(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetBooleanInput(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1505,7 +1505,7 @@ Java_app_rive_mp_CommandQueue_cppGetBooleanInput(
  * JNI signature: cppSetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Boolean): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetBooleanInput(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetBooleanInput(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1533,7 +1533,7 @@ Java_app_rive_mp_CommandQueue_cppSetBooleanInput(
  * JNI signature: cppFireTrigger(ptr: Long, requestID: Long, smHandle: Long, inputName: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppFireTrigger(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppFireTrigger(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1564,7 +1564,7 @@ Java_app_rive_mp_CommandQueue_cppFireTrigger(
  * JNI signature: cppCreateBlankVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateBlankVMI(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateBlankVMI(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1591,7 +1591,7 @@ Java_app_rive_mp_CommandQueue_cppCreateBlankVMI(
  * JNI signature: cppCreateDefaultVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateDefaultVMI(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultVMI(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1618,7 +1618,7 @@ Java_app_rive_mp_CommandQueue_cppCreateDefaultVMI(
  * JNI signature: cppCreateNamedVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String, instanceName: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateNamedVMI(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateNamedVMI(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1650,7 +1650,7 @@ Java_app_rive_mp_CommandQueue_cppCreateNamedVMI(
  * JNI signature: cppDeleteVMI(ptr: Long, requestID: Long, vmiHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDeleteVMI(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteVMI(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1676,7 +1676,7 @@ Java_app_rive_mp_CommandQueue_cppDeleteVMI(
  * JNI signature: cppGetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetNumberProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetNumberProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1703,7 +1703,7 @@ Java_app_rive_mp_CommandQueue_cppGetNumberProperty(
  * JNI signature: cppSetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Float): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetNumberProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetNumberProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1731,7 +1731,7 @@ Java_app_rive_mp_CommandQueue_cppSetNumberProperty(
  * JNI signature: cppGetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetStringProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetStringProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1758,7 +1758,7 @@ Java_app_rive_mp_CommandQueue_cppGetStringProperty(
  * JNI signature: cppSetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetStringProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetStringProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1790,7 +1790,7 @@ Java_app_rive_mp_CommandQueue_cppSetStringProperty(
  * JNI signature: cppGetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetBooleanProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetBooleanProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1817,7 +1817,7 @@ Java_app_rive_mp_CommandQueue_cppGetBooleanProperty(
  * JNI signature: cppSetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Boolean): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetBooleanProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetBooleanProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1849,7 +1849,7 @@ Java_app_rive_mp_CommandQueue_cppSetBooleanProperty(
  * JNI signature: cppGetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetEnumProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetEnumProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1876,7 +1876,7 @@ Java_app_rive_mp_CommandQueue_cppGetEnumProperty(
  * JNI signature: cppSetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetEnumProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetEnumProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1908,7 +1908,7 @@ Java_app_rive_mp_CommandQueue_cppSetEnumProperty(
  * JNI signature: cppGetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetColorProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetColorProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1935,7 +1935,7 @@ Java_app_rive_mp_CommandQueue_cppGetColorProperty(
  * JNI signature: cppSetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetColorProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetColorProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1963,7 +1963,7 @@ Java_app_rive_mp_CommandQueue_cppSetColorProperty(
  * JNI signature: cppFireTriggerProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppFireTriggerProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppFireTriggerProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -1994,7 +1994,7 @@ Java_app_rive_mp_CommandQueue_cppFireTriggerProperty(
  * JNI signature: cppSubscribeToProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSubscribeToProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSubscribeToProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2021,7 +2021,7 @@ Java_app_rive_mp_CommandQueue_cppSubscribeToProperty(
  * JNI signature: cppUnsubscribeFromProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppUnsubscribeFromProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnsubscribeFromProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2052,7 +2052,7 @@ Java_app_rive_mp_CommandQueue_cppUnsubscribeFromProperty(
  * JNI signature: cppGetListSize(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetListSize(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetListSize(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2079,7 +2079,7 @@ Java_app_rive_mp_CommandQueue_cppGetListSize(
  * JNI signature: cppGetListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetListItem(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetListItem(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2107,7 +2107,7 @@ Java_app_rive_mp_CommandQueue_cppGetListItem(
  * JNI signature: cppAddListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, itemHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppAddListItem(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppAddListItem(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2135,7 +2135,7 @@ Java_app_rive_mp_CommandQueue_cppAddListItem(
  * JNI signature: cppAddListItemAt(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int, itemHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppAddListItemAt(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppAddListItemAt(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2164,7 +2164,7 @@ Java_app_rive_mp_CommandQueue_cppAddListItemAt(
  * JNI signature: cppRemoveListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, itemHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppRemoveListItem(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppRemoveListItem(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2192,7 +2192,7 @@ Java_app_rive_mp_CommandQueue_cppRemoveListItem(
  * JNI signature: cppRemoveListItemAt(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppRemoveListItemAt(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppRemoveListItemAt(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2220,7 +2220,7 @@ Java_app_rive_mp_CommandQueue_cppRemoveListItemAt(
  * JNI signature: cppSwapListItems(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, indexA: Int, indexB: Int): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSwapListItems(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSwapListItems(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2253,7 +2253,7 @@ Java_app_rive_mp_CommandQueue_cppSwapListItems(
  * JNI signature: cppGetInstanceProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetInstanceProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetInstanceProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2280,7 +2280,7 @@ Java_app_rive_mp_CommandQueue_cppGetInstanceProperty(
  * JNI signature: cppSetInstanceProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, nestedHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetInstanceProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetInstanceProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2312,7 +2312,7 @@ Java_app_rive_mp_CommandQueue_cppSetInstanceProperty(
  * JNI signature: cppSetImageProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, imageHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetImageProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetImageProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2340,7 +2340,7 @@ Java_app_rive_mp_CommandQueue_cppSetImageProperty(
  * JNI signature: cppSetArtboardProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, fileHandle: Long, artboardHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppSetArtboardProperty(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetArtboardProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2373,7 +2373,7 @@ Java_app_rive_mp_CommandQueue_cppSetArtboardProperty(
  * JNI signature: cppBindViewModelInstance(ptr: Long, requestID: Long, smHandle: Long, vmiHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppBindViewModelInstance(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppBindViewModelInstance(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2396,7 +2396,7 @@ Java_app_rive_mp_CommandQueue_cppBindViewModelInstance(
  * JNI signature: cppGetDefaultViewModelInstance(ptr: Long, requestID: Long, fileHandle: Long, artboardHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppGetDefaultViewModelInstance(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetDefaultViewModelInstance(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2428,7 +2428,7 @@ Java_app_rive_mp_CommandQueue_cppGetDefaultViewModelInstance(
  * @param sampleCount MSAA sample count (0 = no MSAA).
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppCreateRenderTarget(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateRenderTarget(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2463,7 +2463,7 @@ Java_app_rive_mp_CommandQueue_cppCreateRenderTarget(
  * @param renderTargetHandle The handle of the render target to delete.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDeleteRenderTarget(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteRenderTarget(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2509,7 +2509,7 @@ Java_app_rive_mp_CommandQueue_cppDeleteRenderTarget(
  * @param scaleFactor Scale factor for high DPI displays.
  */
 JNIEXPORT void JNICALL
-Java_app_rive_mp_CommandQueue_cppDraw(
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDraw(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
@@ -2571,6 +2571,232 @@ Java_app_rive_mp_RiveSurface_cppDeleteRenderTarget(
     // delete renderTarget;
     
     LOGD(TAG, "Render target deleted (placeholder)");
+}
+
+// =============================================================================
+// Phase 0.3: State Machine Input Manipulation (SMI - fire-and-forget)
+// =============================================================================
+
+/**
+ * Sets a number input on a state machine (fire-and-forget).
+ * This is a simplified API for RiveSprite that doesn't wait for confirmation.
+ *
+ * JNI signature: cppSetStateMachineNumberInput(ptr: Long, smHandle: Long, inputName: String, value: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetStateMachineNumberInput(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jstring inputName,
+    jfloat value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set SM number input on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    // Fire-and-forget: use 0 as requestID
+    server->setNumberInput(0L, static_cast<int64_t>(smHandle), name, static_cast<float>(value));
+}
+
+/**
+ * Sets a boolean input on a state machine (fire-and-forget).
+ * This is a simplified API for RiveSprite that doesn't wait for confirmation.
+ *
+ * JNI signature: cppSetStateMachineBooleanInput(ptr: Long, smHandle: Long, inputName: String, value: Boolean): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetStateMachineBooleanInput(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jstring inputName,
+    jboolean value
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to set SM boolean input on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    // Fire-and-forget: use 0 as requestID
+    server->setBooleanInput(0L, static_cast<int64_t>(smHandle), name, static_cast<bool>(value));
+}
+
+/**
+ * Fires a trigger input on a state machine (fire-and-forget).
+ * This is a simplified API for RiveSprite that doesn't wait for confirmation.
+ *
+ * JNI signature: cppFireStateMachineTrigger(ptr: Long, smHandle: Long, inputName: String): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppFireStateMachineTrigger(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jstring inputName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to fire SM trigger on null CommandServer");
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(inputName, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(inputName, nameChars);
+
+    // Fire-and-forget: use 0 as requestID
+    server->fireTrigger(0L, static_cast<int64_t>(smHandle), name);
+}
+
+// =============================================================================
+// Phase 0.4: Batch Sprite Rendering
+// =============================================================================
+
+/**
+ * Draw multiple sprites in a single batch operation.
+ *
+ * JNI signature: cppDrawMultiple(ptr: Long, renderContextPtr: Long, surfacePtr: Long, 
+ *                                drawKey: Long, renderTargetPtr: Long, viewportWidth: Int, 
+ *                                viewportHeight: Int, clearColor: Int, 
+ *                                artboardHandles: LongArray, stateMachineHandles: LongArray,
+ *                                transforms: FloatArray, artboardWidths: FloatArray, 
+ *                                artboardHeights: FloatArray, count: Int): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDrawMultiple(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong renderContextPtr,
+    jlong surfacePtr,
+    jlong drawKey,
+    jlong renderTargetPtr,
+    jint viewportWidth,
+    jint viewportHeight,
+    jint clearColor,
+    jlongArray artboardHandles,
+    jlongArray stateMachineHandles,
+    jfloatArray transforms,
+    jfloatArray artboardWidths,
+    jfloatArray artboardHeights,
+    jint count
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to drawMultiple on null CommandServer");
+        return;
+    }
+
+    // Get array elements
+    jlong* abHandles = env->GetLongArrayElements(artboardHandles, nullptr);
+    jlong* smHandles = env->GetLongArrayElements(stateMachineHandles, nullptr);
+    jfloat* xforms = env->GetFloatArrayElements(transforms, nullptr);
+    jfloat* widths = env->GetFloatArrayElements(artboardWidths, nullptr);
+    jfloat* heights = env->GetFloatArrayElements(artboardHeights, nullptr);
+
+    // Convert to vectors for CommandServer
+    std::vector<int64_t> abVec(abHandles, abHandles + count);
+    std::vector<int64_t> smVec(smHandles, smHandles + count);
+    std::vector<float> xformVec(xforms, xforms + count * 6);
+    std::vector<float> widthVec(widths, widths + count);
+    std::vector<float> heightVec(heights, heights + count);
+
+    // Release array elements
+    env->ReleaseLongArrayElements(artboardHandles, abHandles, JNI_ABORT);
+    env->ReleaseLongArrayElements(stateMachineHandles, smHandles, JNI_ABORT);
+    env->ReleaseFloatArrayElements(transforms, xforms, JNI_ABORT);
+    env->ReleaseFloatArrayElements(artboardWidths, widths, JNI_ABORT);
+    env->ReleaseFloatArrayElements(artboardHeights, heights, JNI_ABORT);
+
+    // TODO: Implement actual batch rendering in CommandServer
+    // server->drawMultiple(renderContextPtr, surfacePtr, drawKey, renderTargetPtr,
+    //                      viewportWidth, viewportHeight, clearColor,
+    //                      abVec, smVec, xformVec, widthVec, heightVec, count);
+    
+    LOGD("CommandQueue JNI: drawMultiple called with %d sprites (placeholder)\n", count);
+}
+
+/**
+ * Draw multiple sprites in a single batch operation and read result to buffer.
+ *
+ * JNI signature: cppDrawMultipleToBuffer(ptr: Long, renderContextPtr: Long, surfacePtr: Long, 
+ *                                        drawKey: Long, renderTargetPtr: Long, viewportWidth: Int, 
+ *                                        viewportHeight: Int, clearColor: Int, 
+ *                                        artboardHandles: LongArray, stateMachineHandles: LongArray,
+ *                                        transforms: FloatArray, artboardWidths: FloatArray, 
+ *                                        artboardHeights: FloatArray, count: Int, buffer: ByteArray): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppDrawMultipleToBuffer(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong renderContextPtr,
+    jlong surfacePtr,
+    jlong drawKey,
+    jlong renderTargetPtr,
+    jint viewportWidth,
+    jint viewportHeight,
+    jint clearColor,
+    jlongArray artboardHandles,
+    jlongArray stateMachineHandles,
+    jfloatArray transforms,
+    jfloatArray artboardWidths,
+    jfloatArray artboardHeights,
+    jint count,
+    jbyteArray buffer
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to drawMultipleToBuffer on null CommandServer");
+        return;
+    }
+
+    // Get array elements
+    jlong* abHandles = env->GetLongArrayElements(artboardHandles, nullptr);
+    jlong* smHandles = env->GetLongArrayElements(stateMachineHandles, nullptr);
+    jfloat* xforms = env->GetFloatArrayElements(transforms, nullptr);
+    jfloat* widths = env->GetFloatArrayElements(artboardWidths, nullptr);
+    jfloat* heights = env->GetFloatArrayElements(artboardHeights, nullptr);
+    jbyte* bufferPtr = env->GetByteArrayElements(buffer, nullptr);
+
+    // Convert to vectors for CommandServer
+    std::vector<int64_t> abVec(abHandles, abHandles + count);
+    std::vector<int64_t> smVec(smHandles, smHandles + count);
+    std::vector<float> xformVec(xforms, xforms + count * 6);
+    std::vector<float> widthVec(widths, widths + count);
+    std::vector<float> heightVec(heights, heights + count);
+
+    // TODO: Implement actual batch rendering with buffer readback in CommandServer
+    // server->drawMultipleToBuffer(renderContextPtr, surfacePtr, drawKey, renderTargetPtr,
+    //                              viewportWidth, viewportHeight, clearColor,
+    //                              abVec, smVec, xformVec, widthVec, heightVec, count,
+    //                              bufferPtr);
+    
+    LOGD("CommandQueue JNI: drawMultipleToBuffer called with %d sprites (placeholder)\n", count);
+
+    // Release array elements
+    env->ReleaseLongArrayElements(artboardHandles, abHandles, JNI_ABORT);
+    env->ReleaseLongArrayElements(stateMachineHandles, smHandles, JNI_ABORT);
+    env->ReleaseFloatArrayElements(transforms, xforms, JNI_ABORT);
+    env->ReleaseFloatArrayElements(artboardWidths, widths, JNI_ABORT);
+    env->ReleaseFloatArrayElements(artboardHeights, heights, JNI_ABORT);
+    env->ReleaseByteArrayElements(buffer, bufferPtr, 0);  // Copy back changes
 }
 
 } // extern "C"

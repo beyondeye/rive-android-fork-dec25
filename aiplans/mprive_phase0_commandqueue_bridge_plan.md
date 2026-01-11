@@ -4,7 +4,7 @@
 **Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
-**Last Updated: January 11, 2026, 11:31 PM
+**Last Updated: January 11, 2026, 11:36 PM
 
 ---
 
@@ -79,17 +79,22 @@
 |------|--------|------|
 | Update test error message assertions | ✅ Done | `mprive/src/commonTest/kotlin/app/rive/mp/test/statemachine/MpRiveStateMachineLoadTest.kt` |
 
+### ✅ COMPLETED (Session 8 - Jan 11, 2026, 11:36 PM)
+
+| Item | Status | File |
+|------|--------|------|
+| Update JNI function names | ✅ Done | Changed from `Java_app_rive_mp_CommandQueue_` to `Java_app_rive_mp_core_CommandQueueJNIBridge_` |
+| Add SMI fire-and-forget JNI | ✅ Done | `cppSetStateMachineNumberInput`, `cppSetStateMachineBooleanInput`, `cppFireStateMachineTrigger` |
+| Add batch rendering JNI | ✅ Done | `cppDrawMultiple`, `cppDrawMultipleToBuffer` |
+
 ### 🔄 IN PROGRESS
 
-Phase 0.6 - Test updates complete. Runtime verification requires Android device/emulator.
+Phase 0 complete. Ready for testing on Android device/emulator.
 
 ### ❌ NOT STARTED
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Add pointer event methods | ❌ Pending | pointerMove, pointerDown, pointerUp, pointerExit |
-| Add artboard resize methods | ❌ Pending | resizeArtboard, resetArtboardSize |
-| Desktop stub implementation | ❌ Pending | Needed for compilation on desktop target |
 | Run instrumented tests on device | ❌ Pending | Requires Android device/emulator |
 
 ---
@@ -251,7 +256,7 @@ typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 | 0.4 | Add batch rendering | Day 4-5 | ✅ Done |
 | 0.5 | Add type aliases | Day 5 | ✅ Done |
 | 0.6 | Update tests | Day 5-6 | ✅ Done (code review/updates complete, runtime verification pending device) |
-| 0.7 | Update C++ bindings | Day 6-7 | ❌ Pending |
+| 0.7 | Update C++ bindings | Day 6-7 | ✅ Done |
 
 **Total: 5-7 days**
 
