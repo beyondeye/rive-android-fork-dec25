@@ -1,7 +1,11 @@
 package app.rive.mp
 
 import app.rive.mp.core.Alignment
+import app.rive.mp.core.CommandQueueBridge
 import app.rive.mp.core.Fit
+import app.rive.mp.core.Listeners
+import app.rive.mp.core.SpriteDrawCommand
+import app.rive.mp.core.createCommandQueueBridge
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -10,6 +14,19 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration
+
+/**
+ * Type alias matching the upstream API.
+ * [CommandQueue] is named to match the underlying core C++ class,
+ * but for public API purposes, RiveWorker is a more semantic name.
+ */
+typealias RiveWorker = CommandQueue
+
+/**
+ * Additional alias for the interior type [CommandQueue.PropertyUpdate].
+ */
+typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 
 const val COMMAND_QUEUE_TAG = "Rive/CQ"
 
@@ -27,44 +44,9 @@ const val COMMAND_QUEUE_TAG = "Rive/CQ"
  * @throws IllegalStateException If the command queue cannot be created.
  */
 class CommandQueue(
-    private val renderContext: RenderContext = createDefaultRenderContext()
+    private val renderContext: RenderContext = createDefaultRenderContext(),
+    private val bridge: CommandQueueBridge = createCommandQueueBridge()
 ) : RefCounted {
-    
-    // External JNI method declarations
-    private external fun cppConstructor(renderContextPtr: Long): Long
-    private external fun cppDelete(ptr: Long)
-    private external fun cppPollMessages(ptr: Long)
-    
-    // Phase B methods
-    private external fun cppLoadFile(ptr: Long, requestID: Long, bytes: ByteArray)
-    private external fun cppDeleteFile(ptr: Long, requestID: Long, fileHandle: Long)
-    private external fun cppGetArtboardNames(ptr: Long, requestID: Long, fileHandle: Long)
-    private external fun cppGetStateMachineNames(ptr: Long, requestID: Long, artboardHandle: Long)
-    private external fun cppGetViewModelNames(ptr: Long, requestID: Long, fileHandle: Long)
-    private external fun cppCreateDefaultArtboard(ptr: Long, requestID: Long, fileHandle: Long)
-    private external fun cppCreateArtboardByName(ptr: Long, requestID: Long, fileHandle: Long, name: String)
-    private external fun cppDeleteArtboard(ptr: Long, requestID: Long, artboardHandle: Long)
-
-    // Phase C.2.3: Render target methods
-    private external fun cppCreateRenderTarget(ptr: Long, requestID: Long, width: Int, height: Int, sampleCount: Int)
-    private external fun cppDeleteRenderTarget(ptr: Long, requestID: Long, renderTargetHandle: Long)
-
-    // Phase C.2.7: Draw method
-    private external fun cppDraw(
-        ptr: Long,
-        requestID: Long,
-        artboardHandle: Long,
-        smHandle: Long,
-        surfacePtr: Long,
-        renderTargetPtr: Long,
-        drawKey: Long,
-        surfaceWidth: Int,
-        surfaceHeight: Int,
-        fitMode: Int,
-        alignmentMode: Int,
-        clearColor: Int,
-        scaleFactor: Float
-    )
 
     companion object {
         /**
@@ -2352,3 +2334,4 @@ class CommandQueue(
         }
     }
 }
+
