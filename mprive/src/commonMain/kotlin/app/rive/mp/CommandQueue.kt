@@ -597,6 +597,51 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Phase 0.3: State Machine Input Manipulation (SMI - for RiveSprite)
+    // =============================================================================
+
+    /**
+     * Set a number input on a state machine (fire-and-forget).
+     * This is a simplified API for RiveSprite that doesn't wait for confirmation.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the number input.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setStateMachineNumberInput(smHandle: StateMachineHandle, inputName: String, value: Float) {
+        bridge.cppSetStateMachineNumberInput(cppPointer.pointer, smHandle.handle, inputName, value)
+    }
+
+    /**
+     * Set a boolean input on a state machine (fire-and-forget).
+     * This is a simplified API for RiveSprite that doesn't wait for confirmation.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the boolean input.
+     * @param value The value to set.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setStateMachineBooleanInput(smHandle: StateMachineHandle, inputName: String, value: Boolean) {
+        bridge.cppSetStateMachineBooleanInput(cppPointer.pointer, smHandle.handle, inputName, value)
+    }
+
+    /**
+     * Fire a trigger input on a state machine (fire-and-forget).
+     * This is a simplified API for RiveSprite that doesn't wait for confirmation.
+     *
+     * @param smHandle The handle of the state machine.
+     * @param inputName The name of the trigger input.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun fireStateMachineTrigger(smHandle: StateMachineHandle, inputName: String) {
+        bridge.cppFireStateMachineTrigger(cppPointer.pointer, smHandle.handle, inputName)
+    }
+
+    // =============================================================================
     // Phase C.4: State Machine Input Operations
     // =============================================================================
 

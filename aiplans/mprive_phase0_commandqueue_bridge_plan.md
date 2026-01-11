@@ -4,7 +4,7 @@
 **Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
-**Last Updated: January 11, 2026, 7:02 PM
+**Last Updated: January 11, 2026, 7:08 PM
 
 ---
 
@@ -54,9 +54,19 @@
 | createNamedViewModelInstance (sync) | ✅ Done | Returns handle directly from bridge |
 | Android compilation verified | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
 
+### ✅ COMPLETED (Session 5 - Jan 11, 2026, 7:08 PM)
+
+| Item | Status | File |
+|------|--------|------|
+| Add SMI methods to CommandQueue | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
+| setStateMachineNumberInput() | ✅ Done | Fire-and-forget wrapper for bridge method |
+| setStateMachineBooleanInput() | ✅ Done | Fire-and-forget wrapper for bridge method |
+| fireStateMachineTrigger() | ✅ Done | Fire-and-forget wrapper for bridge method |
+| Android compilation verified | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
+
 ### 🔄 IN PROGRESS
 
-None - ready for Phase 0.3
+None - ready for Phase 0.4
 
 ### ❌ NOT STARTED
 
@@ -163,12 +173,12 @@ Create interface with all native method declarations, then create platform-speci
 - createDefaultViewModelInstance
 - createNamedViewModelInstance
 
-### Phase 0.3: Add SMI Methods (Day 3-4) ❌ PENDING
+### Phase 0.3: Add SMI Methods (Day 3-4) ✅ DONE
 
 Add State Machine Input methods for RiveSprite support:
-- `setStateMachineNumberInput`
-- `setStateMachineBooleanInput`
-- `fireStateMachineTrigger`
+- `setStateMachineNumberInput` ✅
+- `setStateMachineBooleanInput` ✅
+- `fireStateMachineTrigger` ✅
 
 ### Phase 0.4: Add Batch Rendering (Day 4-5) ❌ PENDING
 
@@ -225,7 +235,7 @@ typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 |-------|-------------|----------|--------|
 | 0.1 | Create CommandQueueBridge interface | Day 1-2 | ✅ Done |
 | 0.2 | Update CommandQueue to use bridge | Day 2-3 | ✅ Done |
-| 0.3 | Add SMI methods | Day 3-4 | ❌ Pending |
+| 0.3 | Add SMI methods | Day 3-4 | ✅ Done |
 | 0.4 | Add batch rendering | Day 4-5 | ❌ Pending |
 | 0.5 | Add type aliases | Day 5 | ✅ Done |
 | 0.6 | Update tests | Day 5-6 | ❌ Pending |
