@@ -2439,7 +2439,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateRenderTarget(
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
-        LOGW(TAG, "CommandQueue JNI: Attempted to create render target on null CommandServer");
+        LOGW("CommandQueue JNI: Attempted to create render target on null CommandServer");
         return;
     }
 
@@ -2472,7 +2472,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteRenderTarget(
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
-        LOGW(TAG, "CommandQueue JNI: Attempted to delete render target on null CommandServer");
+        LOGW("CommandQueue JNI: Attempted to delete render target on null CommandServer");
         return;
     }
 
@@ -2528,7 +2528,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDraw(
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
-        LOGW(TAG, "CommandQueue JNI: Attempted to draw on null CommandServer");
+        LOGW("CommandQueue JNI: Attempted to draw on null CommandServer");
         return;
     }
 
@@ -2564,13 +2564,13 @@ Java_app_rive_mp_RiveSurface_cppDeleteRenderTarget(
         return;
     }
     
-    LOGD(TAG, "Deleting Rive render target");
+    LOGD("Deleting Rive render target");
     
     // TODO: In Phase C.2.6, implement actual render target deletion
     // auto* renderTarget = reinterpret_cast<rive::gpu::RenderTargetGL*>(ptr);
     // delete renderTarget;
     
-    LOGD(TAG, "Render target deleted (placeholder)");
+    LOGD("Render target deleted (placeholder)");
 }
 
 // =============================================================================
