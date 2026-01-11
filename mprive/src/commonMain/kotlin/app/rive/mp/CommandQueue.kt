@@ -517,67 +517,9 @@ class CommandQueue(
     // Phase C: State Machine Operations
     // =============================================================================
     
-    // External JNI methods for state machines
-    private external fun cppCreateDefaultStateMachine(ptr: Long, requestID: Long, artboardHandle: Long)
-    private external fun cppCreateStateMachineByName(ptr: Long, requestID: Long, artboardHandle: Long, name: String)
-    private external fun cppAdvanceStateMachine(ptr: Long, requestID: Long, smHandle: Long, deltaTimeSeconds: Float)
-    private external fun cppDeleteStateMachine(ptr: Long, requestID: Long, smHandle: Long)
+    // NOTE: All external fun declarations have been moved to CommandQueueBridge interface.
+    // Methods now use bridge.cppXxx() pattern for platform abstraction.
 
-    // External JNI methods for state machine inputs (Phase C.4)
-    private external fun cppGetInputCount(ptr: Long, requestID: Long, smHandle: Long)
-    private external fun cppGetInputNames(ptr: Long, requestID: Long, smHandle: Long)
-    private external fun cppGetInputInfo(ptr: Long, requestID: Long, smHandle: Long, inputIndex: Int)
-    private external fun cppGetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
-    private external fun cppSetNumberInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Float)
-    private external fun cppGetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
-    private external fun cppSetBooleanInput(ptr: Long, requestID: Long, smHandle: Long, inputName: String, value: Boolean)
-    private external fun cppFireTrigger(ptr: Long, requestID: Long, smHandle: Long, inputName: String)
-
-    // External JNI methods for ViewModelInstance (Phase D.1)
-    private external fun cppCreateBlankVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String)
-    private external fun cppCreateDefaultVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String)
-    private external fun cppCreateNamedVMI(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String, instanceName: String)
-    private external fun cppDeleteVMI(ptr: Long, requestID: Long, vmiHandle: Long)
-
-    // External JNI methods for Property Operations (Phase D.2)
-    private external fun cppGetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppSetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Float)
-    private external fun cppGetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppSetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String)
-    private external fun cppGetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppSetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Boolean)
-
-    // External JNI methods for Additional Property Types (Phase D.3)
-    private external fun cppGetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppSetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String)
-    private external fun cppGetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppSetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Int)
-    private external fun cppFireTriggerProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-
-    // External JNI methods for Property Subscriptions (Phase D.4)
-    private external fun cppSubscribeToProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int)
-    private external fun cppUnsubscribeFromProperty(ptr: Long, vmiHandle: Long, propertyPath: String, propertyType: Int)
-
-    // External JNI methods for List Operations (Phase D.5)
-    private external fun cppGetListSize(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppGetListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int)
-    private external fun cppAddListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, itemHandle: Long)
-    private external fun cppAddListItemAt(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int, itemHandle: Long)
-    private external fun cppRemoveListItem(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, itemHandle: Long)
-    private external fun cppRemoveListItemAt(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, index: Int)
-    private external fun cppSwapListItems(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, indexA: Int, indexB: Int)
-
-    // External JNI methods for Nested VMI Operations (Phase D.5)
-    private external fun cppGetInstanceProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String)
-    private external fun cppSetInstanceProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, nestedHandle: Long)
-
-    // External JNI methods for Asset Property Operations (Phase D.5)
-    private external fun cppSetImageProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, imageHandle: Long)
-    private external fun cppSetArtboardProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, fileHandle: Long, artboardHandle: Long)
-
-    // External JNI methods for VMI Binding Operations (Phase D.6)
-    private external fun cppBindViewModelInstance(ptr: Long, requestID: Long, smHandle: Long, vmiHandle: Long)
-    private external fun cppGetDefaultViewModelInstance(ptr: Long, requestID: Long, fileHandle: Long, artboardHandle: Long)
 
     /**
      * Create the default state machine from an artboard.
@@ -591,7 +533,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun createDefaultStateMachine(artboardHandle: ArtboardHandle): StateMachineHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateDefaultStateMachine(cppPointer.pointer, requestID, artboardHandle.handle)
+            bridge.cppCreateDefaultStateMachine(cppPointer.pointer, requestID, artboardHandle.handle)
         }
     }
     
@@ -608,7 +550,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun createStateMachineByName(artboardHandle: ArtboardHandle, name: String): StateMachineHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateStateMachineByName(cppPointer.pointer, requestID, artboardHandle.handle, name)
+            bridge.cppCreateStateMachineByName(cppPointer.pointer, requestID, artboardHandle.handle, name)
         }
     }
     
@@ -625,8 +567,8 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun advanceStateMachine(smHandle: StateMachineHandle, deltaTimeSeconds: Float) {
         // Fire and forget - don't wait for completion
-        val requestID = nextRequestID.getAndIncrement()
-        cppAdvanceStateMachine(cppPointer.pointer, requestID, smHandle.handle, deltaTimeSeconds)
+        val deltaTimeNs = (deltaTimeSeconds * 1_000_000_000L).toLong()
+        bridge.cppAdvanceStateMachine(cppPointer.pointer, smHandle.handle, deltaTimeNs)
     }
     
     /**
@@ -639,7 +581,7 @@ class CommandQueue(
     fun deleteStateMachine(smHandle: StateMachineHandle) {
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
-        cppDeleteStateMachine(cppPointer.pointer, requestID, smHandle.handle)
+        bridge.cppDeleteStateMachine(cppPointer.pointer, requestID, smHandle.handle)
     }
 
     // =============================================================================
@@ -658,7 +600,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getInputCount(smHandle: StateMachineHandle): Int {
         return suspendNativeRequest { requestID ->
-            cppGetInputCount(cppPointer.pointer, requestID, smHandle.handle)
+            bridge.cppGetInputCount(cppPointer.pointer, requestID, smHandle.handle)
         }
     }
 
@@ -674,7 +616,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getInputNames(smHandle: StateMachineHandle): List<String> {
         return suspendNativeRequest { requestID ->
-            cppGetInputNames(cppPointer.pointer, requestID, smHandle.handle)
+            bridge.cppGetInputNames(cppPointer.pointer, requestID, smHandle.handle)
         }
     }
 
@@ -691,7 +633,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getInputInfo(smHandle: StateMachineHandle, inputIndex: Int): InputInfo {
         return suspendNativeRequest { requestID ->
-            cppGetInputInfo(cppPointer.pointer, requestID, smHandle.handle, inputIndex)
+            bridge.cppGetInputInfo(cppPointer.pointer, requestID, smHandle.handle, inputIndex)
         }
     }
 
@@ -708,7 +650,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getNumberInput(smHandle: StateMachineHandle, inputName: String): Float {
         return suspendNativeRequest { requestID ->
-            cppGetNumberInput(cppPointer.pointer, requestID, smHandle.handle, inputName)
+            bridge.cppGetNumberInput(cppPointer.pointer, requestID, smHandle.handle, inputName)
         }
     }
 
@@ -724,7 +666,7 @@ class CommandQueue(
     fun setNumberInput(smHandle: StateMachineHandle, inputName: String, value: Float) {
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
-        cppSetNumberInput(cppPointer.pointer, requestID, smHandle.handle, inputName, value)
+        bridge.cppSetNumberInput(cppPointer.pointer, requestID, smHandle.handle, inputName, value)
     }
 
     /**
@@ -740,7 +682,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
     suspend fun getBooleanInput(smHandle: StateMachineHandle, inputName: String): Boolean {
         return suspendNativeRequest { requestID ->
-            cppGetBooleanInput(cppPointer.pointer, requestID, smHandle.handle, inputName)
+            bridge.cppGetBooleanInput(cppPointer.pointer, requestID, smHandle.handle, inputName)
         }
     }
 
@@ -756,7 +698,7 @@ class CommandQueue(
     fun setBooleanInput(smHandle: StateMachineHandle, inputName: String, value: Boolean) {
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
-        cppSetBooleanInput(cppPointer.pointer, requestID, smHandle.handle, inputName, value)
+        bridge.cppSetBooleanInput(cppPointer.pointer, requestID, smHandle.handle, inputName, value)
     }
 
     /**
@@ -770,7 +712,7 @@ class CommandQueue(
     fun fireTrigger(smHandle: StateMachineHandle, inputName: String) {
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
-        cppFireTrigger(cppPointer.pointer, requestID, smHandle.handle, inputName)
+        bridge.cppFireTrigger(cppPointer.pointer, requestID, smHandle.handle, inputName)
     }
 
     // =============================================================================
@@ -794,7 +736,7 @@ class CommandQueue(
         viewModelName: String
     ): ViewModelInstanceHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateBlankVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+            bridge.cppCreateBlankVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
         }
     }
 
@@ -815,7 +757,7 @@ class CommandQueue(
         viewModelName: String
     ): ViewModelInstanceHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateDefaultVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+            bridge.cppCreateDefaultVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
         }
     }
 
@@ -838,7 +780,7 @@ class CommandQueue(
         instanceName: String
     ): ViewModelInstanceHandle {
         return suspendNativeRequest { requestID ->
-            cppCreateNamedVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName, instanceName)
+            bridge.cppCreateNamedVMI(cppPointer.pointer, requestID, fileHandle.handle, viewModelName, instanceName)
         }
     }
 
@@ -852,7 +794,7 @@ class CommandQueue(
     fun deleteViewModelInstance(vmiHandle: ViewModelInstanceHandle) {
         // Fire and forget - don't wait for completion
         val requestID = nextRequestID.getAndIncrement()
-        cppDeleteVMI(cppPointer.pointer, requestID, vmiHandle.handle)
+        bridge.cppDeleteVMI(cppPointer.pointer, requestID, vmiHandle.handle)
     }
 
     // =============================================================================
@@ -875,7 +817,7 @@ class CommandQueue(
         propertyPath: String
     ): Float {
         return suspendNativeRequest { requestID ->
-            cppGetNumberProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetNumberProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -890,7 +832,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun setNumberProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Float) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetNumberProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+        bridge.cppSetNumberProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, value)
     }
 
     /**
@@ -909,7 +851,7 @@ class CommandQueue(
         propertyPath: String
     ): String {
         return suspendNativeRequest { requestID ->
-            cppGetStringProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetStringProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -924,7 +866,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun setStringProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: String) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetStringProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+        bridge.cppSetStringProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, value)
     }
 
     /**
@@ -943,7 +885,7 @@ class CommandQueue(
         propertyPath: String
     ): Boolean {
         return suspendNativeRequest { requestID ->
-            cppGetBooleanProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetBooleanProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -958,7 +900,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun setBooleanProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Boolean) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetBooleanProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+        bridge.cppSetBooleanProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, value)
     }
 
     // =============================================================================
@@ -982,7 +924,7 @@ class CommandQueue(
         propertyPath: String
     ): String {
         return suspendNativeRequest { requestID ->
-            cppGetEnumProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetEnumProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -998,7 +940,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun setEnumProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: String) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetEnumProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+        bridge.cppSetEnumProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, value)
     }
 
     /**
@@ -1018,7 +960,7 @@ class CommandQueue(
         propertyPath: String
     ): Int {
         return suspendNativeRequest { requestID ->
-            cppGetColorProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetColorProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -1034,7 +976,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun setColorProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String, value: Int) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetColorProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, value)
+        bridge.cppSetColorProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, value)
     }
 
     /**
@@ -1048,7 +990,7 @@ class CommandQueue(
     @Throws(IllegalStateException::class)
     fun fireTriggerProperty(vmiHandle: ViewModelInstanceHandle, propertyPath: String) {
         val requestID = nextRequestID.getAndIncrement()
-        cppFireTriggerProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+        bridge.cppFireTriggerProperty(cppPointer.pointer, vmiHandle.handle, propertyPath)
     }
 
     // =============================================================================
@@ -1076,7 +1018,7 @@ class CommandQueue(
         propertyPath: String,
         propertyType: PropertyDataType
     ) {
-        cppSubscribeToProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
+        bridge.cppSubscribeToProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
     }
 
     /**
@@ -1093,7 +1035,7 @@ class CommandQueue(
         propertyPath: String,
         propertyType: PropertyDataType
     ) {
-        cppUnsubscribeFromProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
+        bridge.cppUnsubscribeFromProperty(cppPointer.pointer, vmiHandle.handle, propertyPath, propertyType.value)
     }
 
     // =============================================================================
@@ -1116,7 +1058,7 @@ class CommandQueue(
         propertyPath: String
     ): Int {
         return suspendNativeRequest { requestID ->
-            cppGetListSize(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetListSize(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -1138,7 +1080,7 @@ class CommandQueue(
         index: Int
     ): ViewModelInstanceHandle {
         return suspendNativeRequest { requestID ->
-            cppGetListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index)
+            bridge.cppGetListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index)
         }
     }
 
@@ -1157,7 +1099,7 @@ class CommandQueue(
         itemHandle: ViewModelInstanceHandle
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppAddListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, itemHandle.handle)
+        bridge.cppAddListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, itemHandle.handle)
     }
 
     /**
@@ -1177,7 +1119,7 @@ class CommandQueue(
         itemHandle: ViewModelInstanceHandle
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppAddListItemAt(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index, itemHandle.handle)
+        bridge.cppAddListItemAt(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index, itemHandle.handle)
     }
 
     /**
@@ -1195,7 +1137,7 @@ class CommandQueue(
         itemHandle: ViewModelInstanceHandle
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppRemoveListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, itemHandle.handle)
+        bridge.cppRemoveListItem(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, itemHandle.handle)
     }
 
     /**
@@ -1213,7 +1155,7 @@ class CommandQueue(
         index: Int
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppRemoveListItemAt(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index)
+        bridge.cppRemoveListItemAt(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, index)
     }
 
     /**
@@ -1233,7 +1175,7 @@ class CommandQueue(
         indexB: Int
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSwapListItems(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, indexA, indexB)
+        bridge.cppSwapListItems(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, indexA, indexB)
     }
 
     // =============================================================================
@@ -1256,7 +1198,7 @@ class CommandQueue(
         propertyPath: String
     ): ViewModelInstanceHandle {
         return suspendNativeRequest { requestID ->
-            cppGetInstanceProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
+            bridge.cppGetInstanceProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath)
         }
     }
 
@@ -1275,7 +1217,7 @@ class CommandQueue(
         nestedHandle: ViewModelInstanceHandle
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetInstanceProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, nestedHandle.handle)
+        bridge.cppSetInstanceProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, nestedHandle.handle)
     }
 
     // =============================================================================
@@ -1298,7 +1240,7 @@ class CommandQueue(
         imageHandle: ImageHandle?
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetImageProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, imageHandle?.handle ?: 0L)
+        bridge.cppSetImageProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, imageHandle?.handle ?: 0L)
     }
 
     /**
@@ -1319,7 +1261,7 @@ class CommandQueue(
         artboardHandle: ArtboardHandle?
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppSetArtboardProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, fileHandle.handle, artboardHandle?.handle ?: 0L)
+        bridge.cppSetArtboardProperty(cppPointer.pointer, requestID, vmiHandle.handle, propertyPath, fileHandle.handle, artboardHandle?.handle ?: 0L)
     }
 
     // =============================================================================
@@ -1340,7 +1282,7 @@ class CommandQueue(
         vmiHandle: ViewModelInstanceHandle
     ) {
         val requestID = nextRequestID.getAndIncrement()
-        cppBindViewModelInstance(cppPointer.pointer, requestID, smHandle.handle, vmiHandle.handle)
+        bridge.cppBindViewModelInstance(cppPointer.pointer, requestID, smHandle.handle, vmiHandle.handle)
     }
 
     /**
@@ -1360,7 +1302,7 @@ class CommandQueue(
         artboardHandle: ArtboardHandle
     ): ViewModelInstanceHandle? {
         return suspendNativeRequest { requestID ->
-            cppGetDefaultViewModelInstance(cppPointer.pointer, requestID, fileHandle.handle, artboardHandle.handle)
+            bridge.cppGetDefaultViewModelInstance(cppPointer.pointer, requestID, fileHandle.handle, artboardHandle.handle)
         }
     }
 

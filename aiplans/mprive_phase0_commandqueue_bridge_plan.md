@@ -4,7 +4,7 @@
 **Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
-**Last Updated: January 11, 2026, 12:27 PM
+**Last Updated: January 11, 2026, 6:50 PM
 
 ---
 
@@ -30,11 +30,20 @@
 | Add PropertyUpdate<T> data class | ✅ Done | Inside CommandQueue class (line 66) |
 | Android compilation passing | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
 
+### ✅ COMPLETED (Session 3 - Jan 11, 2026, 6:50 PM)
+
+| Item | Status | File |
+|------|--------|------|
+| Remove all `private external fun` declarations | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
+| Replace ALL ~40 cppXxx calls with bridge.cppXxx() | ✅ Done | State machine, VMI, property, list, binding ops |
+| Fix `advanceStateMachine` signature | ✅ Done | Now uses `deltaTimeNs: Long` instead of `requestID, deltaTimeSeconds: Float` |
+| Fix property setter signatures | ✅ Done | Removed `requestID` from setNumber/String/Boolean/Enum/Color/FireTrigger |
+| Android compilation passing | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
+
 ### 🔄 IN PROGRESS
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Replace external fun declarations with bridge calls | ✅ Done | All cppXxx calls now use bridge.cppXxx() |
 | Convert creation methods from suspend to sync | ❌ Pending | createDefaultArtboard, createArtboardByName, etc. |
 
 ### ❌ NOT STARTED
@@ -202,7 +211,7 @@ typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 | Phase | Description | Duration | Status |
 |-------|-------------|----------|--------|
 | 0.1 | Create CommandQueueBridge interface | Day 1-2 | ✅ Done |
-| 0.2 | Update CommandQueue to use bridge | Day 2-3 | 🔄 ~80% Done |
+| 0.2 | Update CommandQueue to use bridge | Day 2-3 | ✅ Done |
 | 0.3 | Add SMI methods | Day 3-4 | ❌ Pending |
 | 0.4 | Add batch rendering | Day 4-5 | ❌ Pending |
 | 0.5 | Add type aliases | Day 5 | ✅ Done |
