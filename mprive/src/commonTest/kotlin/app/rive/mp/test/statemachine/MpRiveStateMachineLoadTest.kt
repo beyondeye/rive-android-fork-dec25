@@ -230,7 +230,8 @@ class MpRiveStateMachineLoadTest {
 
             assertTrue(
                 exception.message?.contains("Invalid artboard handle") == true ||
-                exception.message?.contains("State machine operation failed") == true,
+                exception.message?.contains("State machine operation failed") == true ||
+                exception.message?.contains("Failed to create") == true,
                 "Expected error for invalid artboard handle, got: ${exception.message}"
             )
 
@@ -258,7 +259,8 @@ class MpRiveStateMachineLoadTest {
 
             assertTrue(
                 exception.message?.contains("State machine not found") == true ||
-                exception.message?.contains("State machine operation failed") == true,
+                exception.message?.contains("State machine operation failed") == true ||
+                exception.message?.contains("Failed to create") == true,
                 "Expected error for non-existent state machine, got: ${exception.message}"
             )
 

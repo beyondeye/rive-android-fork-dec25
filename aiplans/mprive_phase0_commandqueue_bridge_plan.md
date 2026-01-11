@@ -4,7 +4,7 @@
 **Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
-**Last Updated: January 11, 2026, 11:17 PM
+**Last Updated: January 11, 2026, 11:31 PM
 
 ---
 
@@ -73,21 +73,24 @@
 | drawMultipleToBuffer() | ✅ Done | Batch rendering with pixel readback to ByteArray |
 | Android compilation verified | ✅ Done | `./gradlew :mprive:compileDebugKotlinAndroid` succeeds |
 
+### ✅ COMPLETED (Session 7 - Jan 11, 2026, 11:31 PM)
+
+| Item | Status | File |
+|------|--------|------|
+| Update test error message assertions | ✅ Done | `mprive/src/commonTest/kotlin/app/rive/mp/test/statemachine/MpRiveStateMachineLoadTest.kt` |
+
 ### 🔄 IN PROGRESS
 
-None - ready for Phase 0.6 (Update tests)
+Phase 0.6 - Test updates complete. Runtime verification requires Android device/emulator.
 
 ### ❌ NOT STARTED
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Update advanceStateMachine to use Duration | ❌ Pending | Currently uses Float deltaTimeSeconds |
-| Add SMI methods | ❌ Pending | setStateMachineNumberInput, setStateMachineBooleanInput, fireStateMachineTrigger |
 | Add pointer event methods | ❌ Pending | pointerMove, pointerDown, pointerUp, pointerExit |
 | Add artboard resize methods | ❌ Pending | resizeArtboard, resetArtboardSize |
-| Add drawMultiple/drawMultipleToBuffer | ❌ Pending | Batch rendering support |
-| Update tests | ❌ Pending | Tests need updating for synchronous API |
 | Desktop stub implementation | ❌ Pending | Needed for compilation on desktop target |
+| Run instrumented tests on device | ❌ Pending | Requires Android device/emulator |
 
 ---
 
@@ -247,7 +250,7 @@ typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 | 0.3 | Add SMI methods | Day 3-4 | ✅ Done |
 | 0.4 | Add batch rendering | Day 4-5 | ✅ Done |
 | 0.5 | Add type aliases | Day 5 | ✅ Done |
-| 0.6 | Update tests | Day 5-6 | ❌ Pending |
+| 0.6 | Update tests | Day 5-6 | ✅ Done (code review/updates complete, runtime verification pending device) |
 | 0.7 | Update C++ bindings | Day 6-7 | ❌ Pending |
 
 **Total: 5-7 days**
