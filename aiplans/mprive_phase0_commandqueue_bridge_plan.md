@@ -1,9 +1,62 @@
 # mprive Phase 0: CommandQueueBridge Refactoring Plan
 
 **Date**: January 11, 2026
-**Status**: 📋 PLANNED
+**Status**: 🔄 IN PROGRESS
 **Priority**: HIGH - Must be completed before Phase E
 **Estimated Duration**: 5-7 days
+**Last Updated**: January 11, 2026, 11:48 AM
+
+---
+
+## Current Implementation Status
+
+### ✅ COMPLETED (Session 1 - Jan 11, 2026)
+
+| Item | Status | File |
+|------|--------|------|
+| CommandQueueBridge interface | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/core/CommandQueueBridge.kt` |
+| CommandQueueJNIBridge (Android) | ✅ Done | `mprive/src/androidMain/kotlin/app/rive/mp/core/CommandQueueBridge.android.kt` |
+| Listeners class | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/core/Listeners.kt` |
+| SpriteDrawCommand class | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/core/SpriteDrawCommand.kt` |
+| Type aliases (RiveWorker, RivePropertyUpdate) | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
+| Bridge parameter in CommandQueue constructor | ✅ Done | `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` |
+| expect/actual for createCommandQueueBridge | ✅ Done | Both commonMain and androidMain |
+
+### 🔄 IN PROGRESS
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Replace external fun declarations with bridge calls | ❌ Pending | CommandQueue.kt still has direct external fun declarations |
+| Convert creation methods from suspend to sync | ❌ Pending | createDefaultArtboard, createArtboardByName, etc. |
+
+### ❌ NOT STARTED
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Update advanceStateMachine to use Duration | ❌ Pending | Currently uses Float deltaTimeSeconds |
+| Add SMI methods | ❌ Pending | setStateMachineNumberInput, setStateMachineBooleanInput, fireStateMachineTrigger |
+| Add pointer event methods | ❌ Pending | pointerMove, pointerDown, pointerUp, pointerExit |
+| Add artboard resize methods | ❌ Pending | resizeArtboard, resetArtboardSize |
+| Add drawMultiple/drawMultipleToBuffer | ❌ Pending | Batch rendering support |
+| Update tests | ❌ Pending | Tests need updating for synchronous API |
+| Desktop stub implementation | ❌ Pending | Needed for compilation on desktop target |
+
+---
+
+## Next Steps (Continue Here)
+
+1. **Replace external fun declarations in CommandQueue.kt**:
+   - Remove all `private external fun cppXxx(...)` declarations
+   - Replace calls like `cppPollMessages(ptr)` with `bridge.cppPollMessages(ptr)`
+   - This affects approximately 40+ methods
+
+2. **Convert creation methods to synchronous**:
+   - Change return type from `suspend fun createDefaultArtboard(): ArtboardHandle` 
+   - To: `fun createDefaultArtboard(): ArtboardHandle` (returns handle directly from bridge)
+
+3. **Add missing methods** (SMI, pointer events, artboard resize, batch rendering)
+
+4. **Create desktop stub** in `mprive/src/desktopMain/kotlin/app/rive/mp/core/CommandQueueBridge.desktop.kt`
 
 ---
 
@@ -54,19 +107,19 @@ class CommandQueue(
 
 ## Implementation Phases
 
-### Phase 0.1: Create CommandQueueBridge Interface (Day 1-2)
+### Phase 0.1: Create CommandQueueBridge Interface (Day 1-2) ✅ DONE
 
 **File**: `mprive/src/commonMain/kotlin/app/rive/mp/core/CommandQueueBridge.kt`
 
 Create interface with all native method declarations, then create platform-specific implementations:
-- `androidMain/kotlin/.../CommandQueueBridge.android.kt` - JNI implementation
-- `desktopMain/kotlin/.../CommandQueueBridge.desktop.kt` - JNA/Native implementation
+- `androidMain/kotlin/.../CommandQueueBridge.android.kt` - JNI implementation ✅
+- `desktopMain/kotlin/.../CommandQueueBridge.desktop.kt` - JNA/Native implementation (pending)
 
-### Phase 0.2: Update CommandQueue to Use Bridge (Day 2-3)
+### Phase 0.2: Update CommandQueue to Use Bridge (Day 2-3) 🔄 IN PROGRESS
 
-- Modify constructor to accept bridge parameter
-- Convert creation operations from suspend to synchronous
-- Update advanceStateMachine to use Duration
+- ✅ Modify constructor to accept bridge parameter
+- ❌ Convert creation operations from suspend to synchronous
+- ❌ Update advanceStateMachine to use Duration
 
 **Methods to convert from suspend to synchronous:**
 - createDefaultArtboard
@@ -77,32 +130,32 @@ Create interface with all native method declarations, then create platform-speci
 - createDefaultViewModelInstance
 - createNamedViewModelInstance
 
-### Phase 0.3: Add SMI Methods (Day 3-4)
+### Phase 0.3: Add SMI Methods (Day 3-4) ❌ PENDING
 
 Add State Machine Input methods for RiveSprite support:
 - `setStateMachineNumberInput`
 - `setStateMachineBooleanInput`
 - `fireStateMachineTrigger`
 
-### Phase 0.4: Add Batch Rendering (Day 4-5)
+### Phase 0.4: Add Batch Rendering (Day 4-5) ❌ PENDING
 
-- Add `SpriteDrawCommand` data class
+- Add `SpriteDrawCommand` data class ✅ DONE
 - Add `drawMultiple()` method (async)
 - Add `drawMultipleToBuffer()` method (sync with pixel readback)
 
-### Phase 0.5: Add Type Aliases (Day 5)
+### Phase 0.5: Add Type Aliases (Day 5) ✅ DONE
 
 ```kotlin
 typealias RiveWorker = CommandQueue
 typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 ```
 
-### Phase 0.6: Update Tests (Day 5-6)
+### Phase 0.6: Update Tests (Day 5-6) ❌ PENDING
 
 - Update existing tests for synchronous API
 - Add bridge mock tests
 
-### Phase 0.7: Update C++ Bindings (Day 6-7)
+### Phase 0.7: Update C++ Bindings (Day 6-7) ❌ PENDING
 
 - Update JNI class paths
 - Implement new native methods
@@ -135,17 +188,43 @@ typealias RivePropertyUpdate<T> = CommandQueue.PropertyUpdate<T>
 
 ## Timeline
 
-| Phase | Description | Duration |
-|-------|-------------|----------|
-| 0.1 | Create CommandQueueBridge interface | Day 1-2 |
-| 0.2 | Update CommandQueue to use bridge | Day 2-3 |
-| 0.3 | Add SMI methods | Day 3-4 |
-| 0.4 | Add batch rendering | Day 4-5 |
-| 0.5 | Add type aliases | Day 5 |
-| 0.6 | Update tests | Day 5-6 |
-| 0.7 | Update C++ bindings | Day 6-7 |
+| Phase | Description | Duration | Status |
+|-------|-------------|----------|--------|
+| 0.1 | Create CommandQueueBridge interface | Day 1-2 | ✅ Done |
+| 0.2 | Update CommandQueue to use bridge | Day 2-3 | 🔄 In Progress |
+| 0.3 | Add SMI methods | Day 3-4 | ❌ Pending |
+| 0.4 | Add batch rendering | Day 4-5 | ❌ Pending |
+| 0.5 | Add type aliases | Day 5 | ✅ Done |
+| 0.6 | Update tests | Day 5-6 | ❌ Pending |
+| 0.7 | Update C++ bindings | Day 6-7 | ❌ Pending |
 
 **Total: 5-7 days**
+
+---
+
+## Files Created/Modified
+
+### New Files Created
+```
+mprive/src/commonMain/kotlin/app/rive/mp/core/CommandQueueBridge.kt
+mprive/src/commonMain/kotlin/app/rive/mp/core/Listeners.kt
+mprive/src/commonMain/kotlin/app/rive/mp/core/SpriteDrawCommand.kt
+mprive/src/androidMain/kotlin/app/rive/mp/core/CommandQueueBridge.android.kt
+```
+
+### Files Modified
+```
+mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt
+  - Added imports for bridge classes
+  - Added type aliases (RiveWorker, RivePropertyUpdate<T>)
+  - Added bridge parameter to constructor
+  - TODO: Replace external fun declarations with bridge calls
+```
+
+### Files Pending Creation
+```
+mprive/src/desktopMain/kotlin/app/rive/mp/core/CommandQueueBridge.desktop.kt (stub)
+```
 
 ---
 
