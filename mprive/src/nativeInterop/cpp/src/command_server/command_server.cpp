@@ -3666,11 +3666,20 @@ void CommandServer::handlePointerExit(const Command& cmd)
         return;
     }
 
-    // Send pointer exit to state machine
-    // Note: pointerExit doesn't require coordinates in Rive
-    smIt->second->pointerExit();
+    // Transform coordinates from surface space to artboard space
+    // pointerExit in Rive API requires a position parameter
+    float artboardX, artboardY;
+    if (!transformToArtboardCoords(cmd.handle, cmd.pointerFit, cmd.pointerAlignment,
+                                    cmd.layoutScale, cmd.pointerSurfaceWidth, cmd.pointerSurfaceHeight,
+                                    cmd.pointerX, cmd.pointerY,
+                                    artboardX, artboardY)) {
+        return;
+    }
 
-    LOGI("CommandServer: PointerExit forwarded");
+    // Send pointer exit to state machine with position
+    smIt->second->pointerExit(rive::Vec2D(artboardX, artboardY));
+
+    LOGI("CommandServer: PointerExit forwarded (artboard coords: %f, %f)", artboardX, artboardY);
 }
 
 } // namespace rive_android
