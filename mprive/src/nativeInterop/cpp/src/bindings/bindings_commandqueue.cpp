@@ -2583,6 +2583,174 @@ Java_app_rive_mp_RiveSurface_cppDeleteRenderTarget(
 }
 
 // =============================================================================
+// Phase E.3: Pointer Events
+// =============================================================================
+
+/**
+ * Sends a pointer move event to a state machine.
+ *
+ * JNI signature: cppPointerMove(ptr: Long, smHandle: Long, fit: Byte, alignment: Byte, 
+ *                               layoutScale: Float, surfaceWidth: Float, surfaceHeight: Float,
+ *                               pointerID: Int, x: Float, y: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppPointerMove(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jbyte fit,
+    jbyte alignment,
+    jfloat layoutScale,
+    jfloat surfaceWidth,
+    jfloat surfaceHeight,
+    jint pointerID,
+    jfloat x,
+    jfloat y
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to send pointer move on null CommandServer");
+        return;
+    }
+
+    server->pointerMove(
+        static_cast<int64_t>(smHandle),
+        static_cast<int8_t>(fit),
+        static_cast<int8_t>(alignment),
+        static_cast<float>(layoutScale),
+        static_cast<float>(surfaceWidth),
+        static_cast<float>(surfaceHeight),
+        static_cast<int32_t>(pointerID),
+        static_cast<float>(x),
+        static_cast<float>(y)
+    );
+}
+
+/**
+ * Sends a pointer down (press) event to a state machine.
+ *
+ * JNI signature: cppPointerDown(ptr: Long, smHandle: Long, fit: Byte, alignment: Byte, 
+ *                               layoutScale: Float, surfaceWidth: Float, surfaceHeight: Float,
+ *                               pointerID: Int, x: Float, y: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppPointerDown(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jbyte fit,
+    jbyte alignment,
+    jfloat layoutScale,
+    jfloat surfaceWidth,
+    jfloat surfaceHeight,
+    jint pointerID,
+    jfloat x,
+    jfloat y
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to send pointer down on null CommandServer");
+        return;
+    }
+
+    server->pointerDown(
+        static_cast<int64_t>(smHandle),
+        static_cast<int8_t>(fit),
+        static_cast<int8_t>(alignment),
+        static_cast<float>(layoutScale),
+        static_cast<float>(surfaceWidth),
+        static_cast<float>(surfaceHeight),
+        static_cast<int32_t>(pointerID),
+        static_cast<float>(x),
+        static_cast<float>(y)
+    );
+}
+
+/**
+ * Sends a pointer up (release) event to a state machine.
+ *
+ * JNI signature: cppPointerUp(ptr: Long, smHandle: Long, fit: Byte, alignment: Byte, 
+ *                             layoutScale: Float, surfaceWidth: Float, surfaceHeight: Float,
+ *                             pointerID: Int, x: Float, y: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppPointerUp(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jbyte fit,
+    jbyte alignment,
+    jfloat layoutScale,
+    jfloat surfaceWidth,
+    jfloat surfaceHeight,
+    jint pointerID,
+    jfloat x,
+    jfloat y
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to send pointer up on null CommandServer");
+        return;
+    }
+
+    server->pointerUp(
+        static_cast<int64_t>(smHandle),
+        static_cast<int8_t>(fit),
+        static_cast<int8_t>(alignment),
+        static_cast<float>(layoutScale),
+        static_cast<float>(surfaceWidth),
+        static_cast<float>(surfaceHeight),
+        static_cast<int32_t>(pointerID),
+        static_cast<float>(x),
+        static_cast<float>(y)
+    );
+}
+
+/**
+ * Sends a pointer exit event to a state machine.
+ *
+ * JNI signature: cppPointerExit(ptr: Long, smHandle: Long, fit: Byte, alignment: Byte, 
+ *                               layoutScale: Float, surfaceWidth: Float, surfaceHeight: Float,
+ *                               pointerID: Int, x: Float, y: Float): Unit
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppPointerExit(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong smHandle,
+    jbyte fit,
+    jbyte alignment,
+    jfloat layoutScale,
+    jfloat surfaceWidth,
+    jfloat surfaceHeight,
+    jint pointerID,
+    jfloat x,
+    jfloat y
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to send pointer exit on null CommandServer");
+        return;
+    }
+
+    server->pointerExit(
+        static_cast<int64_t>(smHandle),
+        static_cast<int8_t>(fit),
+        static_cast<int8_t>(alignment),
+        static_cast<float>(layoutScale),
+        static_cast<float>(surfaceWidth),
+        static_cast<float>(surfaceHeight),
+        static_cast<int32_t>(pointerID),
+        static_cast<float>(x),
+        static_cast<float>(y)
+    );
+}
+
+// =============================================================================
 // Phase 0.3: State Machine Input Manipulation (SMI - fire-and-forget)
 // =============================================================================
 
