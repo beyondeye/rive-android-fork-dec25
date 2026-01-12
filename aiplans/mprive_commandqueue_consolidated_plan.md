@@ -155,7 +155,10 @@ All resources use type-safe handle wrappers:
   - Fit & alignment passed to native for proper transformation
   - All methods include comprehensive KDoc documentation
 
-- [ ] **C.5.6**: Write pointer event tests
+- [x] **C.5.6**: Write pointer event tests
+  - `MpRivePointerEventsTest.kt` added with 15 comprehensive tests
+  - MockRiveSurface for testing without GPU resources
+  - Test categories: basic events, click/drag/hover sequences, fit/alignment modes, multi-touch, scale factors, edge cases
 
 **Bridge methods used**:
 - `cppPointerMove()`, `cppPointerDown()`, `cppPointerUp()`, `cppPointerExit()`
