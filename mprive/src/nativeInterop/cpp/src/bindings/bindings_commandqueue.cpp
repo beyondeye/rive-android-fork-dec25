@@ -72,6 +72,13 @@ static jmethodID g_onDefaultVMIErrorMethodID = nullptr;
 static jmethodID g_onRenderTargetCreatedMethodID = nullptr;
 static jmethodID g_onRenderTargetErrorMethodID = nullptr;
 static jmethodID g_onRenderTargetDeletedMethodID = nullptr;
+// Asset operation callbacks (Phase E.1)
+static jmethodID g_onImageDecodedMethodID = nullptr;
+static jmethodID g_onImageErrorMethodID = nullptr;
+static jmethodID g_onAudioDecodedMethodID = nullptr;
+static jmethodID g_onAudioErrorMethodID = nullptr;
+static jmethodID g_onFontDecodedMethodID = nullptr;
+static jmethodID g_onFontErrorMethodID = nullptr;
 
 /**
  * Initialize cached method IDs for JNI callbacks.
@@ -416,6 +423,43 @@ static void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onRenderTargetDeleted",
         "(J)V"  // (requestID: Long) -> Unit
+    );
+
+    // Phase E.1: Asset operation callbacks
+    g_onImageDecodedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onImageDecoded",
+        "(JJ)V"  // (requestID: Long, imageHandle: Long) -> Unit
+    );
+
+    g_onImageErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onImageError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    g_onAudioDecodedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onAudioDecoded",
+        "(JJ)V"  // (requestID: Long, audioHandle: Long) -> Unit
+    );
+
+    g_onAudioErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onAudioError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
+    );
+
+    g_onFontDecodedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onFontDecoded",
+        "(JJ)V"  // (requestID: Long, fontHandle: Long) -> Unit
+    );
+
+    g_onFontErrorMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onFontError",
+        "(JLjava/lang/String;)V"  // (requestID: Long, error: String) -> Unit
     );
 
     env->DeleteLocalRef(commandQueueClass);

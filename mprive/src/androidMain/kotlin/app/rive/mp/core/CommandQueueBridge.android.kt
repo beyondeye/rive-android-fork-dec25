@@ -163,6 +163,25 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     external override fun cppDrawMultiple(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, renderTargetPointer: Long, viewportWidth: Int, viewportHeight: Int, clearColor: Int, artboardHandles: LongArray, stateMachineHandles: LongArray, transforms: FloatArray, artboardWidths: FloatArray, artboardHeights: FloatArray, count: Int)
     
     external override fun cppDrawMultipleToBuffer(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, renderTargetPointer: Long, viewportWidth: Int, viewportHeight: Int, clearColor: Int, artboardHandles: LongArray, stateMachineHandles: LongArray, transforms: FloatArray, artboardWidths: FloatArray, artboardHeights: FloatArray, count: Int, buffer: ByteArray)
+    
+    // =========================================================================
+    // Asset Operations (Phase E.1)
+    // =========================================================================
+    
+    external override fun cppDecodeImage(pointer: Long, requestID: Long, bytes: ByteArray)
+    external override fun cppDeleteImage(pointer: Long, imageHandle: Long)
+    external override fun cppRegisterImage(pointer: Long, name: String, imageHandle: Long)
+    external override fun cppUnregisterImage(pointer: Long, name: String)
+    
+    external override fun cppDecodeAudio(pointer: Long, requestID: Long, bytes: ByteArray)
+    external override fun cppDeleteAudio(pointer: Long, audioHandle: Long)
+    external override fun cppRegisterAudio(pointer: Long, name: String, audioHandle: Long)
+    external override fun cppUnregisterAudio(pointer: Long, name: String)
+    
+    external override fun cppDecodeFont(pointer: Long, requestID: Long, bytes: ByteArray)
+    external override fun cppDeleteFont(pointer: Long, fontHandle: Long)
+    external override fun cppRegisterFont(pointer: Long, name: String, fontHandle: Long)
+    external override fun cppUnregisterFont(pointer: Long, name: String)
 }
 
 /**

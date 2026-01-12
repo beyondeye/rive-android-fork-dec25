@@ -1700,6 +1700,198 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Phase E.1: Asset Management
+    // =============================================================================
+
+    /**
+     * Decode an image file from the given bytes.
+     * 
+     * The bytes should be for a compressed image format such as PNG or JPEG.
+     * The decoded image is stored on the CommandServer and can be used with
+     * [registerImage] to fulfill referenced assets in Rive files.
+     *
+     * @param bytes The bytes of the image file to decode.
+     * @return A handle to the decoded image.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the image could not be decoded (e.g., invalid format).
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun decodeImage(bytes: ByteArray): ImageHandle {
+        return suspendNativeRequest { requestID ->
+            bridge.cppDecodeImage(cppPointer.pointer, requestID, bytes)
+        }
+    }
+
+    /**
+     * Delete an image and free its resources.
+     * 
+     * Counterpart to [decodeImage]. This is useful when you no longer need the
+     * image and want to free up memory.
+     *
+     * @param imageHandle The handle of the image to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteImage(imageHandle: ImageHandle) {
+        bridge.cppDeleteImage(cppPointer.pointer, imageHandle.handle)
+    }
+
+    /**
+     * Register an image as an asset with the given name.
+     * 
+     * This allows the image to be used to fulfill a referenced asset when loading
+     * a Rive file. Registrations are global to this CommandQueue, meaning that
+     * the [name] will be used to fulfill any file loaded by this CommandQueue
+     * that references the asset with the same name.
+     *
+     * The same image can be registered multiple times with different names,
+     * allowing it to fulfill multiple referenced assets.
+     *
+     * @param name The name of the referenced asset to fulfill. Must match the name
+     *             in the zip file when exporting from Rive.
+     * @param imageHandle The handle of the image to register.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun registerImage(name: String, imageHandle: ImageHandle) {
+        bridge.cppRegisterImage(cppPointer.pointer, name, imageHandle.handle)
+    }
+
+    /**
+     * Unregister an image that was previously registered with [registerImage].
+     * 
+     * This removes the reference to the image from the CommandServer, allowing
+     * the memory to be freed if the image handle was also deleted with [deleteImage].
+     *
+     * @param name The name of the referenced asset to unregister.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun unregisterImage(name: String) {
+        bridge.cppUnregisterImage(cppPointer.pointer, name)
+    }
+
+    /**
+     * Decode an audio file from the given bytes.
+     * 
+     * The decoded audio is stored on the CommandServer and can be used with
+     * [registerAudio] to fulfill referenced assets in Rive files.
+     *
+     * @param bytes The bytes of the audio file to decode.
+     * @return A handle to the decoded audio.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the audio could not be decoded.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun decodeAudio(bytes: ByteArray): AudioHandle {
+        return suspendNativeRequest { requestID ->
+            bridge.cppDecodeAudio(cppPointer.pointer, requestID, bytes)
+        }
+    }
+
+    /**
+     * Delete audio and free its resources.
+     * 
+     * Counterpart to [decodeAudio]. This is useful when you no longer need the
+     * audio and want to free up memory.
+     *
+     * @param audioHandle The handle of the audio to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteAudio(audioHandle: AudioHandle) {
+        bridge.cppDeleteAudio(cppPointer.pointer, audioHandle.handle)
+    }
+
+    /**
+     * Register audio as an asset with the given name.
+     * 
+     * This allows the audio to be used to fulfill a referenced asset when loading
+     * a Rive file. Registrations are global to this CommandQueue.
+     *
+     * @param name The name of the referenced asset to fulfill.
+     * @param audioHandle The handle of the audio to register.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun registerAudio(name: String, audioHandle: AudioHandle) {
+        bridge.cppRegisterAudio(cppPointer.pointer, name, audioHandle.handle)
+    }
+
+    /**
+     * Unregister audio that was previously registered with [registerAudio].
+     *
+     * @param name The name of the referenced asset to unregister.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun unregisterAudio(name: String) {
+        bridge.cppUnregisterAudio(cppPointer.pointer, name)
+    }
+
+    /**
+     * Decode a font file from the given bytes.
+     * 
+     * The bytes should be for a font file such as TTF or OTF.
+     * The decoded font is stored on the CommandServer and can be used with
+     * [registerFont] to fulfill referenced assets in Rive files.
+     *
+     * @param bytes The bytes of the font file to decode.
+     * @return A handle to the decoded font.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the font could not be decoded.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun decodeFont(bytes: ByteArray): FontHandle {
+        return suspendNativeRequest { requestID ->
+            bridge.cppDecodeFont(cppPointer.pointer, requestID, bytes)
+        }
+    }
+
+    /**
+     * Delete a font and free its resources.
+     * 
+     * Counterpart to [decodeFont]. This is useful when you no longer need the
+     * font and want to free up memory.
+     *
+     * @param fontHandle The handle of the font to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteFont(fontHandle: FontHandle) {
+        bridge.cppDeleteFont(cppPointer.pointer, fontHandle.handle)
+    }
+
+    /**
+     * Register a font as an asset with the given name.
+     * 
+     * This allows the font to be used to fulfill a referenced asset when loading
+     * a Rive file. Registrations are global to this CommandQueue.
+     *
+     * @param name The name of the referenced asset to fulfill.
+     * @param fontHandle The handle of the font to register.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun registerFont(name: String, fontHandle: FontHandle) {
+        bridge.cppRegisterFont(cppPointer.pointer, name, fontHandle.handle)
+    }
+
+    /**
+     * Unregister a font that was previously registered with [registerFont].
+     *
+     * @param name The name of the referenced asset to unregister.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun unregisterFont(name: String) {
+        bridge.cppUnregisterFont(cppPointer.pointer, name)
+    }
+
+    // =============================================================================
     // JNI Callbacks (called from C++)
     // =============================================================================
     
@@ -2680,6 +2872,142 @@ class CommandQueue(
         // Fire-and-forget operation, no continuation to resume
         RiveLog.d(COMMAND_QUEUE_TAG) {
             "Render target deleted successfully (requestID: $requestID)"
+        }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for Asset Operations (Phase E.1)
+    // =============================================================================
+
+    /**
+     * Called from C++ when an image has been successfully decoded.
+     * This resumes the suspended coroutine waiting for the image.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param imageHandle The handle to the decoded image.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onImageDecoded(requestID: Long, imageHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ImageHandle>
+            typedCont.resume(ImageHandle(imageHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received image decoded callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when image decoding has failed.
+     * This resumes the suspended coroutine with an error.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onImageError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<ImageHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Failed to decode image: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received image error callback for unknown requestID: $requestID - $error"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when audio has been successfully decoded.
+     * This resumes the suspended coroutine waiting for the audio.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param audioHandle The handle to the decoded audio.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onAudioDecoded(requestID: Long, audioHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<AudioHandle>
+            typedCont.resume(AudioHandle(audioHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received audio decoded callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when audio decoding has failed.
+     * This resumes the suspended coroutine with an error.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onAudioError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<AudioHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Failed to decode audio: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received audio error callback for unknown requestID: $requestID - $error"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when a font has been successfully decoded.
+     * This resumes the suspended coroutine waiting for the font.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param fontHandle The handle to the decoded font.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onFontDecoded(requestID: Long, fontHandle: Long) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<FontHandle>
+            typedCont.resume(FontHandle(fontHandle))
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received font decoded callback for unknown requestID: $requestID"
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when font decoding has failed.
+     * This resumes the suspended coroutine with an error.
+     *
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param error The error message.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onFontError(requestID: Long, error: String) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<FontHandle>
+            typedCont.resumeWithException(
+                IllegalArgumentException("Failed to decode font: $error")
+            )
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) {
+                "Received font error callback for unknown requestID: $requestID - $error"
+            }
         }
     }
 }

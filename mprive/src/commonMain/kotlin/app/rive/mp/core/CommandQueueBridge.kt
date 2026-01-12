@@ -196,6 +196,100 @@ interface CommandQueueBridge {
     fun cppDrawMultiple(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, renderTargetPointer: Long, viewportWidth: Int, viewportHeight: Int, clearColor: Int, artboardHandles: LongArray, stateMachineHandles: LongArray, transforms: FloatArray, artboardWidths: FloatArray, artboardHeights: FloatArray, count: Int)
     
     fun cppDrawMultipleToBuffer(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, renderTargetPointer: Long, viewportWidth: Int, viewportHeight: Int, clearColor: Int, artboardHandles: LongArray, stateMachineHandles: LongArray, transforms: FloatArray, artboardWidths: FloatArray, artboardHeights: FloatArray, count: Int, buffer: ByteArray)
+    
+    // =========================================================================
+    // Asset Operations (Phase E.1)
+    // =========================================================================
+    
+    /**
+     * Decode an image from bytes.
+     * @param pointer Pointer to the CommandQueue.
+     * @param requestID The request ID for async callback.
+     * @param bytes The image file bytes (PNG, JPEG, etc.).
+     */
+    fun cppDecodeImage(pointer: Long, requestID: Long, bytes: ByteArray)
+    
+    /**
+     * Delete an image and free its resources.
+     * @param pointer Pointer to the CommandQueue.
+     * @param imageHandle The handle of the image to delete.
+     */
+    fun cppDeleteImage(pointer: Long, imageHandle: Long)
+    
+    /**
+     * Register an image as an asset with a name for use in Rive files.
+     * @param pointer Pointer to the CommandQueue.
+     * @param name The name to register the image under.
+     * @param imageHandle The handle of the image to register.
+     */
+    fun cppRegisterImage(pointer: Long, name: String, imageHandle: Long)
+    
+    /**
+     * Unregister an image asset by name.
+     * @param pointer Pointer to the CommandQueue.
+     * @param name The name of the image to unregister.
+     */
+    fun cppUnregisterImage(pointer: Long, name: String)
+    
+    /**
+     * Decode audio from bytes.
+     * @param pointer Pointer to the CommandQueue.
+     * @param requestID The request ID for async callback.
+     * @param bytes The audio file bytes.
+     */
+    fun cppDecodeAudio(pointer: Long, requestID: Long, bytes: ByteArray)
+    
+    /**
+     * Delete audio and free its resources.
+     * @param pointer Pointer to the CommandQueue.
+     * @param audioHandle The handle of the audio to delete.
+     */
+    fun cppDeleteAudio(pointer: Long, audioHandle: Long)
+    
+    /**
+     * Register audio as an asset with a name for use in Rive files.
+     * @param pointer Pointer to the CommandQueue.
+     * @param name The name to register the audio under.
+     * @param audioHandle The handle of the audio to register.
+     */
+    fun cppRegisterAudio(pointer: Long, name: String, audioHandle: Long)
+    
+    /**
+     * Unregister an audio asset by name.
+     * @param pointer Pointer to the CommandQueue.
+     * @param name The name of the audio to unregister.
+     */
+    fun cppUnregisterAudio(pointer: Long, name: String)
+    
+    /**
+     * Decode a font from bytes.
+     * @param pointer Pointer to the CommandQueue.
+     * @param requestID The request ID for async callback.
+     * @param bytes The font file bytes (TTF, OTF, etc.).
+     */
+    fun cppDecodeFont(pointer: Long, requestID: Long, bytes: ByteArray)
+    
+    /**
+     * Delete a font and free its resources.
+     * @param pointer Pointer to the CommandQueue.
+     * @param fontHandle The handle of the font to delete.
+     */
+    fun cppDeleteFont(pointer: Long, fontHandle: Long)
+    
+    /**
+     * Register a font as an asset with a name for use in Rive files.
+     * @param pointer Pointer to the CommandQueue.
+     * @param name The name to register the font under.
+     * @param fontHandle The handle of the font to register.
+     */
+    fun cppRegisterFont(pointer: Long, name: String, fontHandle: Long)
+    
+    /**
+     * Unregister a font asset by name.
+     * @param pointer Pointer to the CommandQueue.
+     * @param name The name of the font to unregister.
+     */
+    fun cppUnregisterFont(pointer: Long, name: String)
 }
 
 /**
