@@ -108,6 +108,11 @@ enum class CommandType {
     DeleteRenderTarget,       // Delete a render target
     // Phase C.2.6: Rendering operations
     Draw,                     // Draw artboard to surface
+    // Phase E.3: Pointer events
+    PointerMove,              // Pointer/mouse move event
+    PointerDown,              // Pointer/mouse down event
+    PointerUp,                // Pointer/mouse up event
+    PointerExit,              // Pointer/mouse exit event
 };
 
 /**
@@ -175,6 +180,16 @@ struct Command {
     int32_t alignmentMode = 0;   // For Draw (Alignment enum ordinal)
     uint32_t clearColor = 0xFF000000; // For Draw (0xAARRGGBB format)
     float scaleFactor = 1.0f;    // For Draw (for high DPI displays)
+
+    // Pointer event data (Phase E.3)
+    int8_t pointerFit = 0;       // For pointer events (Fit enum ordinal)
+    int8_t pointerAlignment = 0; // For pointer events (Alignment enum ordinal)
+    float layoutScale = 1.0f;    // For pointer events (layout scale factor)
+    float pointerSurfaceWidth = 0.0f;  // For pointer events
+    float pointerSurfaceHeight = 0.0f; // For pointer events
+    int32_t pointerID = 0;       // For pointer events (multi-touch support)
+    float pointerX = 0.0f;       // For pointer events (x coordinate)
+    float pointerY = 0.0f;       // For pointer events (y coordinate)
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 
@@ -905,6 +920,52 @@ public:
               uint32_t clearColor,
               float scaleFactor);
 
+    // ==========================================================================
+    // Phase E.3: Pointer Events
+    // ==========================================================================
+
+    /**
+     * Enqueues a PointerMove command.
+     * Sends a pointer move event to a state machine with coordinate transformation.
+     *
+     * @param smHandle Handle to the state machine.
+     * @param fit Fit mode for coordinate transformation.
+     * @param alignment Alignment mode for coordinate transformation.
+     * @param layoutScale Layout scale factor.
+     * @param surfaceWidth Surface width in pixels.
+     * @param surfaceHeight Surface height in pixels.
+     * @param pointerID Pointer ID for multi-touch support.
+     * @param x X coordinate in surface space.
+     * @param y Y coordinate in surface space.
+     */
+    void pointerMove(int64_t smHandle, int8_t fit, int8_t alignment,
+                     float layoutScale, float surfaceWidth, float surfaceHeight,
+                     int32_t pointerID, float x, float y);
+
+    /**
+     * Enqueues a PointerDown command.
+     * Sends a pointer down (press) event to a state machine.
+     */
+    void pointerDown(int64_t smHandle, int8_t fit, int8_t alignment,
+                     float layoutScale, float surfaceWidth, float surfaceHeight,
+                     int32_t pointerID, float x, float y);
+
+    /**
+     * Enqueues a PointerUp command.
+     * Sends a pointer up (release) event to a state machine.
+     */
+    void pointerUp(int64_t smHandle, int8_t fit, int8_t alignment,
+                   float layoutScale, float surfaceWidth, float surfaceHeight,
+                   int32_t pointerID, float x, float y);
+
+    /**
+     * Enqueues a PointerExit command.
+     * Sends a pointer exit event to a state machine.
+     */
+    void pointerExit(int64_t smHandle, int8_t fit, int8_t alignment,
+                     float layoutScale, float surfaceWidth, float surfaceHeight,
+                     int32_t pointerID, float x, float y);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -1065,6 +1126,33 @@ private:
 
     // Rendering operation handlers (Phase C.2.6)
     void handleDraw(const Command& cmd);
+
+    // Pointer event handlers (Phase E.3)
+    void handlePointerMove(const Command& cmd);
+    void handlePointerDown(const Command& cmd);
+    void handlePointerUp(const Command& cmd);
+    void handlePointerExit(const Command& cmd);
+
+    /**
+     * Transforms surface coordinates to artboard coordinates.
+     * Used by pointer event handlers.
+     *
+     * @param smHandle State machine handle (to get artboard bounds).
+     * @param fit Fit mode for transformation.
+     * @param alignment Alignment mode for transformation.
+     * @param layoutScale Layout scale factor.
+     * @param surfaceWidth Surface width in pixels.
+     * @param surfaceHeight Surface height in pixels.
+     * @param surfaceX X coordinate in surface space.
+     * @param surfaceY Y coordinate in surface space.
+     * @param outX Output X coordinate in artboard space.
+     * @param outY Output Y coordinate in artboard space.
+     * @return true if transformation succeeded, false otherwise.
+     */
+    bool transformToArtboardCoords(int64_t smHandle, int8_t fit, int8_t alignment,
+                                   float layoutScale, float surfaceWidth, float surfaceHeight,
+                                   float surfaceX, float surfaceY,
+                                   float& outX, float& outY);
 
     /**
      * Checks subscriptions and emits property updates.
