@@ -440,6 +440,14 @@ public:
     void createDefaultArtboard(int64_t requestID, int64_t fileHandle);
     
     /**
+     * Creates the default artboard synchronously (called from JNI thread).
+     * 
+     * @param fileHandle The handle of the file to create artboard from.
+     * @return The artboard handle, or 0 if creation failed.
+     */
+    int64_t createDefaultArtboardSync(int64_t fileHandle);
+    
+    /**
      * Enqueues a CreateArtboardByName command.
      * 
      * @param requestID The request ID for async completion.
@@ -447,6 +455,15 @@ public:
      * @param name The name of the artboard to create.
      */
     void createArtboardByName(int64_t requestID, int64_t fileHandle, const std::string& name);
+    
+    /**
+     * Creates an artboard by name synchronously (called from JNI thread).
+     * 
+     * @param fileHandle The handle of the file to create artboard from.
+     * @param name The name of the artboard to create.
+     * @return The artboard handle, or 0 if creation failed.
+     */
+    int64_t createArtboardByNameSync(int64_t fileHandle, const std::string& name);
     
     /**
      * Enqueues a DeleteArtboard command.
@@ -1097,10 +1114,14 @@ private:
     std::queue<Message> m_messageQueue;
     std::mutex m_messageMutex;
     
-    // Phase B: Resource maps
+    // Phase B: Resource maps (protected by m_resourceMutex for thread safety)
     std::map<int64_t, rive::rcp<rive::File>> m_files;
     std::map<int64_t, std::unique_ptr<rive::ArtboardInstance>> m_artboards;
     std::atomic<int64_t> m_nextHandle{1};
+    
+    // Mutex to protect resource maps when accessed from multiple threads
+    // (sync methods run on calling thread, async handlers run on worker thread)
+    mutable std::mutex m_resourceMutex;
     
     // Phase C: State machine resource map
     std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;

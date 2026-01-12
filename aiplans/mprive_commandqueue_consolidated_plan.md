@@ -372,6 +372,15 @@ See [Test Fixes Required](#test-fixes-required) section below.
 
 ## Test Fixes Required
 
+### ✅ Thread Safety Fix (Jan 12, 2026)
+
+**Issue**: Synchronous artboard creation methods ran on the JNI calling thread while async handlers ran on the worker thread, causing race conditions when accessing shared resource maps.
+
+**Fix Applied**:
+1. ✅ Added `m_resourceMutex` to `CommandServer` class for thread-safe resource map access
+2. ✅ Added mutex locks to `createDefaultArtboardSync()` and `createArtboardByNameSync()`
+3. ✅ Added mutex lock to `handleGetStateMachineNames()` handler
+
 ### ✅ FIXED: Test Data Discrepancy (Jan 12, 2026)
 
 **Issue**: The mprive tests expected `multipleartboards.riv` to have **3 artboards**, but the original kotlin module tests show it has **2 artboards**.
@@ -382,28 +391,80 @@ See [Test Fixes Required](#test-fixes-required) section below.
 3. ✅ Removed assertion for `artboard3`
 4. ✅ Updated `MpCommandQueueHandleTest.handles_remain_valid_across_operations` to expect 2 artboards
 
-### Failing Tests (Updated Analysis)
+---
 
-| # | Test | Error | Root Cause | Fix |
-|---|------|-------|------------|-----|
-| 1 | `queryArtboardNames` | ~~`AssertionError: Expected artboard3`~~ | ~~**Test bug**: File has 2 artboards, not 3~~ | ✅ **FIXED** |
-| 2 | `queryArtboardCount` | ~~`AssertionError: Expected 3`~~ | ~~**Test bug**: Same as above~~ | ✅ **FIXED** |
-| 3 | `queryStateMachineNames` | `IllegalArgumentException: Invalid artboard handle` | Artboard handle lifecycle issue | Review CommandServer stub |
-| 4 | `artboard_handles_are_incrementing` | `AssertionError: handle 2 > handle 1` | Stub doesn't increment handles | Fix stub ID generation |
-| 5 | `handles_remain_valid_across_operations` | ~~`AssertionError: Expected 3 artboards`~~ | ~~**Test bug**: Same data discrepancy~~ | ✅ **FIXED** |
-| 6 | `artboard_handles_are_unique` | `AssertionError: handles should be unique` | Stub returns duplicate handles | Fix stub uniqueness |
-| 7-11 | Various VMI tests | `IllegalArgumentException: Invalid VMI handle` | VMI creation flow issues | Fix CommandServer VMI handling |
+## Current Test Status (Updated Jan 12, 2026)
 
-### Fix Strategy
+### Test Summary
 
-**Step 1**: ✅ COMPLETED - Fix test data expectations (tests 1, 2, 5)
-- ✅ Changed expected artboard count from 3 to 2
-- ✅ Removed checks for non-existent `artboard3`
+| Test Suite | Total | Passing | Failing | Notes |
+|------------|-------|---------|---------|-------|
+| **MpRiveArtboardLoadTest** | 9 | 8 | 1 | Only `queryStateMachineNames` fails |
+| **MpRiveDataBindingTest** | ~15 | ~13 | 2 | VMI tests fail (GPU context required) |
+| **Other Tests** | ~83 | ~70+ | ~10 | Process crash prevents full run |
+| **Total** | 107 | ~90+ | ~10 | Process crashes after ~30 tests |
 
-**Step 2**: Improve CommandServer stub state management
-- Track loaded files with their artboard/SM/VMI counts
-- Generate unique, incrementing handles per resource type
-- Maintain handle validity across operations
+### ✅ Passing Tests (Work with NoOpFactory)
+
+These tests work correctly in the test environment:
+
+**MpRiveArtboardLoadTest (8/9 passing):**
+- ✅ `queryArtboardCount` - File loading and artboard counting
+- ✅ `queryArtboardNames` - File loading and artboard name retrieval  
+- ✅ `createDefaultArtboard` - Default artboard creation
+- ✅ `createArtboardByName` - Named artboard creation
+- ✅ `createArtboardByInvalidName` - Error handling for invalid names
+- ✅ `artboardHandlesAreUnique` - Handle uniqueness verification
+- ✅ `fileWithNoArtboard` - Empty file handling
+- ✅ `longArtboardName` - Long name support
+
+**Other Working Tests:**
+- File operations (`loadFile`, `deleteFile`)
+- Artboard operations (`createDefaultArtboard`, `createArtboardByName`, `deleteArtboard`)
+- Handle uniqueness and lifecycle tests
+
+### ⚠️ Failing Tests (Require GPU Context or Full Rive Runtime)
+
+| Test | Error | Root Cause | Recommendation |
+|------|-------|------------|----------------|
+| `queryStateMachineNames` | "Expected at least 1 state machine" | NoOpFactory doesn't fully parse state machines | Skip or use GPU render context |
+| `getBooleanProperty_returnsDefaultValue` | "Invalid ViewModelInstance handle" | VMI creation requires proper factory | Skip or use GPU render context |
+| `setNestedProperty_via_path` | "Invalid ViewModelInstance handle" | Same as above | Skip or use GPU render context |
+
+### ❌ Process Crash Issue
+
+**Symptom**: Test instrumentation crashes after ~30 tests complete
+**Likely Causes**:
+1. Native resource cleanup issues in CommandServer destructor
+2. Memory corruption from concurrent map access (partially fixed with mutex)
+3. EGL/OpenGL context issues when tests don't have GPU
+
+### Recommendations
+
+**Short-term (for CI/development):**
+1. Add `@Ignore` annotation to tests requiring GPU context:
+   - `queryStateMachineNames`
+   - All VMI/data binding tests
+2. Run artboard tests separately to avoid crash
+
+**Long-term (for full test coverage):**
+1. Initialize proper GPU render context in test setup
+2. Debug native crash with ASan or valgrind
+3. Add graceful degradation for NoOpFactory limitations
+
+---
+
+### Failing Tests Detail
+
+| # | Test | Error | Root Cause | Status |
+|---|------|-------|------------|--------|
+| 1 | `queryArtboardNames` | ~~`AssertionError: Expected artboard3`~~ | ~~Test bug: File has 2 artboards~~ | ✅ **FIXED** |
+| 2 | `queryArtboardCount` | ~~`AssertionError: Expected 3`~~ | ~~Same as above~~ | ✅ **FIXED** |
+| 3 | `queryStateMachineNames` | `AssertionError: Expected at least 1 SM` | NoOpFactory limitation | ⚠️ Skip recommended |
+| 4 | `artboard_handles_are_incrementing` | ~~`AssertionError: handle 2 > handle 1`~~ | ~~Sync methods fixed~~ | ✅ **FIXED** |
+| 5 | `handles_remain_valid_across_operations` | ~~`AssertionError: Expected 3 artboards`~~ | ~~Test data discrepancy~~ | ✅ **FIXED** |
+| 6 | `artboard_handles_are_unique` | ~~`AssertionError: handles unique`~~ | ~~Sync methods fixed~~ | ✅ **FIXED** |
+| 7-11 | Various VMI tests | `Invalid VMI handle` | NoOpFactory/GPU required | ⚠️ Skip recommended |
 
 ---
 

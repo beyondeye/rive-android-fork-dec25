@@ -555,23 +555,28 @@ void CommandServer::handleGetStateMachineNames(const Command& cmd)
     LOGI("CommandServer: Handling GetStateMachineNames command (requestID=%lld, artboardHandle=%lld)",
          static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
     
-    auto it = m_artboards.find(cmd.handle);
-    if (it == m_artboards.end()) {
-        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(cmd.handle));
-        
-        Message msg(MessageType::QueryError, cmd.requestID);
-        msg.error = "Invalid artboard handle";
-        enqueueMessage(std::move(msg));
-        return;
-    }
-    
     std::vector<std::string> names;
-    auto& artboard = it->second;
     
-    for (size_t i = 0; i < artboard->stateMachineCount(); i++) {
-        auto sm = artboard->stateMachine(i);
-        if (sm) {
-            names.push_back(sm->name());
+    {
+        std::lock_guard<std::mutex> lock(m_resourceMutex);
+        
+        auto it = m_artboards.find(cmd.handle);
+        if (it == m_artboards.end()) {
+            LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(cmd.handle));
+            
+            Message msg(MessageType::QueryError, cmd.requestID);
+            msg.error = "Invalid artboard handle";
+            enqueueMessage(std::move(msg));
+            return;
+        }
+        
+        auto& artboard = it->second;
+        
+        for (size_t i = 0; i < artboard->stateMachineCount(); i++) {
+            auto sm = artboard->stateMachine(i);
+            if (sm) {
+                names.push_back(sm->name());
+            }
         }
     }
     
@@ -636,6 +641,70 @@ void CommandServer::createArtboardByName(int64_t requestID, int64_t fileHandle, 
     cmd.name = name;
     
     enqueueCommand(std::move(cmd));
+}
+
+int64_t CommandServer::createDefaultArtboardSync(int64_t fileHandle)
+{
+    LOGI("CommandServer: Creating default artboard synchronously (fileHandle=%lld)",
+         static_cast<long long>(fileHandle));
+    
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    
+    auto it = m_files.find(fileHandle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(fileHandle));
+        return 0;
+    }
+    
+    // Create the default artboard (returns unique_ptr<ArtboardInstance>)
+    auto artboard = it->second->artboardDefault();
+    if (!artboard) {
+        LOGW("CommandServer: Failed to create default artboard");
+        return 0;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the artboard
+    m_artboards[handle] = std::move(artboard);
+    
+    LOGI("CommandServer: Artboard created synchronously (handle=%lld)", 
+         static_cast<long long>(handle));
+    
+    return handle;
+}
+
+int64_t CommandServer::createArtboardByNameSync(int64_t fileHandle, const std::string& name)
+{
+    LOGI("CommandServer: Creating artboard by name synchronously (fileHandle=%lld, name=%s)",
+         static_cast<long long>(fileHandle), name.c_str());
+    
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    
+    auto it = m_files.find(fileHandle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(fileHandle));
+        return 0;
+    }
+    
+    // Create the artboard by name (returns unique_ptr<ArtboardInstance>)
+    auto artboard = it->second->artboardNamed(name);
+    if (!artboard) {
+        LOGW("CommandServer: Failed to create artboard with name: %s", name.c_str());
+        return 0;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the artboard
+    m_artboards[handle] = std::move(artboard);
+    
+    LOGI("CommandServer: Artboard created synchronously (handle=%lld, name=%s)", 
+         static_cast<long long>(handle), name.c_str());
+    
+    return handle;
 }
 
 void CommandServer::deleteArtboard(int64_t requestID, int64_t artboardHandle)

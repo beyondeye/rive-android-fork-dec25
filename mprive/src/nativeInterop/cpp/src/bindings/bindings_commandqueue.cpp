@@ -1142,17 +1142,18 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetViewModelNames(
 }
 
 /**
- * Creates the default artboard from a file.
+ * Creates the default artboard from a file (SYNCHRONOUS).
  * 
- * JNI signature: cppCreateDefaultArtboard(ptr: Long, requestID: Long, fileHandle: Long): Unit
+ * JNI signature: cppCreateDefaultArtboard(ptr: Long, requestID: Long, fileHandle: Long): Long
  * 
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
- * @param requestID The request ID for async completion.
+ * @param requestID The request ID (unused for sync operations).
  * @param fileHandle The handle of the file to create artboard from.
+ * @return The artboard handle, or 0 if creation failed.
  */
-JNIEXPORT void JNICALL
+JNIEXPORT jlong JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultArtboard(
     JNIEnv* env,
     jobject thiz,
@@ -1163,25 +1164,26 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultArtboard(
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
         LOGW("CommandQueue JNI: Attempted to create default artboard on null CommandServer");
-        return;
+        return 0;
     }
     
-    server->createDefaultArtboard(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle));
+    return static_cast<jlong>(server->createDefaultArtboardSync(static_cast<int64_t>(fileHandle)));
 }
 
 /**
- * Creates an artboard by name from a file.
+ * Creates an artboard by name from a file (SYNCHRONOUS).
  * 
- * JNI signature: cppCreateArtboardByName(ptr: Long, requestID: Long, fileHandle: Long, name: String): Unit
+ * JNI signature: cppCreateArtboardByName(ptr: Long, requestID: Long, fileHandle: Long, name: String): Long
  * 
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
- * @param requestID The request ID for async completion.
+ * @param requestID The request ID (unused for sync operations).
  * @param fileHandle The handle of the file to create artboard from.
  * @param name The name of the artboard to create.
+ * @return The artboard handle, or 0 if creation failed.
  */
-JNIEXPORT void JNICALL
+JNIEXPORT jlong JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateArtboardByName(
     JNIEnv* env,
     jobject thiz,
@@ -1193,7 +1195,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateArtboardByName(
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
         LOGW("CommandQueue JNI: Attempted to create artboard by name on null CommandServer");
-        return;
+        return 0;
     }
     
     // Convert Java string to C++ string
@@ -1201,7 +1203,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateArtboardByName(
     std::string artboardName(nameChars);
     env->ReleaseStringUTFChars(name, nameChars);
     
-    server->createArtboardByName(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), artboardName);
+    return static_cast<jlong>(server->createArtboardByNameSync(static_cast<int64_t>(fileHandle), artboardName));
 }
 
 /**

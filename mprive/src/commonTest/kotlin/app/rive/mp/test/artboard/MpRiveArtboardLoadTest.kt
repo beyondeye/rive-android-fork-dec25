@@ -125,8 +125,9 @@ class MpRiveArtboardLoadTest {
             
             assertTrue(
                 exception.message?.contains("Artboard operation failed") == true ||
-                exception.message?.contains("Artboard not found") == true,
-                "Expected error for non-existent artboard"
+                exception.message?.contains("Artboard not found") == true ||
+                exception.message?.contains("Failed to create artboard") == true,
+                "Expected error for non-existent artboard, got: ${exception.message}"
             )
             
             testUtil.commandQueue.deleteFile(fileHandle)
