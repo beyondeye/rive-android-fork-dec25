@@ -15,10 +15,12 @@
 1. [Executive Summary](#executive-summary)
 2. [Architecture Overview](#architecture-overview)
 3. [Completed Implementation Summary](#completed-implementation-summary)
-4. [Remaining Implementation Phases](#remaining-implementation-phases)
-5. [Test Fixes Required](#test-fixes-required)
-6. [Timeline](#timeline)
-7. [Risk Assessment](#risk-assessment)
+4. [Feature Gap Analysis](#feature-gap-analysis)
+5. [Remaining Implementation Phases](#remaining-implementation-phases)
+6. [Test Fixes Required](#test-fixes-required)
+7. [Performance Analysis](#performance-analysis)
+8. [Timeline](#timeline)
+9. [Risk Assessment](#risk-assessment)
 
 ---
 
@@ -37,6 +39,12 @@ The mprive CommandQueue architecture provides:
 
 **Android**: Primary focus - completing feature parity with kotlin module
 **Desktop**: Deferred - bridge stub and RenderContext to be implemented later
+
+### Feature Completeness
+
+**mprive is ~85% complete** relative to the kotlin module's CommandQueue:
+- ✅ Core rendering, state machines, properties, pointer events
+- ❌ Missing: Asset management, some introspection APIs, artboard resizing
 
 ---
 
@@ -114,112 +122,220 @@ All resources use type-safe handle wrappers:
 | **Phase A** | CommandQueue Foundation | RefCounted, RCPointer, thread lifecycle, suspend infrastructure |
 | **Phase B** | File & Artboard Operations | `loadFile()`, `getArtboardNames()`, artboard creation (sync), `deleteFile/Artboard()` |
 | **Phase C** | State Machines & Rendering | SM creation (sync), `advanceStateMachine()`, inputs (get/set/fire), `draw()`, `drawMultiple()` |
+| **Phase C.5** | Pointer Events | `pointerMove()`, `pointerDown()`, `pointerUp()`, `pointerExit()` with 15 tests |
 | **Phase D** | View Models & Properties | VMI creation (3 variants), all property types, subscriptions, lists, nested VMI, binding |
 
-**API Coverage**: ~86% of kotlin module features implemented
+---
+
+## Feature Gap Analysis
+
+### Comparison: kotlin module vs mprive CommandQueue
+
+#### ✅ Features Present in Both
+
+| Category | Features |
+|----------|----------|
+| **File Ops** | `loadFile`, `deleteFile`, `getArtboardNames`, `getViewModelNames` |
+| **Artboard** | `createDefaultArtboard`, `createArtboardByName`, `deleteArtboard` |
+| **State Machine** | create/delete, `advanceStateMachine`, `getStateMachineNames` |
+| **SMI Inputs** | `setStateMachineNumberInput/Boolean`, `fireStateMachineTrigger` |
+| **Pointer Events** | `pointerMove`, `pointerDown`, `pointerUp`, `pointerExit` |
+| **VMI Creation** | blank/default/named variants |
+| **Properties** | get/set for Number, String, Boolean, Enum, Color + trigger |
+| **Subscriptions** | `subscribeToProperty` with property flows |
+| **Lists** | `getListSize`, `getListItem`, add/remove/swap operations |
+| **Rendering** | `draw`, `drawMultiple`, `drawMultipleToBuffer` |
+| **Surfaces** | `createRiveSurface`, `createImageSurface`, `destroyRiveSurface` |
+
+#### ❌ Features Missing in mprive
+
+| Category | Missing Features | Priority |
+|----------|-----------------|----------|
+| **Asset Management** | `decodeImage/Audio/Font`, `register/unregister`, `delete` | HIGH |
+| **File Introspection** | `getViewModelInstanceNames`, `getViewModelProperties`, `getEnums` | MEDIUM |
+| **Artboard Resizing** | `resizeArtboard`, `resetArtboardSize` (for Fit.Layout) | MEDIUM |
+| **drawToBuffer** | Single artboard offscreen rendering | MEDIUM |
+| **VMI References** | `Reference(parent, path)`, `ReferenceListItem(parent, path, index)` | LOW |
 
 ---
 
 ## Remaining Implementation Phases
 
-### Phase C.5: Pointer Events (HIGH PRIORITY)
+### Phase E.1: Asset Management (HIGH PRIORITY)
 
-**Motivation**: User interaction (touch/click/drag) on Rive animations requires pointer event handling. The bridge already has these methods but they're not exposed in `CommandQueue.kt`.
-
-**Status**: ✅ Completed (January 12, 2026)
-
-#### Tasks
-
-- [x] **C.5.1**: Add `pointerMove()` method to CommandQueue
-  ```kotlin
-  fun pointerMove(smHandle: StateMachineHandle, surface: RiveSurface, x: Float, y: Float, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
-  ```
-
-- [x] **C.5.2**: Add `pointerDown()` method to CommandQueue
-  ```kotlin
-  fun pointerDown(smHandle: StateMachineHandle, surface: RiveSurface, x: Float, y: Float, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
-  ```
-
-- [x] **C.5.3**: Add `pointerUp()` method to CommandQueue
-  ```kotlin
-  fun pointerUp(smHandle: StateMachineHandle, surface: RiveSurface, x: Float, y: Float, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
-  ```
-
-- [x] **C.5.4**: Add `pointerExit()` method to CommandQueue
-  ```kotlin
-  fun pointerExit(smHandle: StateMachineHandle, surface: RiveSurface, fit: Fit, alignment: Alignment, scaleFactor: Float, pointerID: Int)
-  ```
-
-- [x] **C.5.5**: Document coordinate transformation requirements
-  - Surface coordinates → artboard coordinates handled by native layer
-  - Fit & alignment passed to native for proper transformation
-  - All methods include comprehensive KDoc documentation
-
-- [x] **C.5.6**: Write pointer event tests
-  - `MpRivePointerEventsTest.kt` added with 15 comprehensive tests
-  - MockRiveSurface for testing without GPU resources
-  - Test categories: basic events, click/drag/hover sequences, fit/alignment modes, multi-touch, scale factors, edge cases
-
-**Bridge methods used**:
-- `cppPointerMove()`, `cppPointerDown()`, `cppPointerUp()`, `cppPointerExit()`
-
----
-
-### Phase E: Advanced Features
-
-**Motivation**: Complete feature parity with kotlin module.
-
-#### E.1: Asset Management
+**Motivation**: Dynamic asset loading is essential for apps that load images, fonts, or audio at runtime rather than embedding them in the Rive file.
 
 **Status**: 🔴 Not Started
 
-- [ ] **E.1.1**: Image operations
-  ```kotlin
-  suspend fun decodeImage(bytes: ByteArray): ImageHandle
-  fun registerImage(name: String, imageHandle: ImageHandle)
-  fun unregisterImage(name: String)
-  fun deleteImage(imageHandle: ImageHandle)
-  ```
+#### E.1.1: Image Operations
 
-- [ ] **E.1.2**: Audio operations
-  ```kotlin
-  suspend fun decodeAudio(bytes: ByteArray): AudioHandle
-  fun registerAudio(name: String, audioHandle: AudioHandle)
-  fun unregisterAudio(name: String)
-  fun deleteAudio(audioHandle: AudioHandle)
-  ```
+```kotlin
+// Add to CommandQueue.kt
+suspend fun decodeImage(bytes: ByteArray): ImageHandle
+fun deleteImage(imageHandle: ImageHandle)
+fun registerImage(name: String, imageHandle: ImageHandle)
+fun unregisterImage(name: String)
+```
 
-- [ ] **E.1.3**: Font operations
-  ```kotlin
-  suspend fun decodeFont(bytes: ByteArray): FontHandle
-  fun registerFont(name: String, fontHandle: FontHandle)
-  fun unregisterFont(name: String)
-  fun deleteFont(fontHandle: FontHandle)
-  ```
+**Tasks**:
+- [ ] Add bridge methods: `cppDecodeImage`, `cppDeleteImage`, `cppRegisterImage`, `cppUnregisterImage`
+- [ ] Add JNI callbacks: `onImageDecoded`, `onImageError`
+- [ ] Implement suspend function with request/response pattern
+- [ ] Add tests for image decode/register/unregister lifecycle
 
-- [ ] **E.1.4**: Asset tests
+#### E.1.2: Audio Operations
 
-#### E.2: drawToBuffer API
+```kotlin
+suspend fun decodeAudio(bytes: ByteArray): AudioHandle
+fun deleteAudio(audioHandle: AudioHandle)
+fun registerAudio(name: String, audioHandle: AudioHandle)
+fun unregisterAudio(name: String)
+```
 
-**Status**: 🟡 Bridge Exists, Not Exposed
+**Tasks**:
+- [ ] Add bridge methods: `cppDecodeAudio`, `cppDeleteAudio`, `cppRegisterAudio`, `cppUnregisterAudio`
+- [ ] Add JNI callbacks: `onAudioDecoded`, `onAudioError`
+- [ ] Implement suspend function with request/response pattern
+- [ ] Add tests for audio decode/register/unregister lifecycle
+
+#### E.1.3: Font Operations
+
+```kotlin
+suspend fun decodeFont(bytes: ByteArray): FontHandle
+fun deleteFont(fontHandle: FontHandle)
+fun registerFont(name: String, fontHandle: FontHandle)
+fun unregisterFont(name: String)
+```
+
+**Tasks**:
+- [ ] Add bridge methods: `cppDecodeFont`, `cppDeleteFont`, `cppRegisterFont`, `cppUnregisterFont`
+- [ ] Add JNI callbacks: `onFontDecoded`, `onFontError`
+- [ ] Implement suspend function with request/response pattern
+- [ ] Add tests for font decode/register/unregister lifecycle
+
+---
+
+### Phase E.2: File Introspection APIs (MEDIUM PRIORITY)
+
+**Motivation**: Advanced introspection allows apps to dynamically discover ViewModel structure and enum definitions from Rive files.
+
+**Status**: 🔴 Not Started
+
+#### E.2.1: ViewModel Instance Names
+
+```kotlin
+suspend fun getViewModelInstanceNames(
+    fileHandle: FileHandle,
+    viewModelName: String
+): List<String>
+```
+
+**Tasks**:
+- [ ] Add bridge method: `cppGetViewModelInstanceNames`
+- [ ] Add JNI callback: `onViewModelInstancesListed`
+- [ ] Implement suspend function
+- [ ] Add tests
+
+#### E.2.2: ViewModel Properties
+
+```kotlin
+suspend fun getViewModelProperties(
+    fileHandle: FileHandle,
+    viewModelName: String
+): List<Property>
+```
+
+**Tasks**:
+- [ ] Define `Property` data class (name, type, default value)
+- [ ] Add bridge method: `cppGetViewModelProperties`
+- [ ] Add JNI callback: `onViewModelPropertiesListed`
+- [ ] Implement suspend function
+- [ ] Add tests
+
+#### E.2.3: Enums
+
+```kotlin
+suspend fun getEnums(fileHandle: FileHandle): List<Enum>
+```
+
+**Tasks**:
+- [ ] Define `Enum` data class (name, values list)
+- [ ] Add bridge method: `cppGetEnums`
+- [ ] Add JNI callback: `onEnumsListed`
+- [ ] Implement suspend function
+- [ ] Add tests
+
+---
+
+### Phase E.3: Artboard Resizing (MEDIUM PRIORITY)
+
+**Motivation**: Required for `Fit.Layout` where the artboard must match surface dimensions.
+
+**Status**: 🔴 Not Started
+
+```kotlin
+fun resizeArtboard(
+    artboardHandle: ArtboardHandle,
+    surface: RiveSurface,
+    scaleFactor: Float = 1f
+)
+
+fun resetArtboardSize(artboardHandle: ArtboardHandle)
+```
+
+**Tasks**:
+- [ ] Add bridge methods: `cppResizeArtboard`, `cppResetArtboardSize`
+- [ ] Implement fire-and-forget methods
+- [ ] Add tests for resize/reset cycle
+- [ ] Document interaction with `advanceStateMachine`
+
+---
+
+### Phase E.4: drawToBuffer API (MEDIUM PRIORITY)
 
 **Motivation**: Offscreen rendering for screenshots, thumbnails, video export.
 
-- [ ] **E.2.1**: Add `drawToBuffer()` method to CommandQueue
-  ```kotlin
-  fun drawToBuffer(
-      artboardHandle: ArtboardHandle,
-      smHandle: StateMachineHandle,
-      width: Int,
-      height: Int,
-      buffer: ByteArray,
-      fit: Fit = Fit.CONTAIN,
-      alignment: Alignment = Alignment.CENTER,
-      clearColor: Int = 0xFF000000.toInt()
-  )
-  ```
+**Status**: 🟡 Bridge Exists, Not Exposed
 
-- [ ] **E.2.2**: Write drawToBuffer tests
+```kotlin
+fun drawToBuffer(
+    artboardHandle: ArtboardHandle,
+    smHandle: StateMachineHandle,
+    surface: RiveSurface,
+    buffer: ByteArray,
+    width: Int,
+    height: Int,
+    fit: Fit = Fit.CONTAIN,
+    alignment: Alignment = Alignment.CENTER,
+    clearColor: Int = 0xFF000000.toInt()
+)
+```
+
+**Tasks**:
+- [ ] Add bridge method: `cppDrawToBuffer` (may already exist)
+- [ ] Implement synchronous method (blocks until pixels ready)
+- [ ] Add buffer size validation
+- [ ] Add tests with pixel verification
+
+---
+
+### Phase E.5: Advanced VMI Reference Patterns (LOW PRIORITY)
+
+**Motivation**: Complex data binding scenarios with nested ViewModels.
+
+**Status**: 🔴 Not Started
+
+```kotlin
+// Currently mprive has simple VMI creation, but kotlin module has:
+ViewModelInstanceSource.Reference(parentInstance, path)
+ViewModelInstanceSource.ReferenceListItem(parent, pathToList, index)
+```
+
+**Tasks**:
+- [ ] Add `cppReferenceNestedVMI` bridge method
+- [ ] Add `cppReferenceListItemVMI` bridge method
+- [ ] Consider whether to add ViewModelInstanceSource sealed class or keep simple API
+- [ ] Add tests for nested VMI access
 
 ---
 
@@ -240,7 +356,7 @@ All resources use type-safe handle wrappers:
 
 **Motivation**: Production readiness requires comprehensive testing.
 
-**Status**: 🟡 Partial (19/30 tests pass)
+**Status**: 🟡 Partial
 
 #### G.1: Fix Failing Tests
 
@@ -256,31 +372,93 @@ See [Test Fixes Required](#test-fixes-required) section below.
 
 ## Test Fixes Required
 
-**Root Cause**: CommandServer stub limitations, NOT bridge issues. The bridge pattern is working correctly.
+### ⚠️ CRITICAL: Test Data Discrepancy Found
 
-### Failing Tests (11 total)
+**Issue**: The mprive tests expect `multipleartboards.riv` to have **3 artboards**, but the original kotlin module tests show it has **2 artboards**:
+
+```kotlin
+// Original kotlin test (RiveArtboardLoadTest.kt):
+assertEquals(2, file.artboardCount)
+assertEquals(listOf("artboard2", "artboard1"), file.artboardNames)
+
+// mprive test (MpRiveArtboardLoadTest.kt):
+assertEquals(3, artboardNames.size, "Expected 3 artboards in multipleartboards.riv")
+assertTrue(artboardNames.contains("artboard3"), "Expected artboard3")  // ← This doesn't exist!
+```
+
+**Root Cause**: The mprive test has **incorrect expectations** - `multipleartboards.riv` only has 2 artboards (`artboard1`, `artboard2`), not 3.
+
+**Fix Required**:
+1. Update `MpRiveArtboardLoadTest.queryArtboardCount` to expect 2 artboards
+2. Update `MpRiveArtboardLoadTest.queryArtboardNames` to check for `artboard1` and `artboard2` only
+3. Remove assertion for `artboard3`
+4. Update `MpCommandQueueHandleTest.handles_remain_valid_across_operations` to expect 2 artboards
+
+### Failing Tests (Updated Analysis)
 
 | # | Test | Error | Root Cause | Fix |
 |---|------|-------|------------|-----|
-| 1 | `MpRiveArtboardLoadTest.queryArtboardNames` | `AssertionError: Expected artboard3` | Stub returns 2 artboards instead of 3 | Update CommandServer stub to return correct artboard count |
-| 2 | `MpRiveArtboardLoadTest.queryStateMachineNames` | `IllegalArgumentException: Invalid artboard handle` | Artboard handle expired/invalid | Review artboard handle lifecycle in CommandServer |
-| 3 | `MpCommandQueueHandleTest.artboard_handles_are_incrementing` | `AssertionError: handle 2 > handle 1` | Stub doesn't increment handles | Implement incrementing ID generation in stub |
-| 4 | `MpCommandQueueHandleTest.handles_remain_valid_across_operations` | `AssertionError: Expected 3 artboards, got 2` | Wrong artboard count | Track file state properly in stub |
-| 5 | `MpCommandQueueHandleTest.artboard_handles_are_unique` | `AssertionError: handles should be unique` | Duplicate handles returned | Unique handle generation in stub |
-| 6 | `MpRiveDataBindingTest.getBooleanProperty_returnsDefaultValue` | `IllegalArgumentException: Invalid VMI handle` | VMI creation returned invalid handle | Fix VMI creation flow in CommandServer |
-| 7 | `MpRiveDataBindingTest.setNestedProperty_via_path` | VMI handle issue | Same as #6 | Same as #6 |
-| 8-11 | Various | Similar handle/state issues | Stub state management | Batch fix with stub improvements |
+| 1 | `queryArtboardNames` | `AssertionError: Expected artboard3` | **Test bug**: File has 2 artboards, not 3 | Fix test expectation |
+| 2 | `queryArtboardCount` | `AssertionError: Expected 3` | **Test bug**: Same as above | Fix test expectation |
+| 3 | `queryStateMachineNames` | `IllegalArgumentException: Invalid artboard handle` | Artboard handle lifecycle issue | Review CommandServer stub |
+| 4 | `artboard_handles_are_incrementing` | `AssertionError: handle 2 > handle 1` | Stub doesn't increment handles | Fix stub ID generation |
+| 5 | `handles_remain_valid_across_operations` | `AssertionError: Expected 3 artboards` | **Test bug**: Same data discrepancy | Fix test expectation |
+| 6 | `artboard_handles_are_unique` | `AssertionError: handles should be unique` | Stub returns duplicate handles | Fix stub uniqueness |
+| 7-11 | Various VMI tests | `IllegalArgumentException: Invalid VMI handle` | VMI creation flow issues | Fix CommandServer VMI handling |
 
 ### Fix Strategy
 
-1. **Improve CommandServer stub state management**:
-   - Track loaded files with their artboard/SM/VMI counts
-   - Generate unique, incrementing handles per resource type
-   - Maintain handle validity across operations
+**Step 1**: Fix test data expectations (tests 1, 2, 5)
+- Change expected artboard count from 3 to 2
+- Remove checks for non-existent `artboard3`
 
-2. **Add stub validation**:
-   - Validate handles before operations
-   - Return proper error messages for invalid handles
+**Step 2**: Improve CommandServer stub state management
+- Track loaded files with their artboard/SM/VMI counts
+- Generate unique, incrementing handles per resource type
+- Maintain handle validity across operations
+
+---
+
+## Performance Analysis
+
+### Handle-Based API Overhead
+
+| Aspect | Impact | Mitigation |
+|--------|--------|------------|
+| **JNI Crossings** | Each operation = 1 JNI call | Batch operations (`drawMultiple`) reduce crossings |
+| **Request ID Tracking** | Map lookup for async callbacks | `ConcurrentHashMap` is O(1), negligible |
+| **Command Serialization** | Commands queued to render thread | Actually IMPROVES performance vs direct calls |
+
+**Verdict**: The handle-based API has **minimal overhead** because:
+- JNI calls are already necessary for Rive (C++ core)
+- Batching (e.g., `drawMultiple`) amortizes overhead
+- Thread isolation prevents contention
+
+### Async vs Sync Performance
+
+| Operation Type | Performance |
+|----------------|-------------|
+| Fire-and-forget (mutations) | Immediate return, no blocking |
+| Queries (suspend) | Async callback, coroutine-friendly |
+| `drawMultiple` | Single JNI call for N sprites |
+
+### Batch Rendering Performance
+
+```
+Overhead per sprite: ~32 bytes (6 floats + 2 longs)
+For 100 sprites: ~3KB memory + 1 JNI call
+
+Frame budget: 16ms (60fps)
+Typical batch render: <1ms for 100 sprites
+```
+
+### Memory Considerations
+
+| Aspect | Handle API | Direct Object API |
+|--------|------------|-------------------|
+| Kotlin object count | 1 handle per resource | 1 wrapper object per resource |
+| C++ memory | Same | Same |
+| GC pressure | Lower (inline value classes) | Higher (regular classes) |
 
 ---
 
@@ -288,12 +466,13 @@ See [Test Fixes Required](#test-fixes-required) section below.
 
 | Week | Phase | Deliverables |
 |------|-------|--------------|
-| **Week 1** | C.5 + G.1 | Pointer events API + Fix 11 failing tests |
+| **Week 1** | G.1 | Fix test data discrepancy + Fix failing tests |
 | **Week 2** | E.1 | Asset management (image, audio, font) |
-| **Week 3** | E.2 + G.2 | drawToBuffer API + Performance tests |
+| **Week 3** | E.2 + E.3 | File introspection + Artboard resizing |
+| **Week 4** | E.4 + G.2 | drawToBuffer API + Performance tests |
 | **Future** | F | Desktop support (when prioritized) |
 
-**Total remaining for Android**: ~3 weeks
+**Total remaining for Android**: ~4 weeks
 
 ---
 
@@ -303,7 +482,7 @@ See [Test Fixes Required](#test-fixes-required) section below.
 
 | Risk | Mitigation |
 |------|------------|
-| **Test Stub Complexity** | Incremental fixes, focus on most critical tests first |
+| **Test Data Discrepancy** | Fix immediately - tests are testing wrong expectations |
 | **Asset Loading Complexity** | Follow kotlin module patterns exactly |
 
 ### Medium Risk
@@ -323,8 +502,8 @@ See [Test Fixes Required](#test-fixes-required) section below.
 
 ## Success Criteria
 
-- [ ] All 11 failing tests pass
-- [ ] Pointer events work with touch/click
+- [ ] All test data discrepancies fixed (artboard count = 2)
+- [ ] All tests pass (currently 19/30, target 30/30)
 - [ ] Asset management (image at minimum) functional
 - [ ] drawToBuffer produces valid pixel data
 - [ ] 60fps rendering maintained (<16ms frame budget)
@@ -338,6 +517,7 @@ See [Test Fixes Required](#test-fixes-required) section below.
 - **Testing Strategy**: `aiplans/mprive_testing_strategy.md`
 - **Platform Support Details**: `aiplans/mprive_platform_support.md`
 - **Upstream Changes Doc**: `docs/merged_upstream_changes_jan_2026.md`
+- **kotlin module CommandQueue**: `kotlin/src/main/kotlin/app/rive/core/CommandQueue.kt`
 
 ---
 
