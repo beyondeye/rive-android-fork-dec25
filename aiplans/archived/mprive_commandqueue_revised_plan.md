@@ -7,7 +7,7 @@
 **Decision**: Full CommandQueue Architecture (Option A)
 **Scope**: Complete feature parity with kotlin module's CommandQueue
 **Estimated Timeline**: 5-8 weeks (includes Phase 0)
-**Status**: ✅ Phase E.3 COMPLETE (15/15 tests passing) | Phases A-D COMPLETE | Updated: January 12, 2026
+**Status**: ✅ Phase E.2 COMPLETE (11/11 tests) | Phase E.3 COMPLETE (15/15 tests) | Phases A-D COMPLETE | Updated: January 12, 2026
 
 ---
 
@@ -441,7 +441,9 @@ fun deleteImage(imageHandle: ImageHandle)
 - [ ] Implement font operations
 - [ ] Test asset loading and registration
 
-#### E.2: Batch Rendering
+#### E.2: Batch Rendering ✅ **COMPLETE**
+
+**Status**: ✅ **FULLY TESTED** - January 12, 2026
 
 **Kotlin API:**
 ```kotlin
@@ -452,20 +454,42 @@ fun drawMultiple(
     viewportHeight: Int,
     clearColor: Int
 )
+
+fun drawMultipleToBuffer(
+    commands: List<SpriteDrawCommand>,
+    surface: RiveSurface,
+    clearColor: Int,
+    buffer: ByteArray
+)
 ```
 
 **Purpose**: Optimize rendering of multiple sprites/artboards in a single frame
 
-**C++ Implementation Requirements**:
-- Batch command processing
-- Transform application per sprite
-- Single render pass for all sprites
-- Performance optimization for large sprite counts
+**C++ Implementation Complete**:
+- ✅ Batch command processing with array marshalling
+- ✅ Transform application per sprite (6-element affine transforms)
+- ✅ Single render pass for all sprites
+- ✅ Performance optimization for large sprite counts (100+ sprites tested)
+- ✅ Support for offscreen buffer rendering
+
+**Tests Implemented** (MpRiveBatchRenderingTest.kt - 11 tests, all passing):
+- ✅ `drawMultiple_singleSprite_succeeds` - Basic single sprite
+- ✅ `drawMultiple_multipleSprites_succeeds` - Multiple sprites in batch
+- ✅ `drawMultiple_withScaleTransform_succeeds` - 2x scale transforms
+- ✅ `drawMultiple_withRotationTransform_succeeds` - 45° rotation
+- ✅ `drawMultiple_withTranslationTransform_succeeds` - Translation positions
+- ✅ `drawMultiple_withDifferentClearColors_succeeds` - Various clear colors
+- ✅ `drawMultiple_emptyCommands_throwsException` - Empty commands validation
+- ✅ `drawMultipleToBuffer_singleSprite_succeeds` - Offscreen rendering
+- ✅ `drawMultipleToBuffer_bufferTooSmall_throwsException` - Buffer size validation
+- ✅ `drawMultipleToBuffer_emptyCommands_throwsException` - Empty commands validation
+- ✅ `drawMultiple_manySprites_succeeds` - Stress test with 100 sprites
 
 **Tasks:**
-- [ ] Implement batch rendering
-- [ ] Optimize for performance
-- [ ] Test with large sprite counts
+- [x] Implement batch rendering (drawMultiple)
+- [x] Implement offscreen buffer rendering (drawMultipleToBuffer)
+- [x] Optimize for performance
+- [x] Test with large sprite counts (100 sprites - 0.262s)
 
 #### E.3: Pointer Events ✅ **COMPLETE**
 
@@ -502,7 +526,7 @@ fun pointerExit(smHandle: StateMachineHandle)
 - [x] Implement coordinate transformation
 - [x] Test pointer interaction on Android device (15/15 passing on SM-S9210)
 
-**Milestone E**: Full feature parity ⏳ (E.1 and E.2 still pending)
+**Milestone E**: Full feature parity ⏳ (E.1 Asset Management still pending)
 
 #### E.4: Testing (Phase E)
 
@@ -696,8 +720,8 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 | Subscriptions | ✅ | ✅ | Complete |
 | **Rendering** | |||
 | Draw single | ✅ | ✅ | Complete |
-| Draw to buffer | ✅ | ✅ | Planned (Phase E) |
-| Draw multiple (batch) | ✅ | ✅ | Planned (Phase E) |
+| Draw to buffer | ✅ | ✅ | ✅ Complete (E.2) |
+| Draw multiple (batch) | ✅ | ✅ | ✅ Complete (E.2) |
 | **Assets** | |||
 | Decode image | ✅ | ✅ | Planned (Phase E) |
 | Register/unregister | ✅ | ✅ | Planned (Phase E) |
@@ -757,7 +781,7 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 2. **Milestone B (Week 3)**: Can load files and create artboards ✅
 3. **Milestone C (Week 4)**: Can render animations ✅
 4. **Milestone D (Week 5)**: View models working ✅
-5. **Milestone E (Week 6)**: Full feature parity 🔄 (E.3 Pointer Events ✅ 15/15 tests, E.1/E.2 pending)
+5. **Milestone E (Week 6)**: Full feature parity 🔄 (E.2 Batch Rendering ✅ 11/11 tests, E.3 Pointer Events ✅ 15/15 tests, E.1 pending)
 6. **Milestone F (Week 6.5)**: Works on both platforms ⏳
 7. **Milestone G (Week 7)**: Production ready ⏳
 
@@ -841,8 +865,8 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 ## Next Steps
 
 1. ~~**E.3 Testing**: Run `MpRivePointerEventsTest.kt` on Android device~~ ✅ DONE (15/15 tests passing)
-2. **E.1 Asset Management**: Implement image/audio/font decoding
-3. **E.2 Batch Rendering**: Implement `drawMultiple()` C++ handler
+2. ~~**E.2 Batch Rendering**: Implement `drawMultiple()` C++ handler~~ ✅ DONE (11/11 tests passing)
+3. **E.1 Asset Management**: Implement image/audio/font decoding - **NEXT**
 4. **Weekly progress reviews** to ensure on track
 5. **Adjust scope** if needed based on progress
 
