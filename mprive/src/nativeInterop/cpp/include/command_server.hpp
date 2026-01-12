@@ -113,6 +113,19 @@ enum class CommandType {
     PointerDown,              // Pointer/mouse down event
     PointerUp,                // Pointer/mouse up event
     PointerExit,              // Pointer/mouse exit event
+    // Phase E.1: Asset operations
+    DecodeImage,              // Decode image from bytes
+    DeleteImage,              // Delete a decoded image
+    RegisterImage,            // Register image by name for asset loading
+    UnregisterImage,          // Unregister image by name
+    DecodeAudio,              // Decode audio from bytes
+    DeleteAudio,              // Delete a decoded audio
+    RegisterAudio,            // Register audio by name for asset loading
+    UnregisterAudio,          // Unregister audio by name
+    DecodeFont,               // Decode font from bytes
+    DeleteFont,               // Delete a decoded font
+    RegisterFont,             // Register font by name for asset loading
+    UnregisterFont,           // Unregister font by name
 };
 
 /**
@@ -272,6 +285,13 @@ enum class MessageType {
     // Phase C.2.6: Rendering results
     DrawComplete,             // Draw operation completed successfully
     DrawError,                // Draw operation failed
+    // Phase E.1: Asset operation results
+    ImageDecoded,             // Image decoded successfully (returns imageHandle)
+    ImageError,               // Image decode/operation failed
+    AudioDecoded,             // Audio decoded successfully (returns audioHandle)
+    AudioError,               // Audio decode/operation failed
+    FontDecoded,              // Font decoded successfully (returns fontHandle)
+    FontError,                // Font decode/operation failed
 };
 
 /**
@@ -1223,6 +1243,128 @@ private:
     // Phase D.4: Property subscriptions
     std::vector<PropertySubscription> m_propertySubscriptions;
     std::mutex m_subscriptionsMutex;
+
+    // Phase E.1: Asset resource maps
+    // Note: Using void* as placeholder - actual types depend on Rive image/audio/font implementations
+    std::map<int64_t, void*> m_images;        // Image handle -> decoded image data
+    std::map<int64_t, void*> m_audioClips;    // Audio handle -> decoded audio data
+    std::map<int64_t, void*> m_fonts;         // Font handle -> decoded font data
+    std::map<std::string, int64_t> m_registeredImages;  // name -> image handle
+    std::map<std::string, int64_t> m_registeredAudio;   // name -> audio handle
+    std::map<std::string, int64_t> m_registeredFonts;   // name -> font handle
+
+public:
+    // ==========================================================================
+    // Phase E.1: Asset Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a DecodeImage command.
+     * Decodes image data from bytes and returns a handle via callback.
+     *
+     * @param requestID The request ID for async completion.
+     * @param bytes The image bytes (PNG, JPEG, etc.).
+     */
+    void decodeImage(int64_t requestID, const std::vector<uint8_t>& bytes);
+
+    /**
+     * Deletes a decoded image (synchronous, fire-and-forget).
+     *
+     * @param imageHandle The handle of the image to delete.
+     */
+    void deleteImage(int64_t imageHandle);
+
+    /**
+     * Registers an image by name for asset loading.
+     *
+     * @param name The name to register the image under.
+     * @param imageHandle The handle of the decoded image.
+     */
+    void registerImage(const std::string& name, int64_t imageHandle);
+
+    /**
+     * Unregisters an image by name.
+     *
+     * @param name The name of the image to unregister.
+     */
+    void unregisterImage(const std::string& name);
+
+    /**
+     * Enqueues a DecodeAudio command.
+     * Decodes audio data from bytes and returns a handle via callback.
+     *
+     * @param requestID The request ID for async completion.
+     * @param bytes The audio bytes (WAV, MP3, etc.).
+     */
+    void decodeAudio(int64_t requestID, const std::vector<uint8_t>& bytes);
+
+    /**
+     * Deletes a decoded audio clip (synchronous, fire-and-forget).
+     *
+     * @param audioHandle The handle of the audio to delete.
+     */
+    void deleteAudio(int64_t audioHandle);
+
+    /**
+     * Registers an audio clip by name for asset loading.
+     *
+     * @param name The name to register the audio under.
+     * @param audioHandle The handle of the decoded audio.
+     */
+    void registerAudio(const std::string& name, int64_t audioHandle);
+
+    /**
+     * Unregisters an audio clip by name.
+     *
+     * @param name The name of the audio to unregister.
+     */
+    void unregisterAudio(const std::string& name);
+
+    /**
+     * Enqueues a DecodeFont command.
+     * Decodes font data from bytes and returns a handle via callback.
+     *
+     * @param requestID The request ID for async completion.
+     * @param bytes The font bytes (TTF, OTF, etc.).
+     */
+    void decodeFont(int64_t requestID, const std::vector<uint8_t>& bytes);
+
+    /**
+     * Deletes a decoded font (synchronous, fire-and-forget).
+     *
+     * @param fontHandle The handle of the font to delete.
+     */
+    void deleteFont(int64_t fontHandle);
+
+    /**
+     * Registers a font by name for asset loading.
+     *
+     * @param name The name to register the font under.
+     * @param fontHandle The handle of the decoded font.
+     */
+    void registerFont(const std::string& name, int64_t fontHandle);
+
+    /**
+     * Unregisters a font by name.
+     *
+     * @param name The name of the font to unregister.
+     */
+    void unregisterFont(const std::string& name);
+
+private:
+    // Asset operation handlers (Phase E.1)
+    void handleDecodeImage(const Command& cmd);
+    void handleDeleteImage(const Command& cmd);
+    void handleRegisterImage(const Command& cmd);
+    void handleUnregisterImage(const Command& cmd);
+    void handleDecodeAudio(const Command& cmd);
+    void handleDeleteAudio(const Command& cmd);
+    void handleRegisterAudio(const Command& cmd);
+    void handleUnregisterAudio(const Command& cmd);
+    void handleDecodeFont(const Command& cmd);
+    void handleDeleteFont(const Command& cmd);
+    void handleRegisterFont(const Command& cmd);
+    void handleUnregisterFont(const Command& cmd);
 };
 
 } // namespace rive_android
