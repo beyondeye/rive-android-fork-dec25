@@ -32,7 +32,7 @@ class MpRiveArtboardLoadTest {
             val fileHandle = testUtil.commandQueue.loadFile(bytes)
             
             val artboardNames = testUtil.commandQueue.getArtboardNames(fileHandle)
-            assertEquals(3, artboardNames.size, "Expected 3 artboards in multipleartboards.riv")
+            assertEquals(2, artboardNames.size, "Expected 2 artboards in multipleartboards.riv")
             
             testUtil.commandQueue.deleteFile(fileHandle)
         } finally {
@@ -55,7 +55,6 @@ class MpRiveArtboardLoadTest {
             // Check specific artboard names
             assertTrue(artboardNames.contains("artboard1"), "Expected artboard1")
             assertTrue(artboardNames.contains("artboard2"), "Expected artboard2")
-            assertTrue(artboardNames.contains("artboard3"), "Expected artboard3")
             
             testUtil.commandQueue.deleteFile(fileHandle)
         } finally {

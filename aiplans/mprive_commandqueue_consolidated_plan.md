@@ -1,7 +1,7 @@
 # mprive CommandQueue Implementation Plan (CONSOLIDATED)
 
 **Date**: January 12, 2026
-**Status**: 🔄 Active Development
+**Status**: 🔄 Active Development (Test Data Fix Complete - Jan 12, 2026)
 **Focus**: Android-first approach (Desktop deferred)
 **Last Updated**: January 12, 2026
 
@@ -372,45 +372,33 @@ See [Test Fixes Required](#test-fixes-required) section below.
 
 ## Test Fixes Required
 
-### ⚠️ CRITICAL: Test Data Discrepancy Found
+### ✅ FIXED: Test Data Discrepancy (Jan 12, 2026)
 
-**Issue**: The mprive tests expect `multipleartboards.riv` to have **3 artboards**, but the original kotlin module tests show it has **2 artboards**:
+**Issue**: The mprive tests expected `multipleartboards.riv` to have **3 artboards**, but the original kotlin module tests show it has **2 artboards**.
 
-```kotlin
-// Original kotlin test (RiveArtboardLoadTest.kt):
-assertEquals(2, file.artboardCount)
-assertEquals(listOf("artboard2", "artboard1"), file.artboardNames)
-
-// mprive test (MpRiveArtboardLoadTest.kt):
-assertEquals(3, artboardNames.size, "Expected 3 artboards in multipleartboards.riv")
-assertTrue(artboardNames.contains("artboard3"), "Expected artboard3")  // ← This doesn't exist!
-```
-
-**Root Cause**: The mprive test has **incorrect expectations** - `multipleartboards.riv` only has 2 artboards (`artboard1`, `artboard2`), not 3.
-
-**Fix Required**:
-1. Update `MpRiveArtboardLoadTest.queryArtboardCount` to expect 2 artboards
-2. Update `MpRiveArtboardLoadTest.queryArtboardNames` to check for `artboard1` and `artboard2` only
-3. Remove assertion for `artboard3`
-4. Update `MpCommandQueueHandleTest.handles_remain_valid_across_operations` to expect 2 artboards
+**Fix Applied**:
+1. ✅ Updated `MpRiveArtboardLoadTest.queryArtboardCount` to expect 2 artboards
+2. ✅ Updated `MpRiveArtboardLoadTest.queryArtboardNames` to check for `artboard1` and `artboard2` only
+3. ✅ Removed assertion for `artboard3`
+4. ✅ Updated `MpCommandQueueHandleTest.handles_remain_valid_across_operations` to expect 2 artboards
 
 ### Failing Tests (Updated Analysis)
 
 | # | Test | Error | Root Cause | Fix |
 |---|------|-------|------------|-----|
-| 1 | `queryArtboardNames` | `AssertionError: Expected artboard3` | **Test bug**: File has 2 artboards, not 3 | Fix test expectation |
-| 2 | `queryArtboardCount` | `AssertionError: Expected 3` | **Test bug**: Same as above | Fix test expectation |
+| 1 | `queryArtboardNames` | ~~`AssertionError: Expected artboard3`~~ | ~~**Test bug**: File has 2 artboards, not 3~~ | ✅ **FIXED** |
+| 2 | `queryArtboardCount` | ~~`AssertionError: Expected 3`~~ | ~~**Test bug**: Same as above~~ | ✅ **FIXED** |
 | 3 | `queryStateMachineNames` | `IllegalArgumentException: Invalid artboard handle` | Artboard handle lifecycle issue | Review CommandServer stub |
 | 4 | `artboard_handles_are_incrementing` | `AssertionError: handle 2 > handle 1` | Stub doesn't increment handles | Fix stub ID generation |
-| 5 | `handles_remain_valid_across_operations` | `AssertionError: Expected 3 artboards` | **Test bug**: Same data discrepancy | Fix test expectation |
+| 5 | `handles_remain_valid_across_operations` | ~~`AssertionError: Expected 3 artboards`~~ | ~~**Test bug**: Same data discrepancy~~ | ✅ **FIXED** |
 | 6 | `artboard_handles_are_unique` | `AssertionError: handles should be unique` | Stub returns duplicate handles | Fix stub uniqueness |
 | 7-11 | Various VMI tests | `IllegalArgumentException: Invalid VMI handle` | VMI creation flow issues | Fix CommandServer VMI handling |
 
 ### Fix Strategy
 
-**Step 1**: Fix test data expectations (tests 1, 2, 5)
-- Change expected artboard count from 3 to 2
-- Remove checks for non-existent `artboard3`
+**Step 1**: ✅ COMPLETED - Fix test data expectations (tests 1, 2, 5)
+- ✅ Changed expected artboard count from 3 to 2
+- ✅ Removed checks for non-existent `artboard3`
 
 **Step 2**: Improve CommandServer stub state management
 - Track loaded files with their artboard/SM/VMI counts
@@ -502,7 +490,7 @@ Typical batch render: <1ms for 100 sprites
 
 ## Success Criteria
 
-- [ ] All test data discrepancies fixed (artboard count = 2)
+- [x] All test data discrepancies fixed (artboard count = 2)
 - [ ] All tests pass (currently 19/30, target 30/30)
 - [ ] Asset management (image at minimum) functional
 - [ ] drawToBuffer produces valid pixel data

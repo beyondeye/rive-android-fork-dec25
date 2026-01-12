@@ -202,14 +202,14 @@ class MpCommandQueueHandleTest {
             
             // File handle should still be valid after artboard creation
             val artboardNames = testUtil.commandQueue.getArtboardNames(fileHandle)
-            assertEquals(3, artboardNames.size, "File should still have 3 artboards")
+            assertEquals(2, artboardNames.size, "File should still have 2 artboards")
             
             // Delete one artboard
             testUtil.commandQueue.deleteArtboard(artboard1)
             
             // File and other artboard handles should still be valid
             val artboardNamesAfterDelete = testUtil.commandQueue.getArtboardNames(fileHandle)
-            assertEquals(3, artboardNamesAfterDelete.size, "File should still have 3 artboards")
+            assertEquals(2, artboardNamesAfterDelete.size, "File should still have 2 artboards")
             
             // Second artboard should still be queryable
             val smNames = testUtil.commandQueue.getStateMachineNames(artboard2)
