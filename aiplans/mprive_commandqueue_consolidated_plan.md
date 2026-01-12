@@ -343,9 +343,9 @@ ViewModelInstanceSource.ReferenceListItem(parent, pathToList, index)
 
 **Motivation**: Kotlin Multiplatform requires desktop support for true cross-platform capability.
 
-**Status**: 🔴 Deferred
+**Status**: 🟡 Stub Created
 
-- [ ] **F.1**: Create `CommandQueueBridge.desktop.kt` stub
+- [x] **F.1**: Create `CommandQueueBridge.desktop.kt` stub (Jan 12, 2026)
 - [ ] **F.2**: Implement Desktop RenderContext (GLFW/Skia)
 - [ ] **F.3**: Desktop native bindings (JNA or Kotlin/Native)
 - [ ] **F.4**: Cross-platform tests
