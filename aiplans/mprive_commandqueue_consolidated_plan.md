@@ -147,12 +147,12 @@ All resources use type-safe handle wrappers:
 | **Lists** | `getListSize`, `getListItem`, add/remove/swap operations |
 | **Rendering** | `draw`, `drawMultiple`, `drawMultipleToBuffer` |
 | **Surfaces** | `createRiveSurface`, `createImageSurface`, `destroyRiveSurface` |
+| **Asset Management** | `decodeImage/Audio/Font`, `register/unregister`, `delete` - ✅ Complete (E.1) |
 
 #### ❌ Features Missing in mprive
 
 | Category | Missing Features | Priority |
 |----------|-----------------|----------|
-| **Asset Management** | `decodeImage/Audio/Font`, `register/unregister`, `delete` | HIGH |
 | **File Introspection** | `getViewModelInstanceNames`, `getViewModelProperties`, `getEnums` | MEDIUM |
 | **Artboard Resizing** | `resizeArtboard`, `resetArtboardSize` (for Fit.Layout) | MEDIUM |
 | **drawToBuffer** | Single artboard offscreen rendering | MEDIUM |
@@ -185,9 +185,9 @@ All resources use type-safe handle wrappers:
 | JNI function implementations (12 functions) | ✅ Complete |
 | Message handling in cppPollMessages() (6 cases) | ✅ Complete |
 
-#### ⏳ Remaining Tasks
+#### ✅ All Tasks Complete
 
-- [ ] Test asset loading and registration (MpRiveAssetsTest.kt)
+- [x] Test asset loading and registration (MpRiveAssetsTest.kt) - 9 tests created
 
 See [e1_asset_management_cpp_implementation.md](../aitasks/e1_asset_management_cpp_implementation.md) for detailed task tracking.
 

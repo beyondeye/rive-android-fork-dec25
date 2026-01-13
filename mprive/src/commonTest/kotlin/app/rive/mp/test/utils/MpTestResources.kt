@@ -37,3 +37,14 @@ fun MpTestResources.loadRiveFile(filename: String): ByteArray {
     val fullFilename = if (filename.endsWith(".riv")) filename else "$filename.riv"
     return loadResource("rive/$fullFilename")
 }
+
+/**
+ * Helper extension to load image files from the test resources.
+ *
+ * @param filename The image file name (with extension).
+ *                 Example: "eve.png" will load "rive/eve.png"
+ * @return The file contents as a ByteArray.
+ */
+fun MpTestResources.loadImageFile(filename: String): ByteArray {
+    return loadResource("rive/$filename")
+}
