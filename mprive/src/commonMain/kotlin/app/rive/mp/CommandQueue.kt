@@ -432,6 +432,57 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Phase E.3: Artboard Resizing (for Fit.Layout)
+    // =============================================================================
+
+    /**
+     * Resize an artboard to match the given dimensions.
+     * 
+     * This is required for [Fit.LAYOUT] mode where the artboard needs to match
+     * the surface dimensions for responsive layout behavior.
+     * 
+     * This is a fire-and-forget operation that enqueues a resize command on the
+     * render thread. The resize will take effect on the next advance/draw cycle.
+     *
+     * @param artboardHandle The handle of the artboard to resize.
+     * @param width The new width in pixels.
+     * @param height The new height in pixels.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see resetArtboardSize To restore the original artboard dimensions.
+     * @see Fit.LAYOUT The fit mode that requires artboard resizing.
+     */
+    @Throws(IllegalStateException::class)
+    fun resizeArtboard(
+        artboardHandle: ArtboardHandle,
+        width: Int,
+        height: Int,
+        scaleFactor: Float = 1.0f
+    ) {
+        bridge.cppResizeArtboard(cppPointer.pointer, artboardHandle.handle, width, height, scaleFactor)
+    }
+
+    /**
+     * Reset an artboard to its original dimensions.
+     * 
+     * This undoes any previous [resizeArtboard] calls and restores the artboard
+     * to the dimensions defined in the Rive file.
+     * 
+     * This is a fire-and-forget operation that enqueues a reset command on the
+     * render thread. The reset will take effect on the next advance/draw cycle.
+     *
+     * @param artboardHandle The handle of the artboard to reset.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     *
+     * @see resizeArtboard To resize the artboard to specific dimensions.
+     */
+    @Throws(IllegalStateException::class)
+    fun resetArtboardSize(artboardHandle: ArtboardHandle) {
+        bridge.cppResetArtboardSize(cppPointer.pointer, artboardHandle.handle)
+    }
+
+    // =============================================================================
     // Phase C.2.3: Render Target Operations
     // =============================================================================
 

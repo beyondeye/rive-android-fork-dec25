@@ -1,7 +1,7 @@
 # mprive CommandQueue Implementation Plan (CONSOLIDATED)
 
 **Date**: January 12, 2026
-**Status**: 🔄 Active Development (E.1 Asset Management 100% Complete - Jan 13, 2026)
+**Status**: 🔄 Active Development (E.1 Asset Management + E.3 Artboard Resizing Complete - Jan 13, 2026)
 **Focus**: Android-first approach (Desktop deferred)
 **Last Updated**: January 13, 2026
 
@@ -42,10 +42,11 @@ The mprive CommandQueue architecture provides:
 
 ### Feature Completeness
 
-**mprive is ~90% complete** relative to the kotlin module's CommandQueue:
+**mprive is ~92% complete** relative to the kotlin module's CommandQueue:
 - ✅ Core rendering, state machines, properties, pointer events
 - ✅ Asset management (image, audio, font - decode/delete/register/unregister)
-- ❌ Missing: some introspection APIs, artboard resizing
+- ✅ Artboard resizing (`resizeArtboard`, `resetArtboardSize` for Fit.Layout)
+- ❌ Missing: some introspection APIs, drawToBuffer
 
 ---
 
@@ -154,7 +155,6 @@ All resources use type-safe handle wrappers:
 | Category | Missing Features | Priority |
 |----------|-----------------|----------|
 | **File Introspection** | `getViewModelInstanceNames`, `getViewModelProperties`, `getEnums` | MEDIUM |
-| **Artboard Resizing** | `resizeArtboard`, `resetArtboardSize` (for Fit.Layout) | MEDIUM |
 | **drawToBuffer** | Single artboard offscreen rendering | MEDIUM |
 | **VMI References** | `Reference(parent, path)`, `ReferenceListItem(parent, path, index)` | LOW |
 
@@ -245,26 +245,43 @@ suspend fun getEnums(fileHandle: FileHandle): List<Enum>
 
 ---
 
-### Phase E.3: Artboard Resizing (MEDIUM PRIORITY)
+### Phase E.3: Artboard Resizing (MEDIUM PRIORITY) ✅ COMPLETE
 
 **Motivation**: Required for `Fit.Layout` where the artboard must match surface dimensions.
 
-**Status**: 🔴 Not Started
+**Status**: 🟢 **100% Complete** - Updated January 13, 2026
 
 ```kotlin
 fun resizeArtboard(
     artboardHandle: ArtboardHandle,
-    surface: RiveSurface,
+    width: Int,
+    height: Int,
     scaleFactor: Float = 1f
 )
 
 fun resetArtboardSize(artboardHandle: ArtboardHandle)
 ```
 
-**Tasks**:
-- [ ] Add bridge methods: `cppResizeArtboard`, `cppResetArtboardSize`
-- [ ] Implement fire-and-forget methods
-- [ ] Add tests for resize/reset cycle
+#### ✅ Completed Implementation
+
+| Component | Status |
+|-----------|--------|
+| Kotlin API (`CommandQueue.kt`) | ✅ Complete |
+| Android JNI bridge (`cppResizeArtboard`, `cppResetArtboardSize`) | ✅ Complete |
+| JNI bindings (`bindings_commandqueue.cpp`) | ✅ Complete |
+| C++ CommandServer header declarations | ✅ Complete |
+| C++ CommandServer implementations | ✅ Complete |
+| CommandType enum entries | ✅ Complete |
+| Switch cases in executeCommand() | ✅ Complete |
+
+**Implementation Details**:
+- `resizeArtboard()`: Fire-and-forget method that resizes artboard to match surface dimensions
+- `resetArtboardSize()`: Fire-and-forget method that restores original artboard dimensions
+- Scale factor applied: `scaledWidth = width / scaleFactor`
+- Uses `artboard->width()/height()` setters and `artboard->resetArtboardSize()`
+
+**Tasks Remaining**:
+- [ ] Add tests for resize/reset cycle (`MpRiveArtboardResizeTest.kt`)
 - [ ] Document interaction with `advanceStateMachine`
 
 ---
@@ -495,7 +512,7 @@ Typical batch render: <1ms for 100 sprites
 |------|-------|--------------|
 | **Week 1** | G.1 | ✅ Fix test data discrepancy + Fix failing tests |
 | **Week 2** | E.1 | ✅ Asset management - JNI bindings complete |
-| **Week 3** | E.2 + E.3 | File introspection + Artboard resizing |
+| **Week 3** | E.2 | File introspection APIs (E.3 ✅ complete) |
 | **Week 4** | E.4 + G.2 | drawToBuffer API + Performance tests |
 | **Future** | F | Desktop support (when prioritized) |
 
@@ -533,6 +550,7 @@ Typical batch render: <1ms for 100 sprites
 - [ ] All tests pass (currently 19/30, target 30/30)
 - [x] Asset management Kotlin + C++ implementation (100% complete)
 - [x] Asset management JNI bindings (100% complete)
+- [x] Artboard resizing implementation (100% complete)
 - [ ] drawToBuffer produces valid pixel data
 - [ ] 60fps rendering maintained (<16ms frame budget)
 - [ ] No memory leaks in long-running tests

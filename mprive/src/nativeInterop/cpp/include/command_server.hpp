@@ -51,6 +51,9 @@ enum class CommandType {
     CreateDefaultArtboard,
     CreateArtboardByName,
     DeleteArtboard,
+    // Phase E.3: Artboard Resizing (for Fit.Layout)
+    ResizeArtboard,
+    ResetArtboardSize,
     // Phase C: State machine operations
     CreateDefaultStateMachine,
     CreateStateMachineByName,
@@ -508,6 +511,30 @@ public:
      */
     void deleteArtboard(int64_t requestID, int64_t artboardHandle);
     
+    // =========================================================================
+    // Phase E.3: Artboard Resizing (for Fit.Layout)
+    // =========================================================================
+
+    /**
+     * Resizes an artboard to the specified dimensions.
+     * This is required for Fit.Layout mode where the artboard must match surface dimensions.
+     * Fire-and-forget operation.
+     *
+     * @param artboardHandle The handle of the artboard to resize.
+     * @param width The new width in pixels.
+     * @param height The new height in pixels.
+     * @param scaleFactor Scale factor for high DPI displays (default 1.0).
+     */
+    void resizeArtboard(int64_t artboardHandle, int32_t width, int32_t height, float scaleFactor);
+
+    /**
+     * Resets an artboard to its original dimensions defined in the Rive file.
+     * Fire-and-forget operation.
+     *
+     * @param artboardHandle The handle of the artboard to reset.
+     */
+    void resetArtboardSize(int64_t artboardHandle);
+
     /**
      * Enqueues a CreateDefaultStateMachine command.
      * 
@@ -1146,6 +1173,10 @@ private:
 
     // Rendering operation handlers (Phase C.2.6)
     void handleDraw(const Command& cmd);
+
+    // Artboard resizing handlers (Phase E.3)
+    void handleResizeArtboard(const Command& cmd);
+    void handleResetArtboardSize(const Command& cmd);
 
     // Pointer event handlers (Phase E.3)
     void handlePointerMove(const Command& cmd);

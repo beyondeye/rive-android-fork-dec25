@@ -150,6 +150,15 @@ void CommandServer::executeCommand(const Command& cmd)
         case CommandType::DeleteArtboard:
             handleDeleteArtboard(cmd);
             break;
+
+        // Phase E.3: Artboard Resizing
+        case CommandType::ResizeArtboard:
+            handleResizeArtboard(cmd);
+            break;
+
+        case CommandType::ResetArtboardSize:
+            handleResetArtboardSize(cmd);
+            break;
             
         case CommandType::CreateDefaultStateMachine:
             handleCreateDefaultStateMachine(cmd);
@@ -782,6 +791,82 @@ void CommandServer::deleteArtboard(int64_t requestID, int64_t artboardHandle)
     cmd.handle = artboardHandle;
     
     enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
+// Phase E.3: Artboard Resizing (for Fit.Layout)
+// =============================================================================
+
+void CommandServer::resizeArtboard(int64_t artboardHandle, int32_t width, int32_t height, float scaleFactor)
+{
+    LOGI("CommandServer: Enqueuing ResizeArtboard command (artboardHandle=%lld, %dx%d, scale=%f)",
+         static_cast<long long>(artboardHandle), width, height, scaleFactor);
+    
+    Command cmd(CommandType::ResizeArtboard, 0);  // No requestID needed for fire-and-forget
+    cmd.handle = artboardHandle;
+    cmd.surfaceWidth = width;
+    cmd.surfaceHeight = height;
+    cmd.scaleFactor = scaleFactor;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::resetArtboardSize(int64_t artboardHandle)
+{
+    LOGI("CommandServer: Enqueuing ResetArtboardSize command (artboardHandle=%lld)",
+         static_cast<long long>(artboardHandle));
+    
+    Command cmd(CommandType::ResetArtboardSize, 0);  // No requestID needed for fire-and-forget
+    cmd.handle = artboardHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::handleResizeArtboard(const Command& cmd)
+{
+    LOGI("CommandServer: Handling ResizeArtboard command (handle=%lld, %dx%d, scale=%f)",
+         static_cast<long long>(cmd.handle), cmd.surfaceWidth, cmd.surfaceHeight, cmd.scaleFactor);
+    
+    auto it = m_artboards.find(cmd.handle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle for resize: %lld", static_cast<long long>(cmd.handle));
+        return;  // Fire-and-forget, no error message
+    }
+    
+    auto& artboard = it->second;
+    
+    // Apply scale factor to dimensions
+    float scaledWidth = static_cast<float>(cmd.surfaceWidth) / cmd.scaleFactor;
+    float scaledHeight = static_cast<float>(cmd.surfaceHeight) / cmd.scaleFactor;
+    
+    // Resize the artboard to match the surface dimensions
+    // This is used for Fit.Layout mode where artboard should match surface
+    artboard->width(scaledWidth);
+    artboard->height(scaledHeight);
+    
+    LOGI("CommandServer: Artboard resized to %.1fx%.1f (handle=%lld)",
+         scaledWidth, scaledHeight, static_cast<long long>(cmd.handle));
+}
+
+void CommandServer::handleResetArtboardSize(const Command& cmd)
+{
+    LOGI("CommandServer: Handling ResetArtboardSize command (handle=%lld)",
+         static_cast<long long>(cmd.handle));
+    
+    auto it = m_artboards.find(cmd.handle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle for reset: %lld", static_cast<long long>(cmd.handle));
+        return;  // Fire-and-forget, no error message
+    }
+    
+    auto& artboard = it->second;
+    
+    // Reset to original dimensions from the Rive file
+    // ArtboardInstance inherits from Artboard which stores original bounds
+    artboard->resetArtboardSize();
+    
+    LOGI("CommandServer: Artboard size reset to original (handle=%lld, %.1fx%.1f)",
+         static_cast<long long>(cmd.handle), artboard->width(), artboard->height());
 }
 
 void CommandServer::handleCreateDefaultArtboard(const Command& cmd)

@@ -1327,6 +1327,74 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteArtboard(
     server->deleteArtboard(static_cast<int64_t>(requestID), static_cast<int64_t>(artboardHandle));
 }
 
+// =============================================================================
+// Phase E.3: Artboard Resizing
+// =============================================================================
+
+/**
+ * Resizes an artboard to match given dimensions.
+ * Required for Fit.Layout mode where the artboard must match surface dimensions.
+ * 
+ * JNI signature: cppResizeArtboard(ptr: Long, artboardHandle: Long, width: Int, height: Int, scaleFactor: Float): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param artboardHandle The handle of the artboard to resize.
+ * @param width The new width in pixels.
+ * @param height The new height in pixels.
+ * @param scaleFactor Scale factor for high DPI displays.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppResizeArtboard(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong artboardHandle,
+    jint width,
+    jint height,
+    jfloat scaleFactor
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to resize artboard on null CommandServer");
+        return;
+    }
+    
+    server->resizeArtboard(
+        static_cast<int64_t>(artboardHandle),
+        static_cast<int32_t>(width),
+        static_cast<int32_t>(height),
+        static_cast<float>(scaleFactor)
+    );
+}
+
+/**
+ * Resets an artboard to its original dimensions defined in the Rive file.
+ * 
+ * JNI signature: cppResetArtboardSize(ptr: Long, artboardHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param artboardHandle The handle of the artboard to reset.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppResetArtboardSize(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong artboardHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to reset artboard size on null CommandServer");
+        return;
+    }
+    
+    server->resetArtboardSize(static_cast<int64_t>(artboardHandle));
+}
+
 /**
  * Creates the default state machine from an artboard.
  * 
