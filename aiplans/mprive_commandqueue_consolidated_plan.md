@@ -1,9 +1,9 @@
 # mprive CommandQueue Implementation Plan (CONSOLIDATED)
 
 **Date**: January 12, 2026
-**Status**: 🔄 Active Development (Test Data Fix Complete - Jan 12, 2026)
+**Status**: 🔄 Active Development (E.1 Asset Management 85% Complete - Jan 13, 2026)
 **Focus**: Android-first approach (Desktop deferred)
-**Last Updated**: January 12, 2026
+**Last Updated**: January 13, 2026
 
 > This plan consolidates the previous `mprive_commandqueue_revised_plan.md` and `mprive_phase0_commandqueue_bridge_plan.md`.
 > Archived plans are located in `aiplans/archived/`.
@@ -165,53 +165,30 @@ All resources use type-safe handle wrappers:
 
 **Motivation**: Dynamic asset loading is essential for apps that load images, fonts, or audio at runtime rather than embedding them in the Rive file.
 
-**Status**: 🔴 Not Started
+**Status**: 🟡 **85% Complete** (JNI Bindings Pending) - Updated January 13, 2026
 
-#### E.1.1: Image Operations
+#### ✅ Completed (All Asset Types: Image, Audio, Font)
 
-```kotlin
-// Add to CommandQueue.kt
-suspend fun decodeImage(bytes: ByteArray): ImageHandle
-fun deleteImage(imageHandle: ImageHandle)
-fun registerImage(name: String, imageHandle: ImageHandle)
-fun unregisterImage(name: String)
-```
+| Component | Status |
+|-----------|--------|
+| Kotlin API (12 methods in `CommandQueue.kt`) | ✅ Complete |
+| Android JNI bridge (12 external methods) | ✅ Complete |
+| JNI callbacks (6 callbacks in Kotlin) | ✅ Complete |
+| C++ method ID caching | ✅ Complete |
+| C++ method ID initialization | ✅ Complete |
+| CommandType enum entries (12 entries) | ✅ Complete |
+| MessageType enum entries (6 entries) | ✅ Complete |
+| CommandServer public methods (12 methods) | ✅ Complete |
+| CommandServer handlers (12 handlers) | ✅ Complete |
+| Switch cases in executeCommand() | ✅ Complete |
 
-**Tasks**:
-- [ ] Add bridge methods: `cppDecodeImage`, `cppDeleteImage`, `cppRegisterImage`, `cppUnregisterImage`
-- [ ] Add JNI callbacks: `onImageDecoded`, `onImageError`
-- [ ] Implement suspend function with request/response pattern
-- [ ] Add tests for image decode/register/unregister lifecycle
+#### ⏳ Remaining Tasks (in `bindings_commandqueue.cpp`)
 
-#### E.1.2: Audio Operations
+- [ ] Add 12 JNI function implementations (cppDecodeImage, cppDeleteImage, cppRegisterImage, cppUnregisterImage × 3 for image/audio/font)
+- [ ] Add 6 message handling cases in `cppPollMessages()` (ImageDecoded, ImageError, AudioDecoded, AudioError, FontDecoded, FontError)
+- [ ] Test asset loading and registration (MpRiveAssetsTest.kt)
 
-```kotlin
-suspend fun decodeAudio(bytes: ByteArray): AudioHandle
-fun deleteAudio(audioHandle: AudioHandle)
-fun registerAudio(name: String, audioHandle: AudioHandle)
-fun unregisterAudio(name: String)
-```
-
-**Tasks**:
-- [ ] Add bridge methods: `cppDecodeAudio`, `cppDeleteAudio`, `cppRegisterAudio`, `cppUnregisterAudio`
-- [ ] Add JNI callbacks: `onAudioDecoded`, `onAudioError`
-- [ ] Implement suspend function with request/response pattern
-- [ ] Add tests for audio decode/register/unregister lifecycle
-
-#### E.1.3: Font Operations
-
-```kotlin
-suspend fun decodeFont(bytes: ByteArray): FontHandle
-fun deleteFont(fontHandle: FontHandle)
-fun registerFont(name: String, fontHandle: FontHandle)
-fun unregisterFont(name: String)
-```
-
-**Tasks**:
-- [ ] Add bridge methods: `cppDecodeFont`, `cppDeleteFont`, `cppRegisterFont`, `cppUnregisterFont`
-- [ ] Add JNI callbacks: `onFontDecoded`, `onFontError`
-- [ ] Implement suspend function with request/response pattern
-- [ ] Add tests for font decode/register/unregister lifecycle
+See [e1_asset_management_cpp_implementation.md](../aitasks/e1_asset_management_cpp_implementation.md) for detailed task tracking.
 
 ---
 
@@ -515,8 +492,8 @@ Typical batch render: <1ms for 100 sprites
 
 | Week | Phase | Deliverables |
 |------|-------|--------------|
-| **Week 1** | G.1 | Fix test data discrepancy + Fix failing tests |
-| **Week 2** | E.1 | Asset management (image, audio, font) |
+| **Week 1** | G.1 | ✅ Fix test data discrepancy + Fix failing tests |
+| **Week 2** | E.1 | 🔄 Asset management - JNI bindings remaining (~15% left) |
 | **Week 3** | E.2 + E.3 | File introspection + Artboard resizing |
 | **Week 4** | E.4 + G.2 | drawToBuffer API + Performance tests |
 | **Future** | F | Desktop support (when prioritized) |
@@ -553,7 +530,8 @@ Typical batch render: <1ms for 100 sprites
 
 - [x] All test data discrepancies fixed (artboard count = 2)
 - [ ] All tests pass (currently 19/30, target 30/30)
-- [ ] Asset management (image at minimum) functional
+- [x] Asset management Kotlin + C++ implementation (85% complete)
+- [ ] Asset management JNI bindings (15% remaining)
 - [ ] drawToBuffer produces valid pixel data
 - [ ] 60fps rendering maintained (<16ms frame budget)
 - [ ] No memory leaks in long-running tests

@@ -7,7 +7,7 @@
 **Decision**: Full CommandQueue Architecture (Option A)
 **Scope**: Complete feature parity with kotlin module's CommandQueue
 **Estimated Timeline**: 5-8 weeks (includes Phase 0)
-**Status**: ✅ Phase E.2 COMPLETE (11/11 tests) | Phase E.3 COMPLETE (15/15 tests) | Phase E.1 IN PROGRESS (Kotlin complete, C++ pending) | Phases A-D COMPLETE | Updated: January 12, 2026
+**Status**: ✅ Phase E.2 COMPLETE (11/11 tests) | Phase E.3 COMPLETE (15/15 tests) | Phase E.1 IN PROGRESS (85% - JNI bindings pending) | Phases A-D COMPLETE | Updated: January 13, 2026
 
 ---
 
@@ -418,45 +418,28 @@ Phase D implemented complete view model functionality:
 **Status**: 🔄 **IN PROGRESS** (E.3 Complete)
 **Milestone E**: ⏳ Full feature parity with kotlin module
 
-#### E.1: Asset Management 🔄 **IN PROGRESS**
+#### E.1: Asset Management 🔄 **IN PROGRESS (85%)**
 
-**Status**: 🔄 **KOTLIN COMPLETE, C++ PENDING** - January 12, 2026
+**Status**: 🔄 **C++ IMPLEMENTATION COMPLETE, JNI BINDINGS PENDING** - January 13, 2026
 
-**Kotlin API (✅ COMPLETE):**
-```kotlin
-suspend fun decodeImage(bytes: ByteArray): ImageHandle
-fun registerImage(name: String, imageHandle: ImageHandle)
-fun unregisterImage(name: String)
-fun deleteImage(imageHandle: ImageHandle)
-// ... audio, fonts (all 12 methods implemented)
-```
-
-**Kotlin Implementation Complete:**
-- ✅ Bridge interface methods (12 methods in `CommandQueueBridge.kt`)
+**Implementation Complete:**
+- ✅ Kotlin API (12 methods in `CommandQueue.kt`)
 - ✅ Android JNI bridge (12 external methods in `CommandQueueBridge.android.kt`)
-- ✅ Public Kotlin API (12 methods in `CommandQueue.kt`)
 - ✅ JNI callbacks (6 callbacks: onImageDecoded/Error, onAudioDecoded/Error, onFontDecoded/Error)
-- ✅ C++ cached method IDs for asset callbacks (in `bindings_commandqueue.cpp`)
-- ✅ C++ method ID initialization (in `initCallbackMethodIDs()`)
+- ✅ C++ cached method IDs for asset callbacks
+- ✅ C++ method ID initialization
+- ✅ CommandType enum entries (12 entries in `command_server.hpp`)
+- ✅ MessageType enum entries (6 entries in `command_server.hpp`)
+- ✅ CommandServer public methods (12 methods in `command_server.cpp`)
+- ✅ CommandServer handlers (12 handlers in `command_server.cpp`)
+- ✅ Switch cases in executeCommand() for all 12 asset types
 
-**C++ Implementation (⏳ PENDING):**
-- [ ] Add message handling cases in `cppPollMessages()` for asset MessageTypes
-- [ ] Add JNI function implementations (12 functions: cppDecodeImage, cppDeleteImage, cppRegisterImage, cppUnregisterImage, and same for audio/font)
-- [ ] Add CommandServer methods in `command_server.cpp`
-- [ ] Add MessageType enum entries (ImageDecoded, ImageError, AudioDecoded, AudioError, FontDecoded, FontError)
-
-**Tasks:**
-- [x] Implement Kotlin bridge interface
-- [x] Implement Android JNI bridge  
-- [x] Implement Kotlin public API
-- [x] Implement JNI callbacks
-- [x] Add C++ cached method IDs
-- [x] Add C++ method ID initialization
-- [ ] Add C++ message handling in cppPollMessages()
-- [ ] Add C++ JNI function implementations
-- [ ] Add CommandServer methods
-- [ ] Add MessageType enum entries
+**JNI Bindings (⏳ PENDING in `bindings_commandqueue.cpp`):**
+- [ ] Add 12 JNI function implementations (cppDecodeImage, cppDeleteImage, cppRegisterImage, cppUnregisterImage × 3)
+- [ ] Add 6 message handling cases in `cppPollMessages()` (ImageDecoded, ImageError, AudioDecoded, AudioError, FontDecoded, FontError)
 - [ ] Test asset loading and registration (MpRiveAssetsTest.kt)
+
+See [e1_asset_management_cpp_implementation.md](../aitasks/e1_asset_management_cpp_implementation.md) for detailed task tracking.
 
 #### E.2: Batch Rendering ✅ **COMPLETE**
 
@@ -543,7 +526,7 @@ fun pointerExit(smHandle: StateMachineHandle)
 - [x] Implement coordinate transformation
 - [x] Test pointer interaction on Android device (15/15 passing on SM-S9210)
 
-**Milestone E**: Full feature parity ⏳ (E.1 Asset Management ~60% complete - Kotlin done, C++ pending)
+**Milestone E**: Full feature parity ⏳ (E.1 Asset Management ~85% complete - JNI bindings pending)
 
 #### E.4: Testing (Phase E)
 
@@ -798,7 +781,7 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 2. **Milestone B (Week 3)**: Can load files and create artboards ✅
 3. **Milestone C (Week 4)**: Can render animations ✅
 4. **Milestone D (Week 5)**: View models working ✅
-5. **Milestone E (Week 6)**: Full feature parity 🔄 (E.2 Batch Rendering ✅ 11/11 tests, E.3 Pointer Events ✅ 15/15 tests, E.1 ~60% - Kotlin complete)
+5. **Milestone E (Week 6)**: Full feature parity 🔄 (E.2 ✅ 11/11 tests, E.3 ✅ 15/15 tests, E.1 ~85% - JNI bindings pending)
 6. **Milestone F (Week 6.5)**: Works on both platforms ⏳
 7. **Milestone G (Week 7)**: Production ready ⏳
 
@@ -884,11 +867,9 @@ See **[mprive_testing_strategy.md](mprive_testing_strategy.md)** for comprehensi
 1. ~~**E.3 Testing**: Run `MpRivePointerEventsTest.kt` on Android device~~ ✅ DONE (15/15 tests passing)
 2. ~~**E.2 Batch Rendering**: Implement `drawMultiple()` C++ handler~~ ✅ DONE (11/11 tests passing)
 3. ~~**E.1 Kotlin API**: Implement Kotlin bridge, public methods, and callbacks~~ ✅ DONE
-4. **E.1 C++ Implementation**: Complete asset management C++ side - **NEXT**
-   - Add message handling in `cppPollMessages()` for asset types
-   - Add JNI function implementations (12 functions)
-   - Add CommandServer methods
-   - Add MessageType enum entries
+4. **E.1 JNI Bindings**: Complete asset management JNI layer - **NEXT**
+   - Add 12 JNI function implementations in `bindings_commandqueue.cpp`
+   - Add 6 message handling cases in `cppPollMessages()`
 5. **E.1 Testing**: Create `MpRiveAssetsTest.kt`
 6. **Weekly progress reviews** to ensure on track
 7. **Adjust scope** if needed based on progress
