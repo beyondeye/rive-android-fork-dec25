@@ -3125,7 +3125,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteImage(
         return;
     }
 
-    server->deleteImage(static_cast<int64_t>(requestID), static_cast<int64_t>(imageHandle));
+    // Note: requestID is ignored - deleteImage is fire-and-forget
+    server->deleteImage(static_cast<int64_t>(imageHandle));
 }
 
 /**
@@ -3153,7 +3154,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterImage(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    server->registerImage(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), name, static_cast<int64_t>(imageHandle));
+    // Note: requestID and fileHandle are ignored - registerImage only needs name and handle
+    server->registerImage(name, static_cast<int64_t>(imageHandle));
 }
 
 /**
@@ -3180,7 +3182,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterImage(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    server->unregisterImage(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), name);
+    // Note: requestID and fileHandle are ignored - unregisterImage only needs name
+    server->unregisterImage(name);
 }
 
 /**
@@ -3235,7 +3238,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteAudio(
         return;
     }
 
-    server->deleteAudio(static_cast<int64_t>(requestID), static_cast<int64_t>(audioHandle));
+    // Note: requestID is ignored - deleteAudio is fire-and-forget
+    server->deleteAudio(static_cast<int64_t>(audioHandle));
 }
 
 /**
@@ -3263,7 +3267,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterAudio(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    server->registerAudio(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), name, static_cast<int64_t>(audioHandle));
+    // Note: requestID and fileHandle are ignored - registerAudio only needs name and handle
+    server->registerAudio(name, static_cast<int64_t>(audioHandle));
 }
 
 /**
@@ -3290,7 +3295,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterAudio(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    server->unregisterAudio(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), name);
+    // Note: requestID and fileHandle are ignored - unregisterAudio only needs name
+    server->unregisterAudio(name);
 }
 
 /**
@@ -3345,7 +3351,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteFont(
         return;
     }
 
-    server->deleteFont(static_cast<int64_t>(requestID), static_cast<int64_t>(fontHandle));
+    // Note: requestID is ignored - deleteFont is fire-and-forget
+    server->deleteFont(static_cast<int64_t>(fontHandle));
 }
 
 /**
@@ -3373,7 +3380,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterFont(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    server->registerFont(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), name, static_cast<int64_t>(fontHandle));
+    // Note: requestID and fileHandle are ignored - registerFont only needs name and handle
+    server->registerFont(name, static_cast<int64_t>(fontHandle));
 }
 
 /**
@@ -3400,7 +3408,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterFont(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    server->unregisterFont(static_cast<int64_t>(requestID), static_cast<int64_t>(fileHandle), name);
+    // Note: requestID and fileHandle are ignored - unregisterFont only needs name
+    server->unregisterFont(name);
 }
 
 } // extern "C"
