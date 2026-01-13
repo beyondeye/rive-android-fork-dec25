@@ -280,9 +280,9 @@ fun resetArtboardSize(artboardHandle: ArtboardHandle)
 - Scale factor applied: `scaledWidth = width / scaleFactor`
 - Uses `artboard->width()/height()` setters and `artboard->resetArtboardSize()`
 
-**Tasks Remaining**:
-- [ ] Add tests for resize/reset cycle (`MpRiveArtboardResizeTest.kt`)
-- [ ] Document interaction with `advanceStateMachine`
+**Tasks Completed**:
+- [x] Add tests for resize/reset cycle (`MpRiveArtboardResizeTest.kt`) - 8 tests added (Jan 13, 2026)
+- [x] Document interaction with `advanceStateMachine` - covered in `resizeArtboard_fullCycle_succeeds` test
 
 ---
 
@@ -551,6 +551,7 @@ Typical batch render: <1ms for 100 sprites
 - [x] Asset management Kotlin + C++ implementation (100% complete)
 - [x] Asset management JNI bindings (100% complete)
 - [x] Artboard resizing implementation (100% complete)
+- [x] Artboard resizing tests (8 tests in `MpRiveArtboardResizeTest.kt`)
 - [ ] drawToBuffer produces valid pixel data
 - [ ] 60fps rendering maintained (<16ms frame budget)
 - [ ] No memory leaks in long-running tests
