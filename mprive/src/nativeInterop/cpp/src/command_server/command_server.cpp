@@ -358,6 +358,55 @@ void CommandServer::executeCommand(const Command& cmd)
             handlePointerExit(cmd);
             break;
 
+        // Phase E.1: Asset operations
+        case CommandType::DecodeImage:
+            handleDecodeImage(cmd);
+            break;
+
+        case CommandType::DeleteImage:
+            handleDeleteImage(cmd);
+            break;
+
+        case CommandType::RegisterImage:
+            handleRegisterImage(cmd);
+            break;
+
+        case CommandType::UnregisterImage:
+            handleUnregisterImage(cmd);
+            break;
+
+        case CommandType::DecodeAudio:
+            handleDecodeAudio(cmd);
+            break;
+
+        case CommandType::DeleteAudio:
+            handleDeleteAudio(cmd);
+            break;
+
+        case CommandType::RegisterAudio:
+            handleRegisterAudio(cmd);
+            break;
+
+        case CommandType::UnregisterAudio:
+            handleUnregisterAudio(cmd);
+            break;
+
+        case CommandType::DecodeFont:
+            handleDecodeFont(cmd);
+            break;
+
+        case CommandType::DeleteFont:
+            handleDeleteFont(cmd);
+            break;
+
+        case CommandType::RegisterFont:
+            handleRegisterFont(cmd);
+            break;
+
+        case CommandType::UnregisterFont:
+            handleUnregisterFont(cmd);
+            break;
+
         default:
             LOGW("CommandServer: Unknown command type: %d",
                  static_cast<int>(cmd.type));
