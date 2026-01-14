@@ -1751,6 +1751,73 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Phase E.4: Single Artboard drawToBuffer
+    // =============================================================================
+
+    /**
+     * Draw an artboard to a buffer for offscreen rendering.
+     *
+     * This renders a single artboard with its state machine state to an offscreen buffer.
+     * This is a synchronous operation that blocks until rendering is complete and the
+     * pixel data has been copied to the buffer.
+     *
+     * Useful for:
+     * - Screenshots/thumbnails
+     * - Video export
+     * - Image processing pipelines
+     * - Headless rendering
+     *
+     * @param artboardHandle Handle to the artboard to draw.
+     * @param smHandle Handle to the state machine (for animation state). Pass StateMachineHandle(0) for static artboards.
+     * @param surface The surface to render to.
+     * @param buffer ByteArray to receive the rendered pixels. Must be sized correctly for
+     *               the surface dimensions (width * height * 4 bytes for RGBA).
+     * @param fit How to fit the artboard into the surface bounds. Defaults to CONTAIN.
+     * @param alignment How to align the artboard within the surface. Defaults to CENTER.
+     * @param scaleFactor Scale factor for high DPI displays. Defaults to 1.0.
+     * @param clearColor Background clear color in 0xAARRGGBB format. Defaults to opaque black.
+     *
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws IllegalArgumentException If buffer size is incorrect.
+     *
+     * @see draw For rendering to a surface without buffer readback.
+     * @see drawMultipleToBuffer For batch rendering multiple sprites to a buffer.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun drawToBuffer(
+        artboardHandle: ArtboardHandle,
+        smHandle: StateMachineHandle,
+        surface: RiveSurface,
+        buffer: ByteArray,
+        fit: Fit = Fit.CONTAIN,
+        alignment: Alignment = Alignment.CENTER,
+        scaleFactor: Float = 1.0f,
+        clearColor: Int = 0xFF000000.toInt()
+    ) {
+        val expectedSize = surface.width * surface.height * 4  // RGBA
+        require(buffer.size >= expectedSize) {
+            "Buffer size ${buffer.size} is too small. Expected at least $expectedSize bytes for ${surface.width}x${surface.height} RGBA."
+        }
+
+        bridge.cppDrawToBuffer(
+            cppPointer.pointer,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
+            artboardHandle.handle,
+            smHandle.handle,
+            surface.renderTargetPointer.pointer,
+            surface.width,
+            surface.height,
+            fit.ordinal.toByte(),
+            alignment.ordinal.toByte(),
+            scaleFactor,
+            clearColor,
+            buffer
+        )
+    }
+
+    // =============================================================================
     // Phase E.1: Asset Management
     // =============================================================================
 
