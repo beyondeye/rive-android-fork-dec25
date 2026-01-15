@@ -3,16 +3,13 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <vector>
-#include <string>
 #include "jni_refs.hpp"
-#include "rive_log.hpp"
+#include "command_server_types.hpp"
 
 // Rive headers
 #include "rive/file.hpp"
@@ -34,344 +31,6 @@ using rive_mp::GlobalRef;
 
 // Forward declarations
 class RenderContext;
-
-/**
- * Command types that can be sent to the CommandServer.
- */
-enum class CommandType {
-    None,
-    Stop,
-    // Phase B: File operations
-    LoadFile,
-    DeleteFile,
-    GetArtboardNames,
-    GetStateMachineNames,
-    GetViewModelNames,
-    // Phase B.3: Artboard operations
-    CreateDefaultArtboard,
-    CreateArtboardByName,
-    DeleteArtboard,
-    // Phase E.3: Artboard Resizing (for Fit.Layout)
-    ResizeArtboard,
-    ResetArtboardSize,
-    // Phase C: State machine operations
-    CreateDefaultStateMachine,
-    CreateStateMachineByName,
-    AdvanceStateMachine,
-    DeleteStateMachine,
-    // Phase C.4: State machine input operations
-    GetInputCount,
-    GetInputNames,
-    GetInputInfo,
-    GetNumberInput,
-    SetNumberInput,
-    GetBooleanInput,
-    SetBooleanInput,
-    FireTrigger,
-    // Phase D: View model operations
-    CreateBlankVMI,           // Create blank instance from named ViewModel
-    CreateDefaultVMI,         // Create default instance from named ViewModel
-    CreateNamedVMI,           // Create named instance from named ViewModel
-    DeleteVMI,                // Delete a ViewModelInstance
-    // Phase D.2: Property operations
-    GetNumberProperty,        // Get number property value
-    SetNumberProperty,        // Set number property value
-    GetStringProperty,        // Get string property value
-    SetStringProperty,        // Set string property value
-    GetBooleanProperty,       // Get boolean property value
-    SetBooleanProperty,       // Set boolean property value
-    // Phase D.3: Additional property types
-    GetEnumProperty,          // Get enum property value (as string)
-    SetEnumProperty,          // Set enum property value (by string)
-    GetColorProperty,         // Get color property value (0xAARRGGBB)
-    SetColorProperty,         // Set color property value
-    FireTriggerProperty,      // Fire a trigger property
-    // Phase D.4: Property subscriptions
-    SubscribeToProperty,      // Subscribe to property updates
-    UnsubscribeFromProperty,  // Unsubscribe from property updates
-    // Phase D.5: List operations
-    GetListSize,              // Get the size of a list property
-    GetListItem,              // Get an item from a list by index
-    AddListItem,              // Add an item to the end of a list
-    AddListItemAt,            // Add an item at a specific index
-    RemoveListItem,           // Remove an item from a list by handle
-    RemoveListItemAt,         // Remove an item from a list by index
-    SwapListItems,            // Swap two items in a list
-    // Phase D.5: Nested VMI operations
-    GetInstanceProperty,      // Get a nested VMI property
-    SetInstanceProperty,      // Set a nested VMI property
-    // Phase D.5: Asset property operations
-    SetImageProperty,         // Set an image property
-    SetArtboardProperty,      // Set an artboard property
-    // Phase D.6: VMI Binding to State Machine
-    BindViewModelInstance,    // Bind VMI to state machine for data binding
-    GetDefaultVMI,            // Get the default VMI for an artboard (from file)
-    // Phase C.2.3: Render target operations
-    CreateRenderTarget,       // Create a render target for offscreen rendering
-    DeleteRenderTarget,       // Delete a render target
-    // Phase C.2.6: Rendering operations
-    Draw,                     // Draw artboard to surface
-    // Phase E.3: Pointer events
-    PointerMove,              // Pointer/mouse move event
-    PointerDown,              // Pointer/mouse down event
-    PointerUp,                // Pointer/mouse up event
-    PointerExit,              // Pointer/mouse exit event
-    // Phase E.1: Asset operations
-    DecodeImage,              // Decode image from bytes
-    DeleteImage,              // Delete a decoded image
-    RegisterImage,            // Register image by name for asset loading
-    UnregisterImage,          // Unregister image by name
-    DecodeAudio,              // Decode audio from bytes
-    DeleteAudio,              // Delete a decoded audio
-    RegisterAudio,            // Register audio by name for asset loading
-    UnregisterAudio,          // Unregister audio by name
-    DecodeFont,               // Decode font from bytes
-    DeleteFont,               // Delete a decoded font
-    RegisterFont,             // Register font by name for asset loading
-    UnregisterFont,           // Unregister font by name
-};
-
-/**
- * A command to be executed by the CommandServer.
- */
-struct Command {
-    CommandType type = CommandType::None;
-    int64_t requestID = 0;
-    
-    // Command-specific data
-    std::vector<uint8_t> bytes;  // For LoadFile
-    int64_t handle = 0;          // For DeleteFile, etc.
-    std::string name;            // For CreateArtboardByName, CreateStateMachineByName
-    float deltaTime = 0.0f;      // For AdvanceStateMachine (in seconds)
-
-    // Input operation data
-    std::string inputName;       // For input operations by name
-    int32_t inputIndex = -1;     // For input operations by index
-    float floatValue = 0.0f;     // For SetNumberInput
-    bool boolValue = false;      // For SetBooleanInput
-
-    // View model operation data (Phase D)
-    std::string viewModelName;   // For CreateBlankVMI, CreateDefaultVMI, CreateNamedVMI
-    std::string instanceName;    // For CreateNamedVMI
-
-    // Property operation data (Phase D.2)
-    std::string propertyPath;    // For property get/set operations
-    std::string stringValue;     // For SetStringProperty, SetEnumProperty
-
-    // Property operation data (Phase D.3)
-    int32_t colorValue = 0;      // For SetColorProperty (0xAARRGGBB format)
-
-    // Property subscription data (Phase D.4)
-    int32_t propertyType = 0;    // For SubscribeToProperty, UnsubscribeFromProperty (PropertyDataType)
-
-    // List operation data (Phase D.5)
-    int32_t listIndex = -1;      // For GetListItem, AddListItemAt, RemoveListItemAt
-    int32_t listIndexB = -1;     // For SwapListItems (second index)
-    int64_t itemHandle = 0;      // For AddListItem, AddListItemAt, RemoveListItem
-
-    // Nested VMI operation data (Phase D.5)
-    int64_t nestedHandle = 0;    // For SetInstanceProperty
-
-    // Asset property operation data (Phase D.5)
-    int64_t assetHandle = 0;     // For SetImageProperty, SetArtboardProperty
-    int64_t fileHandle = 0;      // For SetArtboardProperty (needed to create BindableArtboard)
-
-    // VMI binding operation data (Phase D.6)
-    int64_t vmiHandle = 0;       // For BindViewModelInstance (VMI to bind to SM)
-
-    // Render target operation data (Phase C.2.3)
-    int32_t rtWidth = 0;         // For CreateRenderTarget (width in pixels)
-    int32_t rtHeight = 0;        // For CreateRenderTarget (height in pixels)
-    int32_t sampleCount = 0;     // For CreateRenderTarget (MSAA sample count, 0 = no MSAA)
-
-    // Draw operation data (Phase C.2.6)
-    int64_t artboardHandle = 0;  // For Draw
-    int64_t smHandle = 0;        // For Draw (state machine to get animation state)
-    int64_t surfacePtr = 0;      // For Draw (native EGL surface pointer)
-    int64_t renderTargetPtr = 0; // For Draw (Rive render target pointer)
-    int64_t drawKey = 0;         // For Draw (unique draw operation key)
-    int32_t surfaceWidth = 0;    // For Draw
-    int32_t surfaceHeight = 0;   // For Draw
-    int32_t fitMode = 0;         // For Draw (Fit enum ordinal)
-    int32_t alignmentMode = 0;   // For Draw (Alignment enum ordinal)
-    uint32_t clearColor = 0xFF000000; // For Draw (0xAARRGGBB format)
-    float scaleFactor = 1.0f;    // For Draw (for high DPI displays)
-
-    // Pointer event data (Phase E.3)
-    int8_t pointerFit = 0;       // For pointer events (Fit enum ordinal)
-    int8_t pointerAlignment = 0; // For pointer events (Alignment enum ordinal)
-    float layoutScale = 1.0f;    // For pointer events (layout scale factor)
-    float pointerSurfaceWidth = 0.0f;  // For pointer events
-    float pointerSurfaceHeight = 0.0f; // For pointer events
-    int32_t pointerID = 0;       // For pointer events (multi-touch support)
-    float pointerX = 0.0f;       // For pointer events (x coordinate)
-    float pointerY = 0.0f;       // For pointer events (y coordinate)
-
-    Command() = default;
-    explicit Command(CommandType t, int64_t reqID = 0) 
-        : type(t), requestID(reqID) {}
-};
-
-/**
- * Message types that can be sent from CommandServer to Kotlin.
- */
-enum class MessageType {
-    None,
-    // File operations
-    FileLoaded,
-    FileError,
-    FileDeleted,
-    // Query operations
-    ArtboardNamesListed,
-    StateMachineNamesListed,
-    ViewModelNamesListed,
-    QueryError,
-    // Artboard operations
-    ArtboardCreated,
-    ArtboardError,
-    ArtboardDeleted,
-    // State machine operations
-    StateMachineCreated,
-    StateMachineError,
-    StateMachineDeleted,
-    StateMachineSettled,
-    // State machine input operations
-    InputCountResult,
-    InputNamesListed,
-    InputInfoResult,
-    NumberInputValue,
-    BooleanInputValue,
-    InputOperationSuccess,
-    InputOperationError,
-    // Phase D: View model operations
-    VMICreated,
-    VMIError,
-    VMIDeleted,
-    // Phase D.2: Property operations
-    NumberPropertyValue,      // Returns float value
-    StringPropertyValue,      // Returns string value
-    BooleanPropertyValue,     // Returns boolean value
-    PropertyError,            // Error with property operation
-    PropertySetSuccess,       // Set operation succeeded
-    // Phase D.3: Additional property types
-    EnumPropertyValue,        // Returns enum value (as string)
-    ColorPropertyValue,       // Returns color value (0xAARRGGBB)
-    TriggerFired,             // Trigger was successfully fired
-    // Phase D.4: Property subscription updates
-    NumberPropertyUpdated,    // Subscribed number property changed
-    StringPropertyUpdated,    // Subscribed string property changed
-    BooleanPropertyUpdated,   // Subscribed boolean property changed
-    EnumPropertyUpdated,      // Subscribed enum property changed
-    ColorPropertyUpdated,     // Subscribed color property changed
-    TriggerPropertyFired,     // Subscribed trigger property fired
-    // Phase D.5: List operation results
-    ListSizeResult,           // List size query result
-    ListItemResult,           // List item query result (returns VMI handle)
-    ListOperationSuccess,     // List modification succeeded
-    ListOperationError,       // List operation failed
-    // Phase D.5: Nested VMI operation results
-    InstancePropertyResult,   // Nested VMI query result (returns VMI handle)
-    InstancePropertySetSuccess,// Nested VMI set succeeded
-    InstancePropertyError,    // Nested VMI operation failed
-    // Phase D.5: Asset property operation results
-    AssetPropertySetSuccess,  // Asset property set succeeded
-    AssetPropertyError,       // Asset property operation failed
-    // Phase D.6: VMI Binding results
-    VMIBindingSuccess,        // VMI bound to state machine successfully
-    VMIBindingError,          // VMI binding failed
-    DefaultVMIResult,         // Default VMI query result (returns VMI handle or 0)
-    DefaultVMIError,          // Default VMI query failed
-    // Phase C.2.3: Render target results
-    RenderTargetCreated,      // Render target created successfully (returns handle)
-    RenderTargetError,        // Render target operation failed
-    RenderTargetDeleted,      // Render target deleted successfully
-    // Phase C.2.6: Rendering results
-    DrawComplete,             // Draw operation completed successfully
-    DrawError,                // Draw operation failed
-    // Phase E.1: Asset operation results
-    ImageDecoded,             // Image decoded successfully (returns imageHandle)
-    ImageError,               // Image decode/operation failed
-    AudioDecoded,             // Audio decoded successfully (returns audioHandle)
-    AudioError,               // Audio decode/operation failed
-    FontDecoded,              // Font decoded successfully (returns fontHandle)
-    FontError,                // Font decode/operation failed
-};
-
-/**
- * A message to be sent from CommandServer to Kotlin.
- */
-/**
- * Input type enum for state machine inputs.
- */
-enum class InputType {
-    NUMBER = 0,
-    BOOLEAN = 1,
-    TRIGGER = 2,
-    UNKNOWN = -1
-};
-
-/**
- * Property data type enum - mirrors rive::DataType values.
- */
-enum class PropertyDataType {
-    NONE = 0,
-    STRING = 1,
-    NUMBER = 2,
-    BOOLEAN = 3,
-    COLOR = 4,
-    LIST = 5,
-    ENUM = 6,
-    TRIGGER = 7,
-    VIEW_MODEL = 8,
-    INTEGER = 9,
-    SYMBOL_LIST_INDEX = 10,
-    ASSET_IMAGE = 11,
-    ARTBOARD = 12
-};
-
-/**
- * Represents a subscription to property changes.
- */
-struct PropertySubscription {
-    int64_t vmiHandle;
-    std::string propertyPath;
-    PropertyDataType propertyType;
-
-    bool operator==(const PropertySubscription& other) const {
-        return vmiHandle == other.vmiHandle &&
-               propertyPath == other.propertyPath &&
-               propertyType == other.propertyType;
-    }
-};
-
-struct Message {
-    MessageType type = MessageType::None;
-    int64_t requestID = 0;
-    int64_t handle = 0;
-    std::string error;
-    std::vector<std::string> stringList;  // For query results
-
-    // Input operation results
-    int32_t intValue = 0;        // For InputCountResult
-    float floatValue = 0.0f;     // For NumberInputValue, NumberPropertyValue
-    bool boolValue = false;      // For BooleanInputValue, BooleanPropertyValue
-    InputType inputType = InputType::UNKNOWN;  // For InputInfoResult
-    std::string inputName;       // For InputInfoResult
-
-    // Property operation results (Phase D.2)
-    std::string stringValue;     // For StringPropertyValue, EnumPropertyValue
-
-    // Property operation results (Phase D.3)
-    int32_t colorValue = 0;      // For ColorPropertyValue (0xAARRGGBB format)
-
-    // Property subscription update data (Phase D.4)
-    int64_t vmiHandle = 0;       // For property update messages
-    std::string propertyPath;    // For property update messages
-
-    Message() = default;
-    explicit Message(MessageType t, int64_t reqID = 0)
-        : type(t), requestID(reqID) {}
-};
 
 /**
  * The CommandServer manages a dedicated thread for all Rive operations.
@@ -1013,6 +672,103 @@ public:
                      float layoutScale, float surfaceWidth, float surfaceHeight,
                      int32_t pointerID, float x, float y);
 
+    // ==========================================================================
+    // Phase E.1: Asset Operations
+    // ==========================================================================
+
+    /**
+     * Enqueues a DecodeImage command.
+     * Decodes image data from bytes and returns a handle via callback.
+     *
+     * @param requestID The request ID for async completion.
+     * @param bytes The image bytes (PNG, JPEG, etc.).
+     */
+    void decodeImage(int64_t requestID, const std::vector<uint8_t>& bytes);
+
+    /**
+     * Deletes a decoded image (synchronous, fire-and-forget).
+     *
+     * @param imageHandle The handle of the image to delete.
+     */
+    void deleteImage(int64_t imageHandle);
+
+    /**
+     * Registers an image by name for asset loading.
+     *
+     * @param name The name to register the image under.
+     * @param imageHandle The handle of the decoded image.
+     */
+    void registerImage(const std::string& name, int64_t imageHandle);
+
+    /**
+     * Unregisters an image by name.
+     *
+     * @param name The name of the image to unregister.
+     */
+    void unregisterImage(const std::string& name);
+
+    /**
+     * Enqueues a DecodeAudio command.
+     * Decodes audio data from bytes and returns a handle via callback.
+     *
+     * @param requestID The request ID for async completion.
+     * @param bytes The audio bytes (WAV, MP3, etc.).
+     */
+    void decodeAudio(int64_t requestID, const std::vector<uint8_t>& bytes);
+
+    /**
+     * Deletes a decoded audio clip (synchronous, fire-and-forget).
+     *
+     * @param audioHandle The handle of the audio to delete.
+     */
+    void deleteAudio(int64_t audioHandle);
+
+    /**
+     * Registers an audio clip by name for asset loading.
+     *
+     * @param name The name to register the audio under.
+     * @param audioHandle The handle of the decoded audio.
+     */
+    void registerAudio(const std::string& name, int64_t audioHandle);
+
+    /**
+     * Unregisters an audio clip by name.
+     *
+     * @param name The name of the audio to unregister.
+     */
+    void unregisterAudio(const std::string& name);
+
+    /**
+     * Enqueues a DecodeFont command.
+     * Decodes font data from bytes and returns a handle via callback.
+     *
+     * @param requestID The request ID for async completion.
+     * @param bytes The font bytes (TTF, OTF, etc.).
+     */
+    void decodeFont(int64_t requestID, const std::vector<uint8_t>& bytes);
+
+    /**
+     * Deletes a decoded font (synchronous, fire-and-forget).
+     *
+     * @param fontHandle The handle of the font to delete.
+     */
+    void deleteFont(int64_t fontHandle);
+
+    /**
+     * Registers a font by name for asset loading.
+     *
+     * @param name The name to register the font under.
+     * @param fontHandle The handle of the decoded font.
+     */
+    void registerFont(const std::string& name, int64_t fontHandle);
+
+    /**
+     * Unregisters a font by name.
+     *
+     * @param name The name of the font to unregister.
+     */
+    void unregisterFont(const std::string& name);
+
 private:
     /**
      * The main loop for the worker thread.
@@ -1184,6 +940,20 @@ private:
     void handlePointerUp(const Command& cmd);
     void handlePointerExit(const Command& cmd);
 
+    // Asset operation handlers (Phase E.1)
+    void handleDecodeImage(const Command& cmd);
+    void handleDeleteImage(const Command& cmd);
+    void handleRegisterImage(const Command& cmd);
+    void handleUnregisterImage(const Command& cmd);
+    void handleDecodeAudio(const Command& cmd);
+    void handleDeleteAudio(const Command& cmd);
+    void handleRegisterAudio(const Command& cmd);
+    void handleUnregisterAudio(const Command& cmd);
+    void handleDecodeFont(const Command& cmd);
+    void handleDeleteFont(const Command& cmd);
+    void handleRegisterFont(const Command& cmd);
+    void handleUnregisterFont(const Command& cmd);
+
     /**
      * Transforms surface coordinates to artboard coordinates.
      * Used by pointer event handlers.
@@ -1283,119 +1053,6 @@ private:
     std::map<std::string, int64_t> m_registeredImages;  // name -> image handle
     std::map<std::string, int64_t> m_registeredAudio;   // name -> audio handle
     std::map<std::string, int64_t> m_registeredFonts;   // name -> font handle
-
-public:
-    // ==========================================================================
-    // Phase E.1: Asset Operations
-    // ==========================================================================
-
-    /**
-     * Enqueues a DecodeImage command.
-     * Decodes image data from bytes and returns a handle via callback.
-     *
-     * @param requestID The request ID for async completion.
-     * @param bytes The image bytes (PNG, JPEG, etc.).
-     */
-    void decodeImage(int64_t requestID, const std::vector<uint8_t>& bytes);
-
-    /**
-     * Deletes a decoded image (synchronous, fire-and-forget).
-     *
-     * @param imageHandle The handle of the image to delete.
-     */
-    void deleteImage(int64_t imageHandle);
-
-    /**
-     * Registers an image by name for asset loading.
-     *
-     * @param name The name to register the image under.
-     * @param imageHandle The handle of the decoded image.
-     */
-    void registerImage(const std::string& name, int64_t imageHandle);
-
-    /**
-     * Unregisters an image by name.
-     *
-     * @param name The name of the image to unregister.
-     */
-    void unregisterImage(const std::string& name);
-
-    /**
-     * Enqueues a DecodeAudio command.
-     * Decodes audio data from bytes and returns a handle via callback.
-     *
-     * @param requestID The request ID for async completion.
-     * @param bytes The audio bytes (WAV, MP3, etc.).
-     */
-    void decodeAudio(int64_t requestID, const std::vector<uint8_t>& bytes);
-
-    /**
-     * Deletes a decoded audio clip (synchronous, fire-and-forget).
-     *
-     * @param audioHandle The handle of the audio to delete.
-     */
-    void deleteAudio(int64_t audioHandle);
-
-    /**
-     * Registers an audio clip by name for asset loading.
-     *
-     * @param name The name to register the audio under.
-     * @param audioHandle The handle of the decoded audio.
-     */
-    void registerAudio(const std::string& name, int64_t audioHandle);
-
-    /**
-     * Unregisters an audio clip by name.
-     *
-     * @param name The name of the audio to unregister.
-     */
-    void unregisterAudio(const std::string& name);
-
-    /**
-     * Enqueues a DecodeFont command.
-     * Decodes font data from bytes and returns a handle via callback.
-     *
-     * @param requestID The request ID for async completion.
-     * @param bytes The font bytes (TTF, OTF, etc.).
-     */
-    void decodeFont(int64_t requestID, const std::vector<uint8_t>& bytes);
-
-    /**
-     * Deletes a decoded font (synchronous, fire-and-forget).
-     *
-     * @param fontHandle The handle of the font to delete.
-     */
-    void deleteFont(int64_t fontHandle);
-
-    /**
-     * Registers a font by name for asset loading.
-     *
-     * @param name The name to register the font under.
-     * @param fontHandle The handle of the decoded font.
-     */
-    void registerFont(const std::string& name, int64_t fontHandle);
-
-    /**
-     * Unregisters a font by name.
-     *
-     * @param name The name of the font to unregister.
-     */
-    void unregisterFont(const std::string& name);
-
-private:
-    // Asset operation handlers (Phase E.1)
-    void handleDecodeImage(const Command& cmd);
-    void handleDeleteImage(const Command& cmd);
-    void handleRegisterImage(const Command& cmd);
-    void handleUnregisterImage(const Command& cmd);
-    void handleDecodeAudio(const Command& cmd);
-    void handleDeleteAudio(const Command& cmd);
-    void handleRegisterAudio(const Command& cmd);
-    void handleUnregisterAudio(const Command& cmd);
-    void handleDecodeFont(const Command& cmd);
-    void handleDeleteFont(const Command& cmd);
-    void handleRegisterFont(const Command& cmd);
-    void handleUnregisterFont(const Command& cmd);
 };
 
 } // namespace rive_android
