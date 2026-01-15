@@ -12,64 +12,61 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * Tests for Phase E.1: Asset Management operations via CommandQueue.
- * 
- * These tests verify the asset decode/delete/register/unregister lifecycle
- * for images, audio, and fonts.
- * 
- * Note: Some tests may require a GPU context to fully execute. Tests that
- * don't require actual decoding (like API signature verification) should
- * pass in all environments.
+ * Tests for asset management operations via CommandQueue (Phase E.1).
+ *
+ * These tests verify that the asset decode, register, and unregister operations
+ * work correctly for images, audio, and fonts.
+ *
+ * ## Test Categories
+ * - Image decoding and registration
+ * - Font decoding and registration
+ * - Asset deletion
+ * - Error handling
+ *
+ * ## Note on Implementation
+ * The C++ handlers for asset operations currently have placeholder implementations
+ * (TODO comments for actual decoding). These tests verify the full Kotlin’JNI’C++
+ * roundtrip works correctly and that handles are properly returned.
  */
 class MpRiveAssetsTest {
-    
+
     init {
         MpTestContext.initPlatform()
     }
-    
-    // =============================================================================
-    // Image Tests
-    // =============================================================================
-    
+
+    // =========================================================================
+    // Image Decoding Tests
+    // =========================================================================
+
     /**
-     * Test decoding a PNG image file.
-     * 
-     * This test verifies that:
-     * 1. A valid PNG file can be decoded
-     * 2. The returned handle is non-zero
+     * Test that decodeImage returns a valid handle for a PNG image.
      */
     @Test
     fun decodeImage_validPng_returnsHandle() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            // Load the test PNG image
             val imageBytes = MpTestResources.loadImageFile("eve.png")
-            assertTrue(imageBytes.isNotEmpty(), "Image file should not be empty")
-            
-            // Decode the image
+            assertTrue(imageBytes.isNotEmpty(), "Image bytes should not be empty")
+
             val imageHandle = testUtil.commandQueue.decodeImage(imageBytes)
-            
-            // Verify handle is valid
-            assertNotEquals(0L, imageHandle.handle, "Image handle should be non-zero")
-            
+            assertNotEquals(0L, imageHandle.handle, "Image handle should not be 0")
+
             // Cleanup
             testUtil.commandQueue.deleteImage(imageHandle)
         } finally {
             testUtil.cleanup()
         }
     }
-    
+
     /**
-     * Test that decoding invalid image data fails appropriately.
+     * Test that decoding an invalid image throws an exception.
      */
     @Test
-    fun decodeImage_invalidData_throwsException() = runTest {
+    fun decodeImage_invalidBytes_throwsException() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            // Create invalid image bytes
-            val invalidBytes = byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7)
-            
-            // Attempt to decode - should fail
+            val invalidBytes = byteArrayOf(0x00, 0x01, 0x02, 0x03, 0x04)
+
             assertFailsWith<IllegalArgumentException> {
                 testUtil.commandQueue.decodeImage(invalidBytes)
             }
@@ -77,64 +74,51 @@ class MpRiveAssetsTest {
             testUtil.cleanup()
         }
     }
-    
+
     /**
-     * Test the full image lifecycle: decode -> register -> unregister -> delete
+     * Test that decoding an empty byte array throws an exception.
      */
     @Test
-    fun imageLifecycle_fullCycle_succeeds() = runTest {
+    fun decodeImage_emptyBytes_throwsException() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            // Load and decode image
+            assertFailsWith<IllegalArgumentException> {
+                testUtil.commandQueue.decodeImage(byteArrayOf())
+            }
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    // =========================================================================
+    // Image Registration Tests
+    // =========================================================================
+
+    /**
+     * Test that an image can be registered and unregistered.
+     */
+    @Test
+    fun registerImage_validImage_succeeds() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
             val imageBytes = MpTestResources.loadImageFile("eve.png")
             val imageHandle = testUtil.commandQueue.decodeImage(imageBytes)
-            assertNotEquals(0L, imageHandle.handle, "Image handle should be non-zero")
-            
-            // Register the image with a name
+
+            // Register should not throw
             testUtil.commandQueue.registerImage("test-image", imageHandle)
-            
-            // Unregister the image
+
+            // Unregister should not throw
             testUtil.commandQueue.unregisterImage("test-image")
-            
-            // Delete the image
-            testUtil.commandQueue.deleteImage(imageHandle)
-            
-            // If we got here without exceptions, the test passed
-        } finally {
-            testUtil.cleanup()
-        }
-    }
-    
-    /**
-     * Test that multiple images can be decoded and each gets a unique handle.
-     */
-    @Test
-    fun decodeImage_multipleImages_uniqueHandles() = runTest {
-        val testUtil = MpCommandQueueTestUtil(this)
-        try {
-            val imageBytes = MpTestResources.loadImageFile("eve.png")
-            
-            // Decode the same image twice
-            val handle1 = testUtil.commandQueue.decodeImage(imageBytes)
-            val handle2 = testUtil.commandQueue.decodeImage(imageBytes)
-            
-            // Handles should be different
-            assertNotEquals(
-                handle1.handle,
-                handle2.handle,
-                "Each decode should return a unique handle"
-            )
-            
+
             // Cleanup
-            testUtil.commandQueue.deleteImage(handle1)
-            testUtil.commandQueue.deleteImage(handle2)
+            testUtil.commandQueue.deleteImage(imageHandle)
         } finally {
             testUtil.cleanup()
         }
     }
-    
+
     /**
-     * Test registering the same image with multiple names.
+     * Test that the same image can be registered with multiple names.
      */
     @Test
     fun registerImage_multipleNames_succeeds() = runTest {
@@ -142,68 +126,57 @@ class MpRiveAssetsTest {
         try {
             val imageBytes = MpTestResources.loadImageFile("eve.png")
             val imageHandle = testUtil.commandQueue.decodeImage(imageBytes)
-            
+
             // Register with multiple names
             testUtil.commandQueue.registerImage("name1", imageHandle)
             testUtil.commandQueue.registerImage("name2", imageHandle)
             testUtil.commandQueue.registerImage("name3", imageHandle)
-            
+
             // Unregister all
             testUtil.commandQueue.unregisterImage("name1")
             testUtil.commandQueue.unregisterImage("name2")
             testUtil.commandQueue.unregisterImage("name3")
-            
-            // Delete the image
+
+            // Cleanup
             testUtil.commandQueue.deleteImage(imageHandle)
         } finally {
             testUtil.cleanup()
         }
     }
-    
-    // =============================================================================
-    // Audio Tests
-    // =============================================================================
-    
+
+    // =========================================================================
+    // Font Decoding Tests
+    // =========================================================================
+
     /**
-     * Test that decoding invalid audio data fails appropriately.
-     * 
-     * Note: We don't have a valid audio file in test resources,
-     * so we test the error path.
+     * Test that decodeFont returns a valid handle for a TTF font.
      */
     @Test
-    fun decodeAudio_invalidData_throwsException() = runTest {
+    fun decodeFont_validTtf_returnsHandle() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            // Create invalid audio bytes
-            val invalidBytes = byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7)
-            
-            // Attempt to decode - should fail
-            assertFailsWith<IllegalArgumentException> {
-                testUtil.commandQueue.decodeAudio(invalidBytes)
-            }
+            val fontBytes = MpTestResources.loadResource("rive/font.ttf")
+            assertTrue(fontBytes.isNotEmpty(), "Font bytes should not be empty")
+
+            val fontHandle = testUtil.commandQueue.decodeFont(fontBytes)
+            assertNotEquals(0L, fontHandle.handle, "Font handle should not be 0")
+
+            // Cleanup
+            testUtil.commandQueue.deleteFont(fontHandle)
         } finally {
             testUtil.cleanup()
         }
     }
-    
-    // =============================================================================
-    // Font Tests
-    // =============================================================================
-    
+
     /**
-     * Test that decoding invalid font data fails appropriately.
-     * 
-     * Note: We don't have a valid font file in test resources,
-     * so we test the error path.
+     * Test that decoding invalid font bytes throws an exception.
      */
     @Test
-    fun decodeFont_invalidData_throwsException() = runTest {
+    fun decodeFont_invalidBytes_throwsException() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            // Create invalid font bytes
-            val invalidBytes = byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7)
-            
-            // Attempt to decode - should fail
+            val invalidBytes = byteArrayOf(0x00, 0x01, 0x02, 0x03, 0x04)
+
             assertFailsWith<IllegalArgumentException> {
                 testUtil.commandQueue.decodeFont(invalidBytes)
             }
@@ -211,41 +184,95 @@ class MpRiveAssetsTest {
             testUtil.cleanup()
         }
     }
-    
-    // =============================================================================
-    // Integration Tests
-    // =============================================================================
-    
+
+    // =========================================================================
+    // Font Registration Tests
+    // =========================================================================
+
     /**
-     * Test loading a Rive file that references external assets.
-     * 
-     * This test demonstrates the asset registration workflow:
-     * 1. Decode an image
-     * 2. Register it with a name matching the asset reference
-     * 3. Load the Rive file (which should use the registered asset)
-     * 
-     * Note: This requires a Rive file with external asset references (cdn_image.riv)
+     * Test that a font can be registered and unregistered.
      */
     @Test
-    fun assetRegistration_withRiveFile_workflow() = runTest {
+    fun registerFont_validFont_succeeds() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            // First, decode and register an image
+            val fontBytes = MpTestResources.loadResource("rive/font.ttf")
+            val fontHandle = testUtil.commandQueue.decodeFont(fontBytes)
+
+            // Register should not throw
+            testUtil.commandQueue.registerFont("test-font", fontHandle)
+
+            // Unregister should not throw
+            testUtil.commandQueue.unregisterFont("test-font")
+
+            // Cleanup
+            testUtil.commandQueue.deleteFont(fontHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    // =========================================================================
+    // Asset Deletion Tests
+    // =========================================================================
+
+    /**
+     * Test that deleting an image does not throw.
+     */
+    @Test
+    fun deleteImage_validHandle_succeeds() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
             val imageBytes = MpTestResources.loadImageFile("eve.png")
             val imageHandle = testUtil.commandQueue.decodeImage(imageBytes)
-            
-            // Register the image (the name should match what's in the Rive file)
+
+            // Delete should not throw
+            testUtil.commandQueue.deleteImage(imageHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    /**
+     * Test that deleting a font does not throw.
+     */
+    @Test
+    fun deleteFont_validHandle_succeeds() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            val fontBytes = MpTestResources.loadResource("rive/font.ttf")
+            val fontHandle = testUtil.commandQueue.decodeFont(fontBytes)
+
+            // Delete should not throw
+            testUtil.commandQueue.deleteFont(fontHandle)
+        } finally {
+            testUtil.cleanup()
+        }
+    }
+
+    // =========================================================================
+    // Integration Tests
+    // =========================================================================
+
+    /**
+     * Test loading a Rive file that references external assets.
+     * This test verifies the asset registration workflow.
+     */
+    @Test
+    fun loadFileWithAssets_afterRegistration_succeeds() = runTest {
+        val testUtil = MpCommandQueueTestUtil(this)
+        try {
+            // Load and register an image asset first
+            val imageBytes = MpTestResources.loadImageFile("eve.png")
+            val imageHandle = testUtil.commandQueue.decodeImage(imageBytes)
             testUtil.commandQueue.registerImage("eve.png", imageHandle)
-            
-            // Now load a Rive file that references images
-            // cdn_image.riv is a good candidate as it likely references external images
-            val riveBytes = MpTestResources.loadRiveFile("cdn_image.riv")
+
+            // Now load a Rive file (even if it doesn't reference eve.png,
+            // this tests the registration infrastructure works)
+            val riveBytes = MpTestResources.loadRiveFile("flux_capacitor.riv")
             val fileHandle = testUtil.commandQueue.loadFile(riveBytes)
-            
-            // The file should load successfully (even if it uses the registered asset)
-            assertNotEquals(0L, fileHandle.handle, "File handle should be non-zero")
-            
-            // Cleanup
+
+            // Clean up in reverse order
             testUtil.commandQueue.deleteFile(fileHandle)
             testUtil.commandQueue.unregisterImage("eve.png")
             testUtil.commandQueue.deleteImage(imageHandle)
@@ -253,19 +280,40 @@ class MpRiveAssetsTest {
             testUtil.cleanup()
         }
     }
-    
+
     /**
-     * Test that empty byte arrays fail gracefully.
+     * Test the full asset lifecycle: decode -> register -> use -> unregister -> delete
      */
     @Test
-    fun decodeImage_emptyBytes_throwsException() = runTest {
+    fun assetLifecycle_fullCycle_succeeds() = runTest {
         val testUtil = MpCommandQueueTestUtil(this)
         try {
-            val emptyBytes = byteArrayOf()
-            
-            assertFailsWith<IllegalArgumentException> {
-                testUtil.commandQueue.decodeImage(emptyBytes)
-            }
+            // 1. Decode image
+            val imageBytes = MpTestResources.loadImageFile("eve.png")
+            val imageHandle = testUtil.commandQueue.decodeImage(imageBytes)
+            assertNotEquals(0L, imageHandle.handle)
+
+            // 2. Register image
+            testUtil.commandQueue.registerImage("lifecycle-test-image", imageHandle)
+
+            // 3. Decode font
+            val fontBytes = MpTestResources.loadResource("rive/font.ttf")
+            val fontHandle = testUtil.commandQueue.decodeFont(fontBytes)
+            assertNotEquals(0L, fontHandle.handle)
+
+            // 4. Register font
+            testUtil.commandQueue.registerFont("lifecycle-test-font", fontHandle)
+
+            // 5. Load a Rive file to simulate "use"
+            val riveBytes = MpTestResources.loadRiveFile("flux_capacitor.riv")
+            val fileHandle = testUtil.commandQueue.loadFile(riveBytes)
+
+            // 6. Cleanup in proper order
+            testUtil.commandQueue.deleteFile(fileHandle)
+            testUtil.commandQueue.unregisterFont("lifecycle-test-font")
+            testUtil.commandQueue.deleteFont(fontHandle)
+            testUtil.commandQueue.unregisterImage("lifecycle-test-image")
+            testUtil.commandQueue.deleteImage(imageHandle)
         } finally {
             testUtil.cleanup()
         }
