@@ -62,6 +62,36 @@ interface CommandQueueBridge {
     fun cppGetViewModelNames(pointer: Long, requestID: Long, fileHandle: Long)
     
     // =========================================================================
+    // File Introspection APIs (Phase E.2)
+    // =========================================================================
+    
+    /**
+     * Get the names of all ViewModel instances for a given ViewModel in a file.
+     * @param pointer Pointer to the CommandQueue.
+     * @param requestID The request ID for async callback.
+     * @param fileHandle The handle of the file to query.
+     * @param viewModelName The name of the ViewModel to query instances for.
+     */
+    fun cppGetViewModelInstanceNames(pointer: Long, requestID: Long, fileHandle: Long, viewModelName: String)
+    
+    /**
+     * Get the properties defined on a ViewModel in a file.
+     * @param pointer Pointer to the CommandQueue.
+     * @param requestID The request ID for async callback.
+     * @param fileHandle The handle of the file to query.
+     * @param viewModelName The name of the ViewModel to query properties for.
+     */
+    fun cppGetViewModelProperties(pointer: Long, requestID: Long, fileHandle: Long, viewModelName: String)
+    
+    /**
+     * Get all enum definitions in a file.
+     * @param pointer Pointer to the CommandQueue.
+     * @param requestID The request ID for async callback.
+     * @param fileHandle The handle of the file to query.
+     */
+    fun cppGetEnums(pointer: Long, requestID: Long, fileHandle: Long)
+    
+    // =========================================================================
     // Artboard Operations (SYNCHRONOUS - returns handle directly)
     // =========================================================================
     

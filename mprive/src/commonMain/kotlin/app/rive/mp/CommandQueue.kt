@@ -378,6 +378,75 @@ class CommandQueue(
             bridge.cppGetViewModelNames(cppPointer.pointer, requestID, fileHandle.handle)
         }
     }
+
+    // =============================================================================
+    // Phase E.2: File Introspection APIs
+    // =============================================================================
+
+    /**
+     * Get the names of all instances of a ViewModel in a file.
+     * 
+     * This allows you to discover what named instances are available for a
+     * specific ViewModel, which can then be used with [createNamedViewModelInstance].
+     * 
+     * @param fileHandle The handle of the file to query.
+     * @param viewModelName The name of the ViewModel to query instances for.
+     * @return A list of instance names for the specified ViewModel.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid or ViewModel not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getViewModelInstanceNames(
+        fileHandle: FileHandle,
+        viewModelName: String
+    ): List<String> {
+        return suspendNativeRequest { requestID ->
+            bridge.cppGetViewModelInstanceNames(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+        }
+    }
+
+    /**
+     * Get the properties defined on a ViewModel in a file.
+     * 
+     * This allows you to introspect the structure of a ViewModel at runtime,
+     * discovering what properties are available and their types.
+     * 
+     * @param fileHandle The handle of the file to query.
+     * @param viewModelName The name of the ViewModel to query properties for.
+     * @return A list of property definitions for the specified ViewModel.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid or ViewModel not found.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getViewModelProperties(
+        fileHandle: FileHandle,
+        viewModelName: String
+    ): List<ViewModelProperty> {
+        return suspendNativeRequest { requestID ->
+            bridge.cppGetViewModelProperties(cppPointer.pointer, requestID, fileHandle.handle, viewModelName)
+        }
+    }
+
+    /**
+     * Get all enum definitions in a file.
+     * 
+     * This allows you to discover all enums defined in a Rive file,
+     * including both system enums and user-defined enums.
+     * 
+     * @param fileHandle The handle of the file to query.
+     * @return A list of enum definitions in the file.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws CancellationException If the operation is cancelled.
+     * @throws IllegalArgumentException If the file handle is invalid.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class, IllegalArgumentException::class)
+    suspend fun getEnums(fileHandle: FileHandle): List<RiveEnum> {
+        return suspendNativeRequest { requestID ->
+            bridge.cppGetEnums(cppPointer.pointer, requestID, fileHandle.handle)
+        }
+    }
     
     /**
      * Create the default artboard from a file.
@@ -2127,6 +2196,73 @@ class CommandQueue(
         } else {
             RiveLog.w(COMMAND_QUEUE_TAG) { 
                 "Received view model names callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+
+    // =============================================================================
+    // JNI Callbacks for File Introspection (Phase E.2)
+    // =============================================================================
+
+    /**
+     * Called from C++ when ViewModel instance names have been retrieved.
+     * This resumes the suspended coroutine waiting for the query.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param names The list of ViewModel instance names.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onViewModelInstanceNamesListed(requestID: Long, names: List<String>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<String>>
+            typedCont.resume(names)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received ViewModel instance names callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when ViewModel properties have been retrieved.
+     * This resumes the suspended coroutine waiting for the query.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param properties The list of ViewModel properties.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onViewModelPropertiesListed(requestID: Long, properties: List<ViewModelProperty>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<ViewModelProperty>>
+            typedCont.resume(properties)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received ViewModel properties callback for unknown requestID: $requestID" 
+            }
+        }
+    }
+
+    /**
+     * Called from C++ when enum definitions have been retrieved.
+     * This resumes the suspended coroutine waiting for the query.
+     * 
+     * @param requestID The request ID that identifies the waiting coroutine.
+     * @param enums The list of enum definitions.
+     */
+    @Suppress("unused")  // Called from JNI
+    private fun onEnumsListed(requestID: Long, enums: List<RiveEnum>) {
+        val continuation = pendingContinuations.remove(requestID)
+        if (continuation != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedCont = continuation as CancellableContinuation<List<RiveEnum>>
+            typedCont.resume(enums)
+        } else {
+            RiveLog.w(COMMAND_QUEUE_TAG) { 
+                "Received enums callback for unknown requestID: $requestID" 
             }
         }
     }

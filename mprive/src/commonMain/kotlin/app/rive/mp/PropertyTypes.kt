@@ -43,3 +43,54 @@ data class PropertyUpdate<T>(
     val propertyPath: String,
     val value: T
 )
+
+/**
+ * Describes a property defined on a ViewModel.
+ * 
+ * This is a read-only description used for introspection. To get or set
+ * property values, you need a ViewModelInstance handle and use the
+ * corresponding CommandQueue methods.
+ *
+ * @property name The name of the property.
+ * @property type The data type of the property.
+ */
+data class ViewModelProperty(
+    val name: String,
+    val type: PropertyDataType
+) {
+    companion object {
+        /**
+         * Create a ViewModelProperty from JNI callback parameters.
+         * @param name The property name.
+         * @param typeValue The integer value of the PropertyDataType.
+         */
+        @JvmStatic // For JNI construction
+        fun fromJni(name: String, typeValue: Int): ViewModelProperty =
+            ViewModelProperty(name, PropertyDataType.fromValue(typeValue))
+    }
+}
+
+/**
+ * Describes an enum definition in a Rive file.
+ * 
+ * Enums can be either system-defined or user-defined in the Rive editor.
+ * This class provides the enum name and all its possible values.
+ *
+ * @property name The name of the enum.
+ * @property values The list of possible values for this enum.
+ */
+data class RiveEnum(
+    val name: String,
+    val values: List<String>
+) {
+    companion object {
+        /**
+         * Create a RiveEnum from JNI callback parameters.
+         * @param name The enum name.
+         * @param values The list of enum values.
+         */
+        @JvmStatic // For JNI construction
+        fun fromJni(name: String, values: List<String>): RiveEnum =
+            RiveEnum(name, values)
+    }
+}

@@ -106,7 +106,45 @@ The mprive CommandQueue architecture provides:
 | `CommandQueueBridge` | `commonMain/.../core/CommandQueueBridge.kt` | Platform abstraction interface |
 | `CommandQueueJNIBridge` | `androidMain/.../core/CommandQueueBridge.android.kt` | Android JNI implementation |
 | `SpriteDrawCommand` | `commonMain/.../core/SpriteDrawCommand.kt` | Batch rendering data class |
-| `bindings_commandqueue.cpp` | `nativeInterop/cpp/src/bindings/` | C++ JNI bindings |
+| JNI Bindings | `nativeInterop/cpp/src/bindings/` | C++ JNI bindings (see below) |
+| CommandServer | `nativeInterop/cpp/src/command_server/` | C++ command handling (see below) |
+
+### C++ File Structure (Refactored)
+
+The C++ implementation has been refactored from monolithic files into modular components:
+
+```
+mprive/src/nativeInterop/cpp/
+├── include/
+│   ├── command_server.hpp              # Main CommandServer class declaration
+│   ├── command_server_types.hpp        # CommandType, MessageType, Command, Message structs
+│   ├── bindings_commandqueue_internal.hpp  # Internal JNI helper declarations
+│   ├── jni_helpers.hpp                 # JNI utility functions
+│   ├── jni_refs.hpp                    # JNI reference management
+│   └── ...
+├── src/
+│   ├── bindings/                       # JNI function implementations
+│   │   ├── bindings_commandqueue_assets.cpp      # Asset operations (decode, register, delete)
+│   │   ├── bindings_commandqueue_core.cpp        # Core lifecycle (constructor, delete, poll)
+│   │   ├── bindings_commandqueue_file.cpp        # File operations (load, artboard names)
+│   │   ├── bindings_commandqueue_list.cpp        # List operations (get/add/remove items)
+│   │   ├── bindings_commandqueue_rendering.cpp   # Draw operations (draw, drawMultiple)
+│   │   ├── bindings_commandqueue_statemachine.cpp # SM operations (create, advance, inputs)
+│   │   ├── bindings_commandqueue_viewmodel.cpp   # VMI operations (create, properties)
+│   │   ├── bindings_init.cpp                     # JNI_OnLoad, method ID caching
+│   │   └── ...
+│   └── command_server/                 # CommandServer method implementations
+│       ├── command_server_artboard.cpp   # Artboard creation, deletion, resizing
+│       ├── command_server_assets.cpp     # Asset decode/register/delete handlers
+│       ├── command_server_core.cpp       # Constructor, destructor, command loop
+│       ├── command_server_file.cpp       # File load/delete, artboard/SM name queries
+│       ├── command_server_list.cpp       # List property operations
+│       ├── command_server_pointer.cpp    # Pointer event handlers
+│       ├── command_server_properties.cpp # Property get/set handlers
+│       ├── command_server_render.cpp     # Draw, render target operations
+│       ├── command_server_statemachine.cpp # SM creation, advance, input handlers
+│       └── command_server_vmi.cpp        # VMI creation, binding, nested VMI
+```
 
 ### Handle Types
 
@@ -193,11 +231,21 @@ See [e1_asset_management_cpp_implementation.md](../aitasks/e1_asset_management_c
 
 ---
 
-### Phase E.2: File Introspection APIs (MEDIUM PRIORITY)
+### Phase E.2: File Introspection APIs (MEDIUM PRIORITY) 🟡 IN PROGRESS
 
 **Motivation**: Advanced introspection allows apps to dynamically discover ViewModel structure and enum definitions from Rive files.
 
-**Status**: 🔴 Not Started
+**Status**: 🟡 **Kotlin Implementation Complete** (Jan 15, 2026) - C++ pending
+
+#### ✅ Kotlin Implementation Complete
+
+| Component | Status |
+|-----------|--------|
+| `CommandQueueBridge.kt` - interface methods | ✅ Complete |
+| `CommandQueueBridge.android.kt` - JNI externals | ✅ Complete |
+| `PropertyTypes.kt` - data classes | ✅ Complete (`ViewModelProperty`, `RiveEnum`) |
+| `CommandQueue.kt` - API methods | ✅ Complete |
+| `CommandQueue.kt` - JNI callbacks | ✅ Complete |
 
 #### E.2.1: ViewModel Instance Names
 
@@ -209,9 +257,11 @@ suspend fun getViewModelInstanceNames(
 ```
 
 **Tasks**:
-- [ ] Add bridge method: `cppGetViewModelInstanceNames`
-- [ ] Add JNI callback: `onViewModelInstancesListed`
-- [ ] Implement suspend function
+- [x] Add bridge method: `cppGetViewModelInstanceNames`
+- [x] Add JNI callback: `onViewModelInstanceNamesListed`
+- [x] Implement suspend function
+- [ ] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
+- [ ] Add C++ CommandServer handler in `command_server_file.cpp`
 - [ ] Add tests
 
 #### E.2.2: ViewModel Properties
@@ -220,28 +270,56 @@ suspend fun getViewModelInstanceNames(
 suspend fun getViewModelProperties(
     fileHandle: FileHandle,
     viewModelName: String
-): List<Property>
+): List<ViewModelProperty>
 ```
 
 **Tasks**:
-- [ ] Define `Property` data class (name, type, default value)
-- [ ] Add bridge method: `cppGetViewModelProperties`
-- [ ] Add JNI callback: `onViewModelPropertiesListed`
-- [ ] Implement suspend function
+- [x] Define `ViewModelProperty` data class (name, type)
+- [x] Add bridge method: `cppGetViewModelProperties`
+- [x] Add JNI callback: `onViewModelPropertiesListed`
+- [x] Implement suspend function
+- [ ] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
+- [ ] Add C++ CommandServer handler in `command_server_file.cpp`
 - [ ] Add tests
 
 #### E.2.3: Enums
 
 ```kotlin
-suspend fun getEnums(fileHandle: FileHandle): List<Enum>
+suspend fun getEnums(fileHandle: FileHandle): List<RiveEnum>
 ```
 
 **Tasks**:
-- [ ] Define `Enum` data class (name, values list)
-- [ ] Add bridge method: `cppGetEnums`
-- [ ] Add JNI callback: `onEnumsListed`
-- [ ] Implement suspend function
+- [x] Define `RiveEnum` data class (name, values list)
+- [x] Add bridge method: `cppGetEnums`
+- [x] Add JNI callback: `onEnumsListed`
+- [x] Implement suspend function
+- [ ] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
+- [ ] Add C++ CommandServer handler in `command_server_file.cpp`
 - [ ] Add tests
+
+#### ❌ Remaining C++ Implementation
+
+The following C++ work is required to complete Phase E.2:
+
+1. **JNI bindings** in `mprive/src/nativeInterop/cpp/src/bindings/bindings_commandqueue_file.cpp`:
+   - `cppGetViewModelInstanceNames`
+   - `cppGetViewModelProperties`
+   - `cppGetEnums`
+
+2. **CommandServer handlers** in `mprive/src/nativeInterop/cpp/src/command_server/command_server_file.cpp`:
+   - Handle `GET_VIEWMODEL_INSTANCE_NAMES` command
+   - Handle `GET_VIEWMODEL_PROPERTIES` command
+   - Handle `GET_ENUMS` command
+
+3. **CommandType enum** in `command_server.hpp`:
+   - `GET_VIEWMODEL_INSTANCE_NAMES`
+   - `GET_VIEWMODEL_PROPERTIES`
+   - `GET_ENUMS`
+
+4. **Message types** for callbacks:
+   - `MSG_VIEWMODEL_INSTANCE_NAMES_LISTED`
+   - `MSG_VIEWMODEL_PROPERTIES_LISTED`
+   - `MSG_ENUMS_LISTED`
 
 ---
 

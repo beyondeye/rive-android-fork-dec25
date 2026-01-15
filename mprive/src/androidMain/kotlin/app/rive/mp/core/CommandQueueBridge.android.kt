@@ -29,6 +29,14 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     external override fun cppGetViewModelNames(pointer: Long, requestID: Long, fileHandle: Long)
     
     // =========================================================================
+    // File Introspection APIs (Phase E.2)
+    // =========================================================================
+    
+    external override fun cppGetViewModelInstanceNames(pointer: Long, requestID: Long, fileHandle: Long, viewModelName: String)
+    external override fun cppGetViewModelProperties(pointer: Long, requestID: Long, fileHandle: Long, viewModelName: String)
+    external override fun cppGetEnums(pointer: Long, requestID: Long, fileHandle: Long)
+    
+    // =========================================================================
     // Artboard Operations (SYNCHRONOUS)
     // =========================================================================
     
