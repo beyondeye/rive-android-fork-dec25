@@ -45,7 +45,16 @@ class DesktopCommandQueueBridge : CommandQueueBridge {
     }
     
     override fun cppCreateListeners(pointer: Long, receiver: CommandQueue): Listeners {
-        return Listeners(null)
+        // Return stub listeners with 0L handles (no native resources in desktop stub)
+        return Listeners(
+            fileListener = 0L,
+            artboardListener = 0L,
+            stateMachineListener = 0L,
+            viewModelInstanceListener = 0L,
+            imageListener = 0L,
+            audioListener = 0L,
+            fontListener = 0L
+        )
     }
     
     override fun cppPollMessages(pointer: Long, receiver: CommandQueue) {
@@ -352,6 +361,25 @@ class DesktopCommandQueueBridge : CommandQueueBridge {
     override fun cppDrawMultiple(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, renderTargetPointer: Long, viewportWidth: Int, viewportHeight: Int, clearColor: Int, artboardHandles: LongArray, stateMachineHandles: LongArray, transforms: FloatArray, artboardWidths: FloatArray, artboardHeights: FloatArray, count: Int) {}
     
     override fun cppDrawMultipleToBuffer(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, renderTargetPointer: Long, viewportWidth: Int, viewportHeight: Int, clearColor: Int, artboardHandles: LongArray, stateMachineHandles: LongArray, transforms: FloatArray, artboardWidths: FloatArray, artboardHeights: FloatArray, count: Int, buffer: ByteArray) {}
+    
+    // =========================================================================
+    // Asset Operations (Phase E.1)
+    // =========================================================================
+    
+    override fun cppDecodeImage(pointer: Long, requestID: Long, bytes: ByteArray) {}
+    override fun cppDeleteImage(pointer: Long, imageHandle: Long) {}
+    override fun cppRegisterImage(pointer: Long, name: String, imageHandle: Long) {}
+    override fun cppUnregisterImage(pointer: Long, name: String) {}
+    
+    override fun cppDecodeAudio(pointer: Long, requestID: Long, bytes: ByteArray) {}
+    override fun cppDeleteAudio(pointer: Long, audioHandle: Long) {}
+    override fun cppRegisterAudio(pointer: Long, name: String, audioHandle: Long) {}
+    override fun cppUnregisterAudio(pointer: Long, name: String) {}
+    
+    override fun cppDecodeFont(pointer: Long, requestID: Long, bytes: ByteArray) {}
+    override fun cppDeleteFont(pointer: Long, fontHandle: Long) {}
+    override fun cppRegisterFont(pointer: Long, name: String, fontHandle: Long) {}
+    override fun cppUnregisterFont(pointer: Long, name: String) {}
 }
 
 /**

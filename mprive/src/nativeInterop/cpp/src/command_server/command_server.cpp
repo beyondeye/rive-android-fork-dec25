@@ -863,7 +863,7 @@ void CommandServer::handleResetArtboardSize(const Command& cmd)
     
     // Reset to original dimensions from the Rive file
     // ArtboardInstance inherits from Artboard which stores original bounds
-    artboard->resetArtboardSize();
+    artboard->resetSize();
     
     LOGI("CommandServer: Artboard size reset to original (handle=%lld, %.1fx%.1f)",
          static_cast<long long>(cmd.handle), artboard->width(), artboard->height());
