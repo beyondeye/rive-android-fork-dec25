@@ -13,7 +13,8 @@
 namespace rive_mp
 {
 
-constexpr const char* TAG_RC = "Rive/MP/RenderContext";
+// Log prefix for RenderContext messages (embedded in log strings since macros already provide LOG_TAG)
+#define RC_PREFIX "[RenderContext] "
 
 /**
  * Result of startup, both in RenderContext initialization and CommandQueue
@@ -104,7 +105,7 @@ public:
 static EGLSurface createPBufferSurface(EGLDisplay eglDisplay,
                                        EGLContext eglContext)
 {
-    LOGD(TAG_RC, "Creating 1x1 PBuffer surface for EGL context");
+    LOGD(RC_PREFIX "Creating 1x1 PBuffer surface for EGL context");
 
     EGLint configID = 0;
     eglQueryContext(eglDisplay, eglContext, EGL_CONFIG_ID, &configID);
@@ -122,19 +123,19 @@ static EGLSurface createPBufferSurface(EGLDisplay eglDisplay,
             eglCreatePbufferSurface(eglDisplay, config, pBufferAttributes);
         if (surface != EGL_NO_SURFACE)
         {
-            LOGD(TAG_RC, "Successfully created PBuffer surface");
+            LOGD(RC_PREFIX "Successfully created PBuffer surface");
             return surface;
         }
         else
         {
             std::string errMsg = "Failed to create PBuffer surface. Error: " + errorString(eglGetError());
-            LOGE(TAG_RC, errMsg.c_str());
+            LOGE(RC_PREFIX "%s", errMsg.c_str());
             return EGL_NO_SURFACE;
         }
     }
     else
     {
-        LOGE(TAG_RC, "Failed to choose EGL config for PBuffer surface");
+        LOGE(RC_PREFIX "Failed to choose EGL config for PBuffer surface");
         return EGL_NO_SURFACE;
     }
 }
@@ -168,28 +169,28 @@ struct RenderContextGL : RenderContext
         {
             auto error = eglGetError();
             std::string errMsg = "Failed to create PBuffer surface. Error: " + errorString(error);
-            LOGE(TAG_RC, errMsg.c_str());
+            LOGE(RC_PREFIX "%s", errMsg.c_str());
             return {false, error, "Failed to create PBuffer surface"};
         }
 
-        LOGD(TAG_RC, "Making EGL context current with PBuffer surface");
+        LOGD(RC_PREFIX "Making EGL context current with PBuffer surface");
         auto contextCurrentSuccess =
             eglMakeCurrent(eglDisplay, pBuffer, pBuffer, eglContext);
         if (!contextCurrentSuccess)
         {
             auto error = eglGetError();
             std::string errMsg = "Failed to make EGL context current. Error: " + errorString(error);
-            LOGE(TAG_RC, errMsg.c_str());
+            LOGE(RC_PREFIX "%s", errMsg.c_str());
             return {false, error, "Failed to make EGL context current"};
         }
 
-        LOGD(TAG_RC, "Creating Rive RenderContextGL");
+        LOGD(RC_PREFIX "Creating Rive RenderContextGL");
         riveContext = rive::gpu::RenderContextGLImpl::MakeContext();
         if (!riveContext)
         {
             auto error = eglGetError();
             std::string errMsg = "Failed to create Rive RenderContextGL. Error: " + errorString(error);
-            LOGE(TAG_RC, errMsg.c_str());
+            LOGE(RC_PREFIX "%s", errMsg.c_str());
             return {false, error, "Failed to create Rive RenderContextGL"};
         }
 
@@ -203,20 +204,20 @@ struct RenderContextGL : RenderContext
     void destroy() override
     {
         // Cleanup the EGL context and surface
-        LOGD(TAG_RC, "Releasing EGL context and surface bindings");
+        LOGD(RC_PREFIX "Releasing EGL context and surface bindings");
         eglMakeCurrent(eglDisplay,
                        EGL_NO_SURFACE,
                        EGL_NO_SURFACE,
                        EGL_NO_CONTEXT);
         if (pBuffer != EGL_NO_SURFACE)
         {
-            LOGD(TAG_RC, "Destroying PBuffer surface");
+            LOGD(RC_PREFIX "Destroying PBuffer surface");
             eglDestroySurface(eglDisplay, pBuffer);
             pBuffer = EGL_NO_SURFACE;
             if (auto error = eglGetError(); error != EGL_SUCCESS)
             {
                 std::string errMsg = "Failed to destroy PBuffer surface. Error: " + errorString(error);
-                LOGE(TAG_RC, errMsg.c_str());
+                LOGE(RC_PREFIX "%s", errMsg.c_str());
             }
         }
     }
@@ -228,7 +229,7 @@ struct RenderContextGL : RenderContext
         if (!eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext))
         {
             std::string errMsg = "Failed to make EGL context current in beginFrame. Error: " + errorString(eglGetError());
-            LOGE(TAG_RC, errMsg.c_str());
+            LOGE(RC_PREFIX "%s", errMsg.c_str());
         }
     }
 
@@ -239,7 +240,7 @@ struct RenderContextGL : RenderContext
         if (!eglSwapBuffers(eglDisplay, eglSurface))
         {
             std::string errMsg = "Failed to swap EGL buffers in present. Error: " + errorString(eglGetError());
-            LOGE(TAG_RC, errMsg.c_str());
+            LOGE(RC_PREFIX "%s", errMsg.c_str());
         }
     }
 

@@ -11,9 +11,8 @@
 #include "render_context.hpp"
 #include "rive_log.hpp"
 
-namespace {
-constexpr const char* TAG = "Rive/MP/RenderContextJNI";
-}
+// Log prefix for RenderContextJNI messages (embedded in log strings since macros already provide LOG_TAG)
+#define RCJNI_PREFIX "[RenderContextJNI] "
 
 extern "C" {
 
@@ -31,14 +30,14 @@ Java_app_rive_mp_RenderContextGL_cppConstructor(
     jlong displayHandle,
     jlong contextHandle
 ) {
-    LOGD(TAG, "Creating RenderContextGL from EGL handles");
+    LOGD(RCJNI_PREFIX "Creating RenderContextGL from EGL handles");
     
     auto eglDisplay = reinterpret_cast<EGLDisplay>(displayHandle);
     auto eglContext = reinterpret_cast<EGLContext>(contextHandle);
     
     auto* renderContext = new rive_mp::RenderContextGL(eglDisplay, eglContext);
     
-    LOGD(TAG, "RenderContextGL created successfully");
+    LOGD(RCJNI_PREFIX "RenderContextGL created successfully");
     return reinterpret_cast<jlong>(renderContext);
 }
 
@@ -53,14 +52,14 @@ Java_app_rive_mp_RenderContextGL_cppDelete(
     jobject thiz,
     jlong pointer
 ) {
-    LOGD(TAG, "Deleting RenderContextGL");
+    LOGD(RCJNI_PREFIX "Deleting RenderContextGL");
     
     auto* renderContext = reinterpret_cast<rive_mp::RenderContextGL*>(pointer);
     if (renderContext) {
         delete renderContext;
     }
     
-    LOGD(TAG, "RenderContextGL deleted");
+    LOGD(RCJNI_PREFIX "RenderContextGL deleted");
 }
 
 } // extern "C"
