@@ -126,6 +126,19 @@ void CommandServer::executeCommand(const Command& cmd)
         case CommandType::GetViewModelNames:
             handleGetViewModelNames(cmd);
             break;
+
+        // Phase E.2: File Introspection APIs
+        case CommandType::GetViewModelInstanceNames:
+            handleGetViewModelInstanceNames(cmd);
+            break;
+
+        case CommandType::GetViewModelProperties:
+            handleGetViewModelProperties(cmd);
+            break;
+
+        case CommandType::GetEnums:
+            handleGetEnums(cmd);
+            break;
             
         case CommandType::CreateDefaultArtboard:
             handleCreateDefaultArtboard(cmd);

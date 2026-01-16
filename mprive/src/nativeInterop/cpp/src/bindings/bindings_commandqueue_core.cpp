@@ -7,6 +7,10 @@ jmethodID g_onFileDeletedMethodID = nullptr;
 jmethodID g_onArtboardNamesListedMethodID = nullptr;
 jmethodID g_onStateMachineNamesListedMethodID = nullptr;
 jmethodID g_onViewModelNamesListedMethodID = nullptr;
+// Phase E.2: File Introspection APIs
+jmethodID g_onViewModelInstanceNamesListedMethodID = nullptr;
+jmethodID g_onViewModelPropertiesListedMethodID = nullptr;
+jmethodID g_onEnumsListedMethodID = nullptr;
 jmethodID g_onQueryErrorMethodID = nullptr;
 jmethodID g_onArtboardCreatedMethodID = nullptr;
 jmethodID g_onArtboardErrorMethodID = nullptr;
@@ -118,6 +122,25 @@ void initCallbackMethodIDs(JNIEnv* env, jobject commandQueue) {
         commandQueueClass,
         "onViewModelNamesListed",
         "(JLjava/util/List;)V"  // (requestID: Long, names: List<String>) -> Unit
+    );
+
+    // Phase E.2: File Introspection APIs
+    g_onViewModelInstanceNamesListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onViewModelInstanceNamesListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, names: List<String>) -> Unit
+    );
+
+    g_onViewModelPropertiesListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onViewModelPropertiesListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, properties: List<ViewModelProperty>) -> Unit
+    );
+
+    g_onEnumsListedMethodID = env->GetMethodID(
+        commandQueueClass,
+        "onEnumsListed",
+        "(JLjava/util/List;)V"  // (requestID: Long, enums: List<RiveEnum>) -> Unit
     );
     
     g_onQueryErrorMethodID = env->GetMethodID(
@@ -573,6 +596,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
             case rive_android::MessageType::ArtboardNamesListed:
             case rive_android::MessageType::StateMachineNamesListed:
             case rive_android::MessageType::ViewModelNamesListed:
+            case rive_android::MessageType::ViewModelInstanceNamesListed:
                 {
                     // Convert std::vector<std::string> to Java List<String>
                     jclass arrayListClass = env->FindClass("java/util/ArrayList");
@@ -597,7 +621,60 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                     } else if (msg.type == rive_android::MessageType::ViewModelNamesListed) {
                         env->CallVoidMethod(receiver, g_onViewModelNamesListedMethodID, 
                             static_cast<jlong>(msg.requestID), arrayList);
+                    } else if (msg.type == rive_android::MessageType::ViewModelInstanceNamesListed) {
+                        env->CallVoidMethod(receiver, g_onViewModelInstanceNamesListedMethodID, 
+                            static_cast<jlong>(msg.requestID), arrayList);
                     }
+                    
+                    env->DeleteLocalRef(arrayList);
+                    env->DeleteLocalRef(arrayListClass);
+                }
+                break;
+
+            // Phase E.2: ViewModel Properties (stringList contains alternating name/type pairs)
+            case rive_android::MessageType::ViewModelPropertiesListed:
+                {
+                    // Convert std::vector<std::string> to Java List<String>
+                    // The Kotlin side will parse name/type pairs into ViewModelProperty objects
+                    jclass arrayListClass = env->FindClass("java/util/ArrayList");
+                    jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+                    jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+                    
+                    jobject arrayList = env->NewObject(arrayListClass, arrayListConstructor);
+                    
+                    for (const auto& str : msg.stringList) {
+                        jstring strVal = env->NewStringUTF(str.c_str());
+                        env->CallBooleanMethod(arrayList, arrayListAdd, strVal);
+                        env->DeleteLocalRef(strVal);
+                    }
+                    
+                    env->CallVoidMethod(receiver, g_onViewModelPropertiesListedMethodID, 
+                        static_cast<jlong>(msg.requestID), arrayList);
+                    
+                    env->DeleteLocalRef(arrayList);
+                    env->DeleteLocalRef(arrayListClass);
+                }
+                break;
+
+            // Phase E.2: Enums (stringList contains enum data: name, valueCount, value1, value2, ...)
+            case rive_android::MessageType::EnumsListed:
+                {
+                    // Convert std::vector<std::string> to Java List<String>
+                    // The Kotlin side will parse the structured data into RiveEnum objects
+                    jclass arrayListClass = env->FindClass("java/util/ArrayList");
+                    jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+                    jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+                    
+                    jobject arrayList = env->NewObject(arrayListClass, arrayListConstructor);
+                    
+                    for (const auto& str : msg.stringList) {
+                        jstring strVal = env->NewStringUTF(str.c_str());
+                        env->CallBooleanMethod(arrayList, arrayListAdd, strVal);
+                        env->DeleteLocalRef(strVal);
+                    }
+                    
+                    env->CallVoidMethod(receiver, g_onEnumsListedMethodID, 
+                        static_cast<jlong>(msg.requestID), arrayList);
                     
                     env->DeleteLocalRef(arrayList);
                     env->DeleteLocalRef(arrayListClass);

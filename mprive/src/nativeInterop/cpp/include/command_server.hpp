@@ -128,6 +128,39 @@ public:
      */
     void getViewModelNames(int64_t requestID, int64_t fileHandle);
     
+    // =========================================================================
+    // Phase E.2: File Introspection APIs
+    // =========================================================================
+
+    /**
+     * Enqueues a GetViewModelInstanceNames command.
+     * Gets the names of all ViewModel instances for a given ViewModel in a file.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to query.
+     * @param viewModelName The name of the ViewModel to query instances for.
+     */
+    void getViewModelInstanceNames(int64_t requestID, int64_t fileHandle, const std::string& viewModelName);
+
+    /**
+     * Enqueues a GetViewModelProperties command.
+     * Gets the properties defined on a ViewModel in a file.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to query.
+     * @param viewModelName The name of the ViewModel to query properties for.
+     */
+    void getViewModelProperties(int64_t requestID, int64_t fileHandle, const std::string& viewModelName);
+
+    /**
+     * Enqueues a GetEnums command.
+     * Gets all enum definitions in a file.
+     * 
+     * @param requestID The request ID for async completion.
+     * @param fileHandle The handle of the file to query.
+     */
+    void getEnums(int64_t requestID, int64_t fileHandle);
+
     /**
      * Enqueues a CreateDefaultArtboard command.
      * 
@@ -818,6 +851,11 @@ private:
      */
     void handleGetViewModelNames(const Command& cmd);
     
+    // Phase E.2: File Introspection handlers
+    void handleGetViewModelInstanceNames(const Command& cmd);
+    void handleGetViewModelProperties(const Command& cmd);
+    void handleGetEnums(const Command& cmd);
+
     /**
      * Handles a CreateDefaultArtboard command.
      * 

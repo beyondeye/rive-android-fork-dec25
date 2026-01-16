@@ -1,9 +1,9 @@
 # mprive CommandQueue Implementation Plan (CONSOLIDATED)
 
 **Date**: January 12, 2026
-**Status**: 🔄 Active Development (E.1 + E.3 + E.4 Complete - Jan 13, 2026)
+**Status**: 🔄 Active Development (E.1 + E.2 + E.3 + E.4 Complete - Jan 16, 2026)
 **Focus**: Android-first approach (Desktop deferred)
-**Last Updated**: January 13, 2026 (23:40)
+**Last Updated**: January 16, 2026 (07:45)
 
 > This plan consolidates the previous `mprive_commandqueue_revised_plan.md` and `mprive_phase0_commandqueue_bridge_plan.md`.
 > Archived plans are located in `aiplans/archived/`.
@@ -231,13 +231,13 @@ See [e1_asset_management_cpp_implementation.md](../aitasks/e1_asset_management_c
 
 ---
 
-### Phase E.2: File Introspection APIs (MEDIUM PRIORITY) 🟡 IN PROGRESS
+### Phase E.2: File Introspection APIs (MEDIUM PRIORITY) ✅ COMPLETE
 
 **Motivation**: Advanced introspection allows apps to dynamically discover ViewModel structure and enum definitions from Rive files.
 
-**Status**: 🟡 **Kotlin Implementation Complete** (Jan 15, 2026) - C++ pending
+**Status**: 🟢 **100% Complete** (Jan 16, 2026)
 
-#### ✅ Kotlin Implementation Complete
+#### ✅ Full Implementation Complete
 
 | Component | Status |
 |-----------|--------|
@@ -246,6 +246,10 @@ See [e1_asset_management_cpp_implementation.md](../aitasks/e1_asset_management_c
 | `PropertyTypes.kt` - data classes | ✅ Complete (`ViewModelProperty`, `RiveEnum`) |
 | `CommandQueue.kt` - API methods | ✅ Complete |
 | `CommandQueue.kt` - JNI callbacks | ✅ Complete |
+| C++ JNI bindings (`bindings_commandqueue_file.cpp`) | ✅ Complete |
+| C++ CommandServer handlers (`command_server_file.cpp`) | ✅ Complete |
+| C++ CommandType/MessageType enums | ✅ Complete |
+| C++ message polling callbacks | ✅ Complete |
 
 #### E.2.1: ViewModel Instance Names
 
@@ -260,8 +264,8 @@ suspend fun getViewModelInstanceNames(
 - [x] Add bridge method: `cppGetViewModelInstanceNames`
 - [x] Add JNI callback: `onViewModelInstanceNamesListed`
 - [x] Implement suspend function
-- [ ] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
-- [ ] Add C++ CommandServer handler in `command_server_file.cpp`
+- [x] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
+- [x] Add C++ CommandServer handler in `command_server_file.cpp`
 - [ ] Add tests
 
 #### E.2.2: ViewModel Properties
@@ -278,8 +282,8 @@ suspend fun getViewModelProperties(
 - [x] Add bridge method: `cppGetViewModelProperties`
 - [x] Add JNI callback: `onViewModelPropertiesListed`
 - [x] Implement suspend function
-- [ ] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
-- [ ] Add C++ CommandServer handler in `command_server_file.cpp`
+- [x] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
+- [x] Add C++ CommandServer handler in `command_server_file.cpp`
 - [ ] Add tests
 
 #### E.2.3: Enums
@@ -293,33 +297,37 @@ suspend fun getEnums(fileHandle: FileHandle): List<RiveEnum>
 - [x] Add bridge method: `cppGetEnums`
 - [x] Add JNI callback: `onEnumsListed`
 - [x] Implement suspend function
-- [ ] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
-- [ ] Add C++ CommandServer handler in `command_server_file.cpp`
+- [x] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
+- [x] Add C++ CommandServer handler in `command_server_file.cpp`
 - [ ] Add tests
 
-#### ❌ Remaining C++ Implementation
+#### ✅ C++ Implementation Complete (Jan 16, 2026)
 
-The following C++ work is required to complete Phase E.2:
+All C++ work has been completed:
 
-1. **JNI bindings** in `mprive/src/nativeInterop/cpp/src/bindings/bindings_commandqueue_file.cpp`:
-   - `cppGetViewModelInstanceNames`
-   - `cppGetViewModelProperties`
-   - `cppGetEnums`
+1. **JNI bindings** in `bindings_commandqueue_file.cpp`:
+   - ✅ `cppGetViewModelInstanceNames`
+   - ✅ `cppGetViewModelProperties`
+   - ✅ `cppGetEnums`
 
-2. **CommandServer handlers** in `mprive/src/nativeInterop/cpp/src/command_server/command_server_file.cpp`:
-   - Handle `GET_VIEWMODEL_INSTANCE_NAMES` command
-   - Handle `GET_VIEWMODEL_PROPERTIES` command
-   - Handle `GET_ENUMS` command
+2. **CommandServer handlers** in `command_server_file.cpp`:
+   - ✅ `handleGetViewModelInstanceNames`
+   - ✅ `handleGetViewModelProperties`
+   - ✅ `handleGetEnums`
 
-3. **CommandType enum** in `command_server.hpp`:
-   - `GET_VIEWMODEL_INSTANCE_NAMES`
-   - `GET_VIEWMODEL_PROPERTIES`
-   - `GET_ENUMS`
+3. **CommandType enum** in `command_server_types.hpp`:
+   - ✅ `GetViewModelInstanceNames`
+   - ✅ `GetViewModelProperties`
+   - ✅ `GetEnums`
 
-4. **Message types** for callbacks:
-   - `MSG_VIEWMODEL_INSTANCE_NAMES_LISTED`
-   - `MSG_VIEWMODEL_PROPERTIES_LISTED`
-   - `MSG_ENUMS_LISTED`
+4. **MessageType enum** in `command_server_types.hpp`:
+   - ✅ `ViewModelInstanceNamesListed`
+   - ✅ `ViewModelPropertiesListed`
+   - ✅ `EnumsListed`
+
+5. **Message polling callbacks** in `bindings_commandqueue_core.cpp`:
+   - ✅ Method ID caching for new callbacks
+   - ✅ Switch cases for new message types
 
 ---
 

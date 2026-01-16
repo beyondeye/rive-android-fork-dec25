@@ -316,4 +316,117 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppResetArtboardSize(
     server->resetArtboardSize(static_cast<int64_t>(artboardHandle));
 }
 
+// =============================================================================
+// Phase E.2: File Introspection APIs
+// =============================================================================
+
+/**
+ * Gets ViewModel instance names for a given ViewModel in a file.
+ * 
+ * JNI signature: cppGetViewModelInstanceNames(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to query.
+ * @param viewModelName The name of the ViewModel to query instances for.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetViewModelInstanceNames(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jstring viewModelName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get ViewModel instance names on null CommandServer");
+        return;
+    }
+    
+    // Convert Java string to C++ string
+    const char* nameChars = env->GetStringUTFChars(viewModelName, nullptr);
+    std::string vmName(nameChars);
+    env->ReleaseStringUTFChars(viewModelName, nameChars);
+    
+    server->getViewModelInstanceNames(
+        static_cast<int64_t>(requestID),
+        static_cast<int64_t>(fileHandle),
+        vmName
+    );
+}
+
+/**
+ * Gets the properties defined on a ViewModel in a file.
+ * 
+ * JNI signature: cppGetViewModelProperties(ptr: Long, requestID: Long, fileHandle: Long, viewModelName: String): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to query.
+ * @param viewModelName The name of the ViewModel to query properties for.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetViewModelProperties(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle,
+    jstring viewModelName
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get ViewModel properties on null CommandServer");
+        return;
+    }
+    
+    // Convert Java string to C++ string
+    const char* nameChars = env->GetStringUTFChars(viewModelName, nullptr);
+    std::string vmName(nameChars);
+    env->ReleaseStringUTFChars(viewModelName, nameChars);
+    
+    server->getViewModelProperties(
+        static_cast<int64_t>(requestID),
+        static_cast<int64_t>(fileHandle),
+        vmName
+    );
+}
+
+/**
+ * Gets all enum definitions in a file.
+ * 
+ * JNI signature: cppGetEnums(ptr: Long, requestID: Long, fileHandle: Long): Unit
+ * 
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param requestID The request ID for async completion.
+ * @param fileHandle The handle of the file to query.
+ */
+JNIEXPORT void JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetEnums(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jlong requestID,
+    jlong fileHandle
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to get enums on null CommandServer");
+        return;
+    }
+    
+    server->getEnums(
+        static_cast<int64_t>(requestID),
+        static_cast<int64_t>(fileHandle)
+    );
+}
+
 } // extern "C"

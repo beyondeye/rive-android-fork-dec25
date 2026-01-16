@@ -19,6 +19,10 @@ enum class CommandType {
     GetArtboardNames,
     GetStateMachineNames,
     GetViewModelNames,
+    // Phase E.2: File Introspection APIs
+    GetViewModelInstanceNames,
+    GetViewModelProperties,
+    GetEnums,
     // Phase B.3: Artboard operations
     CreateDefaultArtboard,
     CreateArtboardByName,
@@ -116,6 +120,9 @@ enum class MessageType {
     ArtboardNamesListed,
     StateMachineNamesListed,
     ViewModelNamesListed,
+    ViewModelInstanceNamesListed,
+    ViewModelPropertiesListed,
+    EnumsListed,
     QueryError,
     // Artboard operations
     ArtboardCreated,

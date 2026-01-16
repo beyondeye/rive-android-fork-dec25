@@ -1,6 +1,8 @@
 #include "command_server.hpp"
 #include "rive_log.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_property.hpp"
+#include "rive/viewmodel/data_enum.hpp"
 #include "utils/no_op_factory.hpp"
 
 namespace rive_android {
@@ -237,6 +239,199 @@ void CommandServer::handleGetViewModelNames(const Command& cmd)
     
     Message msg(MessageType::ViewModelNamesListed, cmd.requestID);
     msg.stringList = std::move(names);
+    enqueueMessage(std::move(msg));
+}
+
+// =============================================================================
+// Phase E.2: File Introspection APIs
+// =============================================================================
+
+void CommandServer::getViewModelInstanceNames(int64_t requestID, int64_t fileHandle, const std::string& viewModelName)
+{
+    LOGI("CommandServer: Enqueuing GetViewModelInstanceNames command (requestID=%lld, fileHandle=%lld, vmName=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle), viewModelName.c_str());
+    
+    Command cmd(CommandType::GetViewModelInstanceNames, requestID);
+    cmd.handle = fileHandle;
+    cmd.viewModelName = viewModelName;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getViewModelProperties(int64_t requestID, int64_t fileHandle, const std::string& viewModelName)
+{
+    LOGI("CommandServer: Enqueuing GetViewModelProperties command (requestID=%lld, fileHandle=%lld, vmName=%s)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle), viewModelName.c_str());
+    
+    Command cmd(CommandType::GetViewModelProperties, requestID);
+    cmd.handle = fileHandle;
+    cmd.viewModelName = viewModelName;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getEnums(int64_t requestID, int64_t fileHandle)
+{
+    LOGI("CommandServer: Enqueuing GetEnums command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(fileHandle));
+    
+    Command cmd(CommandType::GetEnums, requestID);
+    cmd.handle = fileHandle;
+    
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::handleGetViewModelInstanceNames(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetViewModelInstanceNames command (requestID=%lld, fileHandle=%lld, vmName=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.viewModelName.c_str());
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    auto& file = it->second;
+    
+    // Find the ViewModel by name
+    rive::ViewModel* viewModel = nullptr;
+    for (size_t i = 0; i < file->viewModelCount(); i++) {
+        auto vm = file->viewModel(i);
+        if (vm && vm->name() == cmd.viewModelName) {
+            viewModel = vm;
+            break;
+        }
+    }
+    
+    if (viewModel == nullptr) {
+        LOGW("CommandServer: ViewModel not found: %s", cmd.viewModelName.c_str());
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "ViewModel not found: " + cmd.viewModelName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    std::vector<std::string> names;
+    
+    // Get instance names from the ViewModel
+    for (size_t i = 0; i < viewModel->instanceCount(); i++) {
+        auto instance = viewModel->instance(i);
+        if (instance) {
+            names.push_back(instance->name());
+        }
+    }
+    
+    LOGI("CommandServer: Found %zu ViewModel instance names", names.size());
+    
+    Message msg(MessageType::ViewModelInstanceNamesListed, cmd.requestID);
+    msg.stringList = std::move(names);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetViewModelProperties(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetViewModelProperties command (requestID=%lld, fileHandle=%lld, vmName=%s)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.viewModelName.c_str());
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    auto& file = it->second;
+    
+    // Find the ViewModel by name
+    rive::ViewModel* viewModel = nullptr;
+    for (size_t i = 0; i < file->viewModelCount(); i++) {
+        auto vm = file->viewModel(i);
+        if (vm && vm->name() == cmd.viewModelName) {
+            viewModel = vm;
+            break;
+        }
+    }
+    
+    if (viewModel == nullptr) {
+        LOGW("CommandServer: ViewModel not found: %s", cmd.viewModelName.c_str());
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "ViewModel not found: " + cmd.viewModelName;
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    // Build a string list with alternating name/type pairs
+    // Format: [name1, type1, name2, type2, ...]
+    // This allows Kotlin to reconstruct ViewModelProperty objects
+    std::vector<std::string> propertyData;
+    
+    // Use properties() which returns std::vector<ViewModelProperty*>
+    auto props = viewModel->properties();
+    for (auto* prop : props) {
+        if (prop) {
+            propertyData.push_back(prop->name());
+            // Use coreType() to get the property type
+            propertyData.push_back(std::to_string(static_cast<int>(prop->coreType())));
+        }
+    }
+    
+    LOGI("CommandServer: Found %zu ViewModel properties", propertyData.size() / 2);
+    
+    Message msg(MessageType::ViewModelPropertiesListed, cmd.requestID);
+    msg.stringList = std::move(propertyData);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetEnums(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetEnums command (requestID=%lld, fileHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+    
+    auto it = m_files.find(cmd.handle);
+    if (it == m_files.end()) {
+        LOGW("CommandServer: Invalid file handle: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::QueryError, cmd.requestID);
+        msg.error = "Invalid file handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
+    auto& file = it->second;
+    
+    // Build a string list with enum data
+    // Format: [enumName1, valueCount1, value1, value2, ..., enumName2, valueCount2, ...]
+    // This allows Kotlin to reconstruct RiveEnum objects
+    std::vector<std::string> enumData;
+    
+    // Use enums() which returns const std::vector<DataEnum*>&
+    const auto& fileEnums = file->enums();
+    for (auto* riveEnum : fileEnums) {
+        if (riveEnum) {
+            enumData.push_back(riveEnum->enumName());
+            auto& enumValues = riveEnum->values();
+            enumData.push_back(std::to_string(enumValues.size()));
+            
+            for (size_t j = 0; j < enumValues.size(); j++) {
+                enumData.push_back(riveEnum->value(static_cast<uint32_t>(j)));
+            }
+        }
+    }
+    
+    LOGI("CommandServer: Found %zu enums", fileEnums.size());
+    
+    Message msg(MessageType::EnumsListed, cmd.requestID);
+    msg.stringList = std::move(enumData);
     enqueueMessage(std::move(msg));
 }
 
