@@ -9,23 +9,47 @@ import androidx.compose.ui.unit.dp
 import app.rive.mprive.getRivePlatform
 
 /**
+ * Represents the different screens in the app.
+ */
+enum class Screen {
+    Main,
+    RiveDemo
+}
+
+/**
  * Main application composable.
  * This is shared across all platforms.
  */
 @Composable
-fun App() {
+fun App(
+    riveFileBytes: ByteArray? = null
+) {
+    var currentScreen by remember { mutableStateOf(Screen.Main) }
+    
     MaterialTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            MainScreen()
+            when (currentScreen) {
+                Screen.Main -> MainScreen(
+                    onNavigateToDemo = { currentScreen = Screen.RiveDemo },
+                    hasRiveFile = riveFileBytes != null
+                )
+                Screen.RiveDemo -> RiveDemo(
+                    riveFileBytes = riveFileBytes,
+                    onBack = { currentScreen = Screen.Main }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    onNavigateToDemo: () -> Unit = {},
+    hasRiveFile: Boolean = false
+) {
     val platform = remember { getRivePlatform() }
     var initialized by remember { mutableStateOf(false) }
     
@@ -66,6 +90,26 @@ fun MainScreen() {
         
         Spacer(modifier = Modifier.height(24.dp))
         
+        // Rive Demo Button
+        Button(
+            onClick = onNavigateToDemo,
+            enabled = initialized && hasRiveFile,
+            modifier = Modifier.fillMaxWidth(0.8f)
+        ) {
+            Text("Open Rive Demo")
+        }
+        
+        if (!hasRiveFile) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "(No Rive file loaded)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -80,7 +124,7 @@ fun MainScreen() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "This is a skeleton Compose Multiplatform app using the mprive library.",
+                    text = "This is a Compose Multiplatform demo app for testing the mprive library's Rive composable.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

@@ -416,6 +416,10 @@ class RiveEGLPBufferSurface(
  * Creates the default Android RenderContext (OpenGL ES via EGL).
  */
 actual fun createDefaultRenderContext(): RenderContext {
+    // Ensure native library is loaded before creating OpenGL context.
+    // Accessing RiveNative triggers its init block which loads libmprive-android.so
+    RiveNative
+    
     RiveLog.d("Rive/MP/RenderContext") { "Creating Android RenderContextGL" }
     return RenderContextGL()
 }

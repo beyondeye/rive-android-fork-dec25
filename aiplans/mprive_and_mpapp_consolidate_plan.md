@@ -415,16 +415,24 @@ The `Rive.kt` composable is the main rendering component that:
 - [x] CommandQueue.draw() accepts all required parameters
 - [x] Fit/Alignment conversion implemented via toCoreEnum() and toCoreAlignment() functions
 
-##### 1.10.9 Integration Testing ⏳ PENDING
+##### 1.10.9 Integration Testing ✅ SETUP COMPLETE
 
-- [ ] Create simple test in mpapp that uses the new Rive composable
+**Files Created:**
+- `mpapp/src/commonMain/kotlin/app/rive/mpapp/RiveDemo.kt` - Demo composable with fit mode controls
+- `mpapp/src/commonMain/kotlin/app/rive/mpapp/App.kt` - Updated with navigation to demo
+- `mpapp/src/androidMain/kotlin/app/rive/mpapp/MainActivity.kt` - Loads .riv from resources
+- `mpapp/src/androidMain/res/raw/rating.riv` - Test animation file
+
+**Compilation Status:** ✅ BUILD SUCCESSFUL
+
+**Manual Testing Checklist (run app on device/emulator):**
 - [ ] Verify file loads and renders
 - [ ] Verify touch input works
 - [ ] Verify animation plays
-- [ ] Verify VMI binding works
 - [ ] Test fit modes (Contain, Cover, Fill, Layout)
+- [ ] Verify VMI binding works (requires data binding demo)
 
-**This is the recommended next step before proceeding to Phase 2.**
+**Next Step:** Run `./gradlew :mpapp:installDebug` to install and test on a device.
 
 ##### 1.10.1-LATER: Full Alignment Support (DEFERRED)
 

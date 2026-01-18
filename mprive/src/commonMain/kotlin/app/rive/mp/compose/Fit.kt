@@ -25,6 +25,9 @@ sealed class Fit {
     /** The ordinal that maps to the core runtime enum. */
     internal abstract val nativeMapping: Byte
 
+    /** A human-readable name for this fit mode. */
+    abstract val fitName: String
+
     /**
      * Invokes the Rive layout engine to apply responsive layout to the artboard. This assumes that
      * the artboard was designed with layouts in mind.
@@ -34,6 +37,7 @@ sealed class Fit {
      */
     data class Layout(override val scaleFactor: Float = 1f) : Fit() {
         override val nativeMapping: Byte = 7
+        override val fitName: String = "Layout"
     }
 
     /**
@@ -51,6 +55,7 @@ sealed class Fit {
      */
     data class Contain(override val alignment: Alignment = Alignment.CENTER) : Fit() {
         override val nativeMapping: Byte = 1
+        override val fitName: String = "Contain"
     }
 
     /**
@@ -64,6 +69,7 @@ sealed class Fit {
      */
     data class ScaleDown(override val alignment: Alignment = Alignment.CENTER) : Fit() {
         override val nativeMapping: Byte = 6
+        override val fitName: String = "ScaleDown"
     }
 
     /**
@@ -81,6 +87,7 @@ sealed class Fit {
      */
     data class Cover(override val alignment: Alignment = Alignment.CENTER) : Fit() {
         override val nativeMapping: Byte = 2
+        override val fitName: String = "Cover"
     }
 
     /**
@@ -94,6 +101,7 @@ sealed class Fit {
      */
     data class FitWidth(override val alignment: Alignment = Alignment.CENTER) : Fit() {
         override val nativeMapping: Byte = 3
+        override val fitName: String = "FitWidth"
     }
 
     /**
@@ -107,11 +115,13 @@ sealed class Fit {
      */
     data class FitHeight(override val alignment: Alignment = Alignment.CENTER) : Fit() {
         override val nativeMapping: Byte = 4
+        override val fitName: String = "FitHeight"
     }
 
     /** Do not preserve aspect ratio and stretch to the containing view's dimensions. */
     data object Fill : Fit() {
         override val nativeMapping: Byte = 0
+        override val fitName: String = "Fill"
     }
 
     /**
@@ -125,5 +135,6 @@ sealed class Fit {
      */
     data class None(override val alignment: Alignment = Alignment.CENTER) : Fit() {
         override val nativeMapping: Byte = 5
+        override val fitName: String = "None"
     }
 }
