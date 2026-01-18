@@ -43,7 +43,10 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 // Compose Multiplatform - for @Immutable and @Composable support
-                implementation(compose.runtime)
+                implementation(fork.jetbrains.compose.runtime)
+                
+                // Compose Multiplatform Lifecycle - for LocalLifecycleOwner, repeatOnLifecycle, etc.
+                implementation(fork.jetbrains.lifecycle.runtime.compose)
                 
                 // Coroutines - for suspend functions
                 implementation(fork.kotlinx.coroutines.core)
