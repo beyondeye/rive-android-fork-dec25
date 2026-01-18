@@ -266,7 +266,7 @@ suspend fun getViewModelInstanceNames(
 - [x] Implement suspend function
 - [x] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
 - [x] Add C++ CommandServer handler in `command_server_file.cpp`
-- [ ] Add tests
+- [x] Add tests (`MpRiveFileIntrospectionTest.kt`)
 
 #### E.2.2: ViewModel Properties
 
@@ -284,7 +284,7 @@ suspend fun getViewModelProperties(
 - [x] Implement suspend function
 - [x] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
 - [x] Add C++ CommandServer handler in `command_server_file.cpp`
-- [ ] Add tests
+- [x] Add tests (`MpRiveFileIntrospectionTest.kt`)
 
 #### E.2.3: Enums
 
@@ -299,7 +299,7 @@ suspend fun getEnums(fileHandle: FileHandle): List<RiveEnum>
 - [x] Implement suspend function
 - [x] Add C++ JNI binding in `bindings_commandqueue_file.cpp`
 - [x] Add C++ CommandServer handler in `command_server_file.cpp`
-- [ ] Add tests
+- [x] Add tests (`MpRiveFileIntrospectionTest.kt`)
 
 #### ✅ C++ Implementation Complete (Jan 16, 2026)
 
