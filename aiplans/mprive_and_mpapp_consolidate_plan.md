@@ -273,15 +273,15 @@ This enables the same lifecycle-aware patterns from the Android `kotlin` module 
 ### Phase 1 Tasks Checklist
 
 - [x] Create `Result.kt` with sealed interface *(exists in RiveUI_Result.kt)*
-- [ ] Create `RiveFileSource.kt` with platform-specific implementations
-- [ ] Create `rememberRiveWorker.kt` composables
-- [ ] Create `rememberRiveFile.kt` composables
-- [ ] Create `rememberArtboard.kt` composables
-- [ ] Create `rememberStateMachine.kt` composables
-- [ ] Create `rememberViewModelInstance.kt` composables
-- [ ] Create `Rive.kt` main composable (expect/actual for platform rendering)
-- [ ] Create `rememberRiveSpriteScene.kt` composables
-- [ ] Create wrapper classes (RiveFile, Artboard, StateMachine, ViewModelInstance)
+- [x] Create `RiveFileSource.kt` with platform-specific implementations *(COMPLETE - 2026-01-18)*
+- [x] Create `rememberRiveWorker.kt` composables *(COMPLETE - 2026-01-18)*
+- [x] Create `rememberRiveFile.kt` composables *(COMPLETE - 2026-01-18)*
+- [x] Create `rememberArtboard.kt` composables *(COMPLETE - 2026-01-18)*
+- [x] Create `rememberStateMachine.kt` composables *(COMPLETE - 2026-01-18)*
+- [x] Create `rememberViewModelInstance.kt` composables *(COMPLETE - 2026-01-18)*
+- [x] Create wrapper classes (RiveFile, Artboard, StateMachine, ViewModelInstance) *(COMPLETE - 2026-01-18)*
+- [ ] Create `Rive.kt` main composable (expect/actual for platform rendering) - **Deferred: Complex, requires platform-specific rendering**
+- [ ] Create `rememberRiveSpriteScene.kt` composables - **Deferred: Depends on Rive.kt**
 - [ ] Add unit tests for Compose API layer
 
 ---
