@@ -280,8 +280,8 @@ This enables the same lifecycle-aware patterns from the Android `kotlin` module 
 - [x] Create `rememberStateMachine.kt` composables *(COMPLETE - 2026-01-18)*
 - [x] Create `rememberViewModelInstance.kt` composables *(COMPLETE - 2026-01-18)*
 - [x] Create wrapper classes (RiveFile, Artboard, StateMachine, ViewModelInstance) *(COMPLETE - 2026-01-18)*
-- [ ] **Create `Rive.kt` main composable** - See detailed substeps in Section 1.10 below
-- [ ] Create `rememberRiveSpriteScene.kt` composables - **Deferred: Depends on Rive.kt**
+- [x] **Create `Rive.kt` main composable** *(COMPLETE - 2026-01-18)* - See Section 1.10 for implementation details
+- [ ] Create `rememberRiveSpriteScene.kt` composables - **Deferred: Depends on Rive.kt being tested**
 - [ ] Add unit tests for Compose API layer
 
 ### 1.10 Rive.kt Main Composable - Detailed Implementation Plan

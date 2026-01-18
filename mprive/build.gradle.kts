@@ -45,6 +45,11 @@ kotlin {
                 // Compose Multiplatform - for @Immutable and @Composable support
                 implementation(fork.jetbrains.compose.runtime)
                 
+                // Compose Multiplatform UI - for Modifier, Layout, pointer input, etc.
+                implementation(compose.ui)
+                implementation(compose.foundation)
+                implementation(compose.material)
+                
                 // Compose Multiplatform Lifecycle - for LocalLifecycleOwner, repeatOnLifecycle, etc.
                 implementation(fork.jetbrains.lifecycle.runtime.compose)
                 
