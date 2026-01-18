@@ -170,6 +170,11 @@ class CommandQueue(
     val triggerPropertyFlow: SharedFlow<PropertyUpdate<Unit>> = _triggerPropertyFlow
 
     init {
+        require(MpRive.isInitialized) {
+            "MpRive.init() must be called before using Rive. " +
+                "On Android, call MpRive.init(applicationContext) in your Application.onCreate() " +
+                "or Activity.onCreate() before using any Rive APIs."
+        }
         RiveLog.d(COMMAND_QUEUE_TAG) { "Creating command queue" }
     }
     
