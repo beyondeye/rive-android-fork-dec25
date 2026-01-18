@@ -3,9 +3,9 @@ package app.rive.mp.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import app.rive.mp.CommandQueue
+import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.Result
 import app.rive.mp.RiveFile
-import app.rive.mp.RiveUI_ExperimentalAPI
 
 /**
  * Loads a [RiveFile] from the given [source].
@@ -44,7 +44,7 @@ import app.rive.mp.RiveUI_ExperimentalAPI
  * @see RiveFile For operations available on the loaded file.
  * @see rememberRiveWorker For creating the CommandQueue.
  */
-@RiveUI_ExperimentalAPI
+@ExperimentalRiveComposeAPI
 @Composable
 fun rememberRiveFile(
     source: RiveFileSource,

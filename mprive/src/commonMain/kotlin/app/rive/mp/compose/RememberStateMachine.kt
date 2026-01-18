@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import app.rive.mp.Artboard
-import app.rive.mp.RiveUI_ExperimentalAPI
+import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.StateMachine
 
 /**
@@ -37,7 +37,7 @@ import app.rive.mp.StateMachine
  * @see Artboard For creating an artboard.
  * @see rememberArtboard For creating an artboard with lifecycle management.
  */
-@RiveUI_ExperimentalAPI
+@ExperimentalRiveComposeAPI
 @Composable
 fun rememberStateMachine(
     artboard: Artboard,
