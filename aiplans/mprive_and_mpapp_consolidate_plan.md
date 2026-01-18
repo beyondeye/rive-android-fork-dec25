@@ -286,9 +286,16 @@ This enables the same lifecycle-aware patterns from the Android `kotlin` module 
 
 ### 1.10 Rive.kt Main Composable - Detailed Implementation Plan
 
-**Status**: NOT STARTED  
+**Status**: ✅ COMPLETE (2026-01-18)  
 **Complexity**: HIGH (~8-12 hours)  
-**Blocking**: Phase 2 demos cannot render without this
+**Files Created**:
+- `mprive/src/commonMain/kotlin/app/rive/mp/compose/Fit.kt` - Fit sealed class
+- `mprive/src/commonMain/kotlin/app/rive/mp/compose/RivePointerInputMode.kt` - Pointer input mode enum
+- `mprive/src/commonMain/kotlin/app/rive/mp/compose/RiveTypes.kt` - Type aliases (expect)
+- `mprive/src/androidMain/kotlin/app/rive/mp/compose/RiveTypes.android.kt` - Type aliases (actual)
+- `mprive/src/commonMain/kotlin/app/rive/mp/compose/Rive.kt` - Expect declaration
+- `mprive/src/androidMain/kotlin/app/rive/mp/compose/Rive.android.kt` - Android actual implementation
+- `mprive/src/desktopMain/kotlin/app/rive/mp/compose/Rive.desktop.kt` - Desktop stub
 
 #### Overview
 
@@ -318,124 +325,66 @@ The `Rive.kt` composable is the main rendering component that:
 
 #### Substeps Checklist
 
-##### 1.10.1 Fit Sealed Class (Match kotlin module API)
+##### 1.10.1 Fit Sealed Class (Match kotlin module API) ✅ COMPLETE
 
 **Goal**: Convert from simple enum to sealed class matching kotlin module exactly
 
-**Target API** (from kotlin module):
-```kotlin
-sealed class Fit {
-    open val alignment: Alignment = Alignment.Center
-    open val scaleFactor: Float = 1f
-    internal abstract val nativeMapping: Byte
-
-    data class Layout(override val scaleFactor: Float = 1f) : Fit()
-    data class Contain(override val alignment: Alignment = Alignment.Center) : Fit()
-    data class ScaleDown(override val alignment: Alignment = Alignment.Center) : Fit()
-    data class Cover(override val alignment: Alignment = Alignment.Center) : Fit()
-    data class FitWidth(override val alignment: Alignment = Alignment.Center) : Fit()
-    data class FitHeight(override val alignment: Alignment = Alignment.Center) : Fit()
-    object Fill : Fit()
-    data class None(override val alignment: Alignment = Alignment.Center) : Fit()
-}
-```
+**File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/Fit.kt`
 
 **Substeps:**
-- [ ] **1.10.1a**: Create new `Fit.kt` sealed class in `compose/` package
-- [ ] **1.10.1b**: Add `nativeMapping: Byte` for JNI compatibility
-- [ ] **1.10.1c**: Initial impl WITHOUT alignment (use default `Center`) - alignment support deferred
-- [ ] **1.10.1d**: Update `Rive()` composable signature to use sealed class Fit
+- [x] **1.10.1a**: Create new `Fit.kt` sealed class in `compose/` package
+- [x] **1.10.1b**: Add alignment and scaleFactor properties
+- [x] **1.10.1c**: All fit modes implemented (Layout, Contain, ScaleDown, Cover, FitWidth, FitHeight, Fill, None)
+- [x] **1.10.1d**: Update `Rive()` composable signature to use sealed class Fit
 
 **Notes on Alignment (Deferred)**:
 - Initial implementation uses `Alignment.Center` as default for all fit modes
 - Alignment parameter is present in the API but not yet functional
 - Full alignment support added in 1.10.1-LATER substeps after basic Rive.kt works
 
-##### 1.10.2 Create RivePointerInputMode Enum
-- [ ] Create file: `mprive/src/commonMain/kotlin/app/rive/mp/compose/RivePointerInputMode.kt`
-- [ ] Define enum with three modes:
+##### 1.10.2 Create RivePointerInputMode Enum ✅ COMPLETE
+
+**File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/RivePointerInputMode.kt`
+
+- [x] Create file with three modes:
   - `Consume` - Handle and consume pointer events (default)
   - `Observe` - Handle but don't consume (allows parent gestures)
   - `PassThrough` - Handle and share with siblings underneath
-- [ ] Add documentation explaining each mode's use case
+- [x] Documentation added
 
-**Reference**: `kotlin/src/main/kotlin/app/rive/Rive.kt` lines 100-115
+##### 1.10.3 Create GetBitmapFun Type Alias ✅ COMPLETE
 
-##### 1.10.3 Create GetBitmapFun Type Alias
-- [ ] Create file or add to existing: `mprive/src/commonMain/kotlin/app/rive/mp/compose/RiveTypes.kt`
-- [ ] Add `typealias GetBitmapFun = () -> android.graphics.Bitmap` (Android-specific)
-- [ ] Consider if this should be expect/actual for multiplatform
+**Files**: 
+- `mprive/src/commonMain/kotlin/app/rive/mp/compose/RiveTypes.kt` (expect)
+- `mprive/src/androidMain/kotlin/app/rive/mp/compose/RiveTypes.android.kt` (actual)
 
-##### 1.10.4 Create Rive.kt Expect Declaration (commonMain)
-- [ ] Create file: `mprive/src/commonMain/kotlin/app/rive/mp/compose/Rive.kt`
-- [ ] Define expect composable signature:
-  ```kotlin
-  @ExperimentalRiveComposeAPI
-  @Composable
-  expect fun Rive(
-      file: RiveFile,
-      modifier: Modifier = Modifier,
-      playing: Boolean = true,
-      artboard: Artboard? = null,
-      stateMachine: StateMachine? = null,
-      viewModelInstance: ViewModelInstance? = null,
-      fit: Fit = Fit.Contain(),
-      backgroundColor: Int = 0x00000000,
-      pointerInputMode: RivePointerInputMode = RivePointerInputMode.Consume,
-      onBitmapAvailable: ((GetBitmapFun) -> Unit)? = null
-  )
-  ```
-- [ ] Add comprehensive KDoc documentation
+- [x] Created expect/actual pattern for cross-platform support
+- [x] Android: `typealias GetBitmapFun = () -> android.graphics.Bitmap`
 
-##### 1.10.5 Implement Android Rive.kt (androidMain)
-- [ ] Create file: `mprive/src/androidMain/kotlin/app/rive/mp/compose/Rive.android.kt`
-- [ ] **Substep 5a**: Set up basic structure with AndroidView + TextureView
-  - [ ] Create TextureView factory
-  - [ ] Set `isOpaque = false` for transparency support
-- [ ] **Substep 5b**: Implement SurfaceTextureListener
-  - [ ] `onSurfaceTextureAvailable`: Create RiveSurface via `RenderContextGL.createSurface(surfaceTexture, ...)`
-  - [ ] `onSurfaceTextureDestroyed`: Set surface to null, return false (we manage cleanup)
-  - [ ] `onSurfaceTextureSizeChanged`: Update width/height state
-  - [ ] `onSurfaceTextureUpdated`: Handle bitmap callback if needed
-- [ ] **Substep 5c**: Implement DisposableEffect for surface cleanup
-  - [ ] Call `riveWorker.destroyRiveSurface(surface)` on dispose
-- [ ] **Substep 5d**: Implement artboard fallback with rememberArtboard
-  - [ ] If artboard param is null, create default artboard
-- [ ] **Substep 5e**: Implement state machine fallback with rememberStateMachine
-  - [ ] If stateMachine param is null, create default state machine
-- [ ] **Substep 5f**: Implement VMI binding with LaunchedEffect
-  - [ ] Subscribe to `viewModelInstance.dirtyFlow` to unsettle on property changes
-  - [ ] Call `riveWorker.bindViewModelInstance()` when VMI or SM changes
-- [ ] **Substep 5g**: Implement settled flow subscription
-  - [ ] Subscribe to `riveWorker.settledFlow.filter { it.handle == stateMachineHandle.handle }`
-  - [ ] Set `isSettled = true` when received
-- [ ] **Substep 5h**: Implement fit/backgroundColor change handling
-  - [ ] LaunchedEffect on fit/backgroundColor to unsettle
-- [ ] **Substep 5i**: Implement artboard resize for Fit.Layout
-  - [ ] LaunchedEffect on fit + surface dimensions
-  - [ ] Call `artboard.resizeArtboard(surface, scaleFactor)` for Layout fit
-  - [ ] Call `artboard.resetArtboardSize()` for other fits
-- [ ] **Substep 5j**: Implement main drawing loop
-  - [ ] LaunchedEffect with keys: lifecycle, surface, handles, fit, playing
-  - [ ] Use `repeatOnLifecycle(Lifecycle.State.RESUMED)`
-  - [ ] Use `withFrameNanos` for frame timing
-  - [ ] Calculate delta time between frames
-  - [ ] Skip advance/draw when `isSettled = true`
-  - [ ] Call `stateMachine.advance(deltaTime)`
-  - [ ] Call `riveWorker.draw(artboardHandle, stateMachineHandle, surface, fit, backgroundColor)`
-- [ ] **Substep 5k**: Implement pointer input handling
-  - [ ] Create custom `PointerInputModifier` + `PointerInputFilter`
-  - [ ] Map Compose pointer events to Rive pointer methods:
-    - `PointerEventType.Move` → `pointerMove`
-    - `PointerEventType.Press` → `pointerDown`
-    - `PointerEventType.Release` → `pointerUp` + `pointerExit`
-    - `PointerEventType.Exit` → `pointerExit`
-  - [ ] Set `isSettled = false` on any pointer event
-  - [ ] Respect `pointerInputMode` for consume/observe/passthrough
-  - [ ] Set `shareWithSiblings = true` for PassThrough mode
-- [ ] **Substep 5l**: Implement SingleChildLayout wrapper
-  - [ ] Simple layout composable that measures single child
-  - [ ] Apply pointer input modifier to this wrapper, not AndroidView
+##### 1.10.4 Create Rive.kt Expect Declaration (commonMain) ✅ COMPLETE
+
+**File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/Rive.kt`
+
+- [x] Created expect composable with full signature
+- [x] Comprehensive KDoc documentation added
+- [x] Parameters: file, modifier, playing, artboard, stateMachine, viewModelInstance, fit, backgroundColor, pointerInputMode
+
+##### 1.10.5 Implement Android Rive.kt (androidMain) ✅ COMPLETE
+
+**File**: `mprive/src/androidMain/kotlin/app/rive/mp/compose/Rive.android.kt`
+
+- [x] **Substep 5a**: AndroidView + TextureView with `isOpaque = false`
+- [x] **Substep 5b**: SurfaceTextureListener fully implemented
+- [x] **Substep 5c**: DisposableEffect for surface cleanup
+- [x] **Substep 5d**: Artboard fallback with rememberArtboard
+- [x] **Substep 5e**: State machine fallback with rememberStateMachine
+- [x] **Substep 5f**: VMI binding with dirtyFlow subscription
+- [x] **Substep 5g**: Settled flow subscription
+- [x] **Substep 5h**: Fit/backgroundColor change handling
+- [x] **Substep 5i**: Artboard resize for Fit.Layout
+- [x] **Substep 5j**: Main drawing loop with lifecycle awareness
+- [x] **Substep 5k**: Pointer input with modern `pointerInput` API
+- [x] **Substep 5l**: SingleChildLayout wrapper implemented
 
 **Key considerations**:
 - Surface lifecycle must be carefully managed to avoid leaks
@@ -447,33 +396,35 @@ sealed class Fit {
 - `kotlin/src/main/kotlin/app/rive/Rive.kt` - Full reference implementation
 - `mprive/src/androidMain/kotlin/app/rive/mp/RenderContext.android.kt` - Surface creation
 
-##### 1.10.6 Create Desktop Stub (desktopMain)
-- [ ] Create file: `mprive/src/desktopMain/kotlin/app/rive/mp/compose/Rive.desktop.kt`
-- [ ] Implement stub that shows a placeholder Box with text "Desktop Rive rendering coming in Phase 4"
-- [ ] Log warning about desktop not being implemented
+##### 1.10.6 Create Desktop Stub (desktopMain) ✅ COMPLETE
 
-##### 1.10.7 Surface Creation Integration
-- [ ] Check if `CommandQueue` needs new method for SurfaceTexture surfaces
-- [ ] Current `createRiveSurface(drawKey)` throws on Android
-- [ ] Access `RenderContextGL` directly via cast from `renderContext`
-- [ ] Alternative: Add `createRiveSurface(surfaceTexture, drawKey)` overload to CommandQueue
+**File**: `mprive/src/desktopMain/kotlin/app/rive/mp/compose/Rive.desktop.kt`
 
-**Check**: `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt` - `createRiveSurface` method
+- [x] Placeholder Box with "Rive Desktop Coming in Phase 4" text
+- [x] Log warning about desktop not being implemented
 
-##### 1.10.8 Verify Draw Method Signature
-- [ ] Check `CommandQueue.draw()` parameters match what Rive.kt needs
-- [ ] Ensure it accepts: artboardHandle, stateMachineHandle, surface, fit, backgroundColor
-- [ ] Alignment passed through Fit sealed class (deferred - uses Center initially)
+##### 1.10.7 Surface Creation Integration ✅ COMPLETE
 
-**Check**: Search for `fun draw` in CommandQueue.kt
+- [x] Using reflection to access RenderContext (working but should be refactored)
+- [x] Creates surface via `RenderContextGL.createSurface(surfaceTexture, drawKey, commandQueue)`
 
-##### 1.10.9 Integration Testing
+**NOTE**: Consider adding a public method to CommandQueue for surface creation to avoid reflection.
+
+##### 1.10.8 Verify Draw Method Signature ✅ COMPLETE
+
+- [x] CommandQueue.draw() accepts all required parameters
+- [x] Fit/Alignment conversion implemented via toCoreEnum() and toCoreAlignment() functions
+
+##### 1.10.9 Integration Testing ⏳ PENDING
+
 - [ ] Create simple test in mpapp that uses the new Rive composable
 - [ ] Verify file loads and renders
 - [ ] Verify touch input works
 - [ ] Verify animation plays
 - [ ] Verify VMI binding works
 - [ ] Test fit modes (Contain, Cover, Fill, Layout)
+
+**This is the recommended next step before proceeding to Phase 2.**
 
 ##### 1.10.1-LATER: Full Alignment Support (DEFERRED)
 
