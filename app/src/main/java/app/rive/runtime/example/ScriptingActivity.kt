@@ -15,9 +15,10 @@ import app.rive.RiveFileSource
 import app.rive.RiveLog
 import app.rive.rememberRiveFile
 import app.rive.rememberRiveWorker
+import app.rive.rememberViewModelInstance
 import android.graphics.Color as AndroidColor
 
-class ComposeAudioActivity : ComponentActivity() {
+class ScriptingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -29,18 +30,23 @@ class ComposeAudioActivity : ComponentActivity() {
         setContent {
             val riveWorker = rememberRiveWorker()
             val riveFile = rememberRiveFile(
-                RiveFileSource.RawRes.from(R.raw.lip_sync_test),
+                RiveFileSource.RawRes.from(R.raw.blinko),
                 riveWorker
             )
 
-            Scaffold(containerColor = Color.Black) { innerPadding ->
+            Scaffold(containerColor = Color(0xFF0C1935)) { innerPadding ->
                 when (riveFile) {
                     is Result.Loading -> LoadingIndicator()
                     is Result.Error -> ErrorMessage(riveFile.throwable)
-                    is Result.Success -> Rive(
-                        riveFile.value,
-                        Modifier.padding(innerPadding)
-                    )
+                    is Result.Success -> {
+                        val file = riveFile.value
+                        val vmi = rememberViewModelInstance(file)
+                        Rive(
+                            riveFile.value,
+                            Modifier.padding(innerPadding),
+                            viewModelInstance = vmi
+                        )
+                    }
                 }
             }
         }
