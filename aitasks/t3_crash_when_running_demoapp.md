@@ -1,0 +1,107 @@
+I am trying to run RiveDemo.kt from the mpapp module and I get the follwoing crash (as logged by logcat)
+can you help me solve the issue?
+
+
+2026-01-18 15:47:09.164 23438-23438 Adreno-AppProfiles      app.rive.mpapp                       E  QSPM AIDL service doesn't exist
+2026-01-18 15:47:09.167 23438-23438 app.rive.mpapp          app.rive.mpapp                       E  No implementation found for long app.rive.mp.RenderContextGL.cppConstructor(long, long) (tried Java_app_rive_mp_RenderContextGL_cppConstructor and Java_app_rive_mp_RenderContextGL_cppConstructor__JJ) - is the library loaded, e.g. System.loadLibrary?
+2026-01-18 15:47:09.170 23438-23438 ComposeInternal         app.rive.mpapp                       E  Error was captured in composition.
+app.rive.mp.RiveInitializationException: Failed to create Rive worker
+at app.rive.mp.compose.RememberRiveWorkerKt.rememberRiveWorker(RememberRiveWorker.kt:47)
+at app.rive.mpapp.RiveDemoKt.RiveContent(RiveDemo.kt:135)
+at app.rive.mpapp.RiveDemoKt.RiveDemo(RiveDemo.kt:70)
+at app.rive.mpapp.AppKt$App$1$1.invoke(App.kt:39)
+at app.rive.mpapp.AppKt$App$1$1.invoke(App.kt:33)
+at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:122)
+at androidx.compose.runtime.internal.ComposableLambdaImpl$invoke$1.invoke(ComposableLambda.kt:123)
+at androidx.compose.runtime.internal.ComposableLambdaImpl$invoke$1.invoke(ComposableLambda.kt:123)
+at androidx.compose.runtime.RecomposeScopeImpl.compose(RecomposeScopeImpl.kt:201)
+at androidx.compose.runtime.ComposerImpl.recomposeToGroupEnd(ComposerImpl.kt:1690)
+at androidx.compose.runtime.ComposerImpl.skipCurrentGroup(ComposerImpl.kt:2026)
+at androidx.compose.runtime.ComposerImpl.doCompose-aFTiNEg(ComposerImpl.kt:2659)
+at androidx.compose.runtime.ComposerImpl.recompose-aFTiNEg$runtime(ComposerImpl.kt:2583)
+at androidx.compose.runtime.CompositionImpl.recompose(Composition.kt:1080)
+at androidx.compose.runtime.Recomposer.performRecompose(Recomposer.kt:1406)
+at androidx.compose.runtime.Recomposer.access$performRecompose(Recomposer.kt:159)
+at androidx.compose.runtime.Recomposer$runRecomposeAndApplyChanges$2.invokeSuspend$lambda$2(Recomposer.kt:638)
+at androidx.compose.runtime.Recomposer$runRecomposeAndApplyChanges$2.$r8$lambda$sdKIQuFT6MpOW8QdHT9yWSawFoM(Unknown Source:0)
+at androidx.compose.runtime.Recomposer$runRecomposeAndApplyChanges$2$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+at androidx.compose.ui.platform.AndroidUiFrameClock$withFrameNanos$2$callback$1.doFrame(AndroidUiFrameClock.android.kt:39)
+at androidx.compose.ui.platform.AndroidUiDispatcher.performFrameDispatch(AndroidUiDispatcher.android.kt:108)
+at androidx.compose.ui.platform.AndroidUiDispatcher.access$performFrameDispatch(AndroidUiDispatcher.android.kt:41)
+at androidx.compose.ui.platform.AndroidUiDispatcher$dispatchCallback$1.doFrame(AndroidUiDispatcher.android.kt:69)
+at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1899)
+at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1910)
+at android.view.Choreographer.doCallbacks(Choreographer.java:1367)
+at android.view.Choreographer.doFrame(Choreographer.java:1282)
+at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1870)
+at android.os.Handler.handleCallback(Handler.java:995)
+at android.os.Handler.dispatchMessage(Handler.java:103)
+at android.os.Looper.loopOnce(Looper.java:273)
+at android.os.Looper.loop(Looper.java:363)
+at android.app.ActivityThread.main(ActivityThread.java:10060)
+at java.lang.reflect.Method.invoke(Native Method)
+at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:632)
+at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:975)
+Caused by: java.lang.UnsatisfiedLinkError: No implementation found for long app.rive.mp.RenderContextGL.cppConstructor(long, long) (tried Java_app_rive_mp_RenderContextGL_cppConstructor and Java_app_rive_mp_RenderContextGL_cppConstructor__JJ) - is the library loaded, e.g. System.loadLibrary?
+at app.rive.mp.RenderContextGL.cppConstructor(Native Method)
+at app.rive.mp.RenderContextGL.<init>(RenderContext.android.kt:191)
+at app.rive.mp.RenderContextGL.<init>(RenderContext.android.kt:53)
+at app.rive.mp.RenderContext_androidKt.createDefaultRenderContext(RenderContext.android.kt:420)
+at app.rive.mp.CommandQueue.<init>(CommandQueue.kt:47)
+at app.rive.mp.compose.RememberRiveWorkerKt.rememberRiveWorkerOrNull(RememberRiveWorker.kt:75)
+at app.rive.mp.compose.RememberRiveWorkerKt.rememberRiveWorker(RememberRiveWorker.kt:46)
+... 35 more
+2026-01-18 15:47:09.171 23438-23438 View                    app.rive.mpapp                       I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{97122ff VFED..... ........ 0,0-1080,2340 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3822 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:2114 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175
+2026-01-18 15:47:09.172 23438-23438 View                    app.rive.mpapp                       I  setRequestedFrameRate frameRate=NaN, this=android.view.View{96cb1ff V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3822 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:2115 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794
+2026-01-18 15:47:09.202 23438-23438 AndroidRuntime          app.rive.mpapp                       E  FATAL EXCEPTION: main
+Process: app.rive.mpapp, PID: 23438
+app.rive.mp.RiveInitializationException: Failed to create Rive worker
+at app.rive.mp.compose.RememberRiveWorkerKt.rememberRiveWorker(RememberRiveWorker.kt:47)
+at app.rive.mpapp.RiveDemoKt.RiveContent(RiveDemo.kt:135)
+at app.rive.mpapp.RiveDemoKt.RiveDemo(RiveDemo.kt:70)
+at app.rive.mpapp.AppKt$App$1$1.invoke(App.kt:39)
+at app.rive.mpapp.AppKt$App$1$1.invoke(App.kt:33)
+at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:122)
+at androidx.compose.runtime.internal.ComposableLambdaImpl$invoke$1.invoke(ComposableLambda.kt:123)
+at androidx.compose.runtime.internal.ComposableLambdaImpl$invoke$1.invoke(ComposableLambda.kt:123)
+at androidx.compose.runtime.RecomposeScopeImpl.compose(RecomposeScopeImpl.kt:201)
+at androidx.compose.runtime.ComposerImpl.recomposeToGroupEnd(ComposerImpl.kt:1690)
+at androidx.compose.runtime.ComposerImpl.skipCurrentGroup(ComposerImpl.kt:2026)
+at androidx.compose.runtime.ComposerImpl.doCompose-aFTiNEg(ComposerImpl.kt:2659)
+at androidx.compose.runtime.ComposerImpl.recompose-aFTiNEg$runtime(ComposerImpl.kt:2583)
+at androidx.compose.runtime.CompositionImpl.recompose(Composition.kt:1080)
+at androidx.compose.runtime.Recomposer.performRecompose(Recomposer.kt:1406)
+at androidx.compose.runtime.Recomposer.access$performRecompose(Recomposer.kt:159)
+at androidx.compose.runtime.Recomposer$runRecomposeAndApplyChanges$2.invokeSuspend$lambda$2(Recomposer.kt:638)
+at androidx.compose.runtime.Recomposer$runRecomposeAndApplyChanges$2.$r8$lambda$sdKIQuFT6MpOW8QdHT9yWSawFoM(Unknown Source:0)
+at androidx.compose.runtime.Recomposer$runRecomposeAndApplyChanges$2$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+at androidx.compose.ui.platform.AndroidUiFrameClock$withFrameNanos$2$callback$1.doFrame(AndroidUiFrameClock.android.kt:39)
+at androidx.compose.ui.platform.AndroidUiDispatcher.performFrameDispatch(AndroidUiDispatcher.android.kt:108)
+at androidx.compose.ui.platform.AndroidUiDispatcher.access$performFrameDispatch(AndroidUiDispatcher.android.kt:41)
+at androidx.compose.ui.platform.AndroidUiDispatcher$dispatchCallback$1.doFrame(AndroidUiDispatcher.android.kt:69)
+at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1899)
+at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1910)
+at android.view.Choreographer.doCallbacks(Choreographer.java:1367)
+at android.view.Choreographer.doFrame(Choreographer.java:1282)
+at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1870)
+at android.os.Handler.handleCallback(Handler.java:995)
+at android.os.Handler.dispatchMessage(Handler.java:103)
+at android.os.Looper.loopOnce(Looper.java:273)
+at android.os.Looper.loop(Looper.java:363)
+at android.app.ActivityThread.main(ActivityThread.java:10060)
+at java.lang.reflect.Method.invoke(Native Method)
+at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:632)
+at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:975)
+Suppressed: kotlinx.coroutines.internal.DiagnosticCoroutineContextException: [androidx.compose.runtime.PausableMonotonicFrameClock@b52606, androidx.compose.ui.platform.MotionDurationScaleImpl@d5b34c7, StandaloneCoroutine{Cancelling}@2d44af4, AndroidUiDispatcher@ff2721d]
+Caused by: java.lang.UnsatisfiedLinkError: No implementation found for long app.rive.mp.RenderContextGL.cppConstructor(long, long) (tried Java_app_rive_mp_RenderContextGL_cppConstructor and Java_app_rive_mp_RenderContextGL_cppConstructor__JJ) - is the library loaded, e.g. System.loadLibrary?
+at app.rive.mp.RenderContextGL.cppConstructor(Native Method)
+at app.rive.mp.RenderContextGL.<init>(RenderContext.android.kt:191)
+at app.rive.mp.RenderContextGL.<init>(RenderContext.android.kt:53)
+at app.rive.mp.RenderContext_androidKt.createDefaultRenderContext(RenderContext.android.kt:420)
+at app.rive.mp.CommandQueue.<init>(CommandQueue.kt:47)
+2026-01-18 15:47:09.202 23438-23438 AndroidRuntime          app.rive.mpapp                       E  	at app.rive.mp.compose.RememberRiveWorkerKt.rememberRiveWorkerOrNull(RememberRiveWorker.kt:75)
+at app.rive.mp.compose.RememberRiveWorkerKt.rememberRiveWorker(RememberRiveWorker.kt:46)
+... 35 more
+2026-01-18 15:47:09.335  1777-1777  SurfaceFlinger          surfaceflinger                       E  alpha changed 1.000 -> 0.000 - Surface(name=f531e7 Application Error: app.rive.mpapp)/@0x60cc148 - animation-leash of window_animation#6546
+2026-01-18 15:47:09.335  1777-1777  SurfaceFlinger          surfaceflinger                       E  alpha changed 0.000 -> 0.000 - Surface(name=f531e7 Application Error: app.rive.mpapp)/@0x60cc148 - animation-leash of window_animation#6546
+2026-01-18 15:47:09.346  1777-1777  SurfaceFlinger          surfaceflinger                       E  alpha changed 0.000 -> 0.094 - Surface(name=f531e7 Application Error: app.rive.mpapp)/@0x60cc148 - animation-leash of window_animation#6546
