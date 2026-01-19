@@ -3,17 +3,18 @@
 extern "C" {
 
 /**
- * Creates the default state machine from an artboard.
+ * Creates the default state machine from an artboard (SYNCHRONOUS).
  * 
- * JNI signature: cppCreateDefaultStateMachine(ptr: Long, requestID: Long, artboardHandle: Long): Unit
+ * JNI signature: cppCreateDefaultStateMachine(ptr: Long, requestID: Long, artboardHandle: Long): Long
  * 
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
- * @param requestID The request ID for async completion.
+ * @param requestID The request ID (unused for sync operations).
  * @param artboardHandle The handle of the artboard to create state machine from.
+ * @return The state machine handle, or 0 if creation failed.
  */
-JNIEXPORT void JNICALL
+JNIEXPORT jlong JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultStateMachine(
     JNIEnv* env,
     jobject thiz,
@@ -24,25 +25,26 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateDefaultStateMachine(
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
         LOGW("CommandQueue JNI: Attempted to create default state machine on null CommandServer");
-        return;
+        return 0;
     }
     
-    server->createDefaultStateMachine(static_cast<int64_t>(requestID), static_cast<int64_t>(artboardHandle));
+    return static_cast<jlong>(server->createDefaultStateMachineSync(static_cast<int64_t>(artboardHandle)));
 }
 
 /**
- * Creates a state machine by name from an artboard.
+ * Creates a state machine by name from an artboard (SYNCHRONOUS).
  * 
- * JNI signature: cppCreateStateMachineByName(ptr: Long, requestID: Long, artboardHandle: Long, name: String): Unit
+ * JNI signature: cppCreateStateMachineByName(ptr: Long, requestID: Long, artboardHandle: Long, name: String): Long
  * 
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
- * @param requestID The request ID for async completion.
+ * @param requestID The request ID (unused for sync operations).
  * @param artboardHandle The handle of the artboard to create state machine from.
  * @param name The name of the state machine to create.
+ * @return The state machine handle, or 0 if creation failed.
  */
-JNIEXPORT void JNICALL
+JNIEXPORT jlong JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateStateMachineByName(
     JNIEnv* env,
     jobject thiz,
@@ -54,7 +56,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateStateMachineByName(
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
         LOGW("CommandQueue JNI: Attempted to create state machine by name on null CommandServer");
-        return;
+        return 0;
     }
     
     // Convert Java string to C++ string
@@ -62,7 +64,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateStateMachineByName(
     std::string smName(nameChars);
     env->ReleaseStringUTFChars(name, nameChars);
     
-    server->createStateMachineByName(static_cast<int64_t>(requestID), static_cast<int64_t>(artboardHandle), smName);
+    return static_cast<jlong>(server->createStateMachineByNameSync(static_cast<int64_t>(artboardHandle), smName));
 }
 
 /**

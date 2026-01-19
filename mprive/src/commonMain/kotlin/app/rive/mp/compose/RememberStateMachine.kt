@@ -5,6 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import app.rive.mp.Artboard
 import app.rive.mp.ExperimentalRiveComposeAPI
+import app.rive.mp.RiveLog
 import app.rive.mp.StateMachine
 
 /**
@@ -49,6 +50,44 @@ fun rememberStateMachine(
 
     DisposableEffect(stateMachine) {
         onDispose { stateMachine.close() }
+    }
+
+    return stateMachine
+}
+
+private const val TAG = "Rive/SM"
+
+/**
+ * Creates a [StateMachine] from the given [Artboard], or returns null if no state machines exist.
+ *
+ * This is useful when you want to handle artboards that may or may not have state machines.
+ * For artboards with only simple animations (no state machines), this will return null
+ * and you can still render the artboard without interactivity.
+ *
+ * @param artboard The [Artboard] to create the state machine from.
+ * @param stateMachineName The name of the state machine to load. If null, the default state machine
+ *    will be loaded.
+ * @return The created [StateMachine], or null if no state machines exist in the artboard.
+ *
+ * @see rememberStateMachine For the non-nullable version that throws on missing state machines.
+ */
+@ExperimentalRiveComposeAPI
+@Composable
+fun rememberStateMachineOrNull(
+    artboard: Artboard,
+    stateMachineName: String? = null,
+): StateMachine? {
+    val stateMachine = remember(artboard, stateMachineName) {
+        try {
+            StateMachine.fromArtboard(artboard, stateMachineName)
+        } catch (e: IllegalArgumentException) {
+            RiveLog.w(TAG) { "No state machines in artboard: ${e.message}" }
+            null
+        }
+    }
+
+    DisposableEffect(stateMachine) {
+        onDispose { stateMachine?.close() }
     }
 
     return stateMachine

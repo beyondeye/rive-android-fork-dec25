@@ -26,6 +26,7 @@ import app.rive.mp.RiveFile
 import app.rive.mp.RiveLog
 import app.rive.mp.RiveSurface
 import app.rive.mp.StateMachine
+import app.rive.mp.StateMachineHandle
 import app.rive.mp.ViewModelInstance
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.isActive
@@ -99,10 +100,10 @@ actual fun Rive(
     val artboardToUse = artboard ?: rememberArtboard(file)
     val artboardHandle = artboardToUse.artboardHandle
 
-    // Use provided state machine or create a default one
-    val stateMachineToUse = stateMachine ?: rememberStateMachine(artboardToUse)
-    val stateMachineHandle = stateMachineToUse.stateMachineHandle
-    var isSettled by remember(stateMachineHandle) { mutableStateOf(false) }
+    // Use provided state machine or try to create a default one (may be null if artboard has no state machines)
+    val stateMachineToUse = stateMachine ?: rememberStateMachineOrNull(artboardToUse)
+    val stateMachineHandle = stateMachineToUse?.stateMachineHandle ?: StateMachineHandle(0)
+    var isSettled by remember(stateMachineHandle) { mutableStateOf(stateMachineToUse == null) }
 
     var surface by remember { mutableStateOf<RiveSurface?>(null) }
     var surfaceWidth by remember { mutableIntStateOf(0) }
@@ -194,7 +195,7 @@ actual fun Rive(
 
             // Advance the state machine once to exit the "Entry" state and apply initial values,
             // including any pending artboard resizes from the fit mode.
-            stateMachineToUse.advance(0.nanoseconds)
+            stateMachineToUse?.advance(0.nanoseconds)
             riveWorker.draw(
                 artboardHandle,
                 stateMachineHandle,
@@ -223,7 +224,7 @@ actual fun Rive(
                     continue
                 }
 
-                stateMachineToUse.advance(deltaTime)
+                stateMachineToUse?.advance(deltaTime)
                 riveWorker.draw(
                     artboardHandle,
                     stateMachineHandle,

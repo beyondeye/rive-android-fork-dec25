@@ -18,6 +18,51 @@ void CommandServer::createDefaultStateMachine(int64_t requestID, int64_t artboar
     enqueueCommand(std::move(cmd));
 }
 
+int64_t CommandServer::createDefaultStateMachineSync(int64_t artboardHandle)
+{
+    LOGI("CommandServer: Creating default state machine synchronously (artboardHandle=%lld)",
+         static_cast<long long>(artboardHandle));
+    
+    // Lock resource mutex for thread-safe access to resource maps
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    
+    auto it = m_artboards.find(artboardHandle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(artboardHandle));
+        return 0;
+    }
+    
+    // Log state machine count for debugging
+    auto& artboard = it->second;
+    size_t smCount = artboard->stateMachineCount();
+    LOGI("CommandServer: Artboard has %zu state machines", smCount);
+    
+    if (smCount == 0) {
+        // No state machines in this artboard - check for animations instead
+        size_t animCount = artboard->animationCount();
+        LOGW("CommandServer: Artboard has no state machines (has %zu animations)", animCount);
+        return 0;
+    }
+    
+    // Create the default state machine
+    auto sm = artboard->defaultStateMachine();
+    if (!sm) {
+        LOGW("CommandServer: Failed to create default state machine (defaultStateMachine() returned null)");
+        return 0;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the state machine
+    m_stateMachines[handle] = std::move(sm);
+    
+    LOGI("CommandServer: State machine created synchronously (handle=%lld)", 
+         static_cast<long long>(handle));
+    
+    return handle;
+}
+
 void CommandServer::createStateMachineByName(int64_t requestID, int64_t artboardHandle, const std::string& name)
 {
     LOGI("CommandServer: Enqueuing CreateStateMachineByName command (requestID=%lld, artboardHandle=%lld, name=%s)",
@@ -28,6 +73,39 @@ void CommandServer::createStateMachineByName(int64_t requestID, int64_t artboard
     cmd.name = name;
     
     enqueueCommand(std::move(cmd));
+}
+
+int64_t CommandServer::createStateMachineByNameSync(int64_t artboardHandle, const std::string& name)
+{
+    LOGI("CommandServer: Creating state machine by name synchronously (artboardHandle=%lld, name=%s)",
+         static_cast<long long>(artboardHandle), name.c_str());
+    
+    // Lock resource mutex for thread-safe access to resource maps
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    
+    auto it = m_artboards.find(artboardHandle);
+    if (it == m_artboards.end()) {
+        LOGW("CommandServer: Invalid artboard handle: %lld", static_cast<long long>(artboardHandle));
+        return 0;
+    }
+    
+    // Create the state machine by name
+    auto sm = it->second->stateMachineNamed(name);
+    if (!sm) {
+        LOGW("CommandServer: Failed to create state machine with name: %s", name.c_str());
+        return 0;
+    }
+    
+    // Generate a unique handle
+    int64_t handle = m_nextHandle.fetch_add(1);
+    
+    // Store the state machine
+    m_stateMachines[handle] = std::move(sm);
+    
+    LOGI("CommandServer: State machine created synchronously (handle=%lld, name=%s)", 
+         static_cast<long long>(handle), name.c_str());
+    
+    return handle;
 }
 
 void CommandServer::advanceStateMachine(int64_t smHandle, float deltaTime)

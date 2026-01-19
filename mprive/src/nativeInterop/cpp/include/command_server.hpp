@@ -245,6 +245,14 @@ public:
     void createDefaultStateMachine(int64_t requestID, int64_t artboardHandle);
     
     /**
+     * Creates the default state machine synchronously (called from JNI thread).
+     * 
+     * @param artboardHandle The handle of the artboard to create state machine from.
+     * @return The state machine handle, or 0 if creation failed.
+     */
+    int64_t createDefaultStateMachineSync(int64_t artboardHandle);
+    
+    /**
      * Enqueues a CreateStateMachineByName command.
      * 
      * @param requestID The request ID for async completion.
@@ -252,6 +260,15 @@ public:
      * @param name The name of the state machine to create.
      */
     void createStateMachineByName(int64_t requestID, int64_t artboardHandle, const std::string& name);
+    
+    /**
+     * Creates a state machine by name synchronously (called from JNI thread).
+     * 
+     * @param artboardHandle The handle of the artboard to create state machine from.
+     * @param name The name of the state machine to create.
+     * @return The state machine handle, or 0 if creation failed.
+     */
+    int64_t createStateMachineByNameSync(int64_t artboardHandle, const std::string& name);
     
     /**
      * Enqueues an AdvanceStateMachine command.

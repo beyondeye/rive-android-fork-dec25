@@ -1131,6 +1131,17 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
                 }
                 break;
 
+            // Phase C.2.6: Draw operation results (fire-and-forget, just log)
+            case rive_android::MessageType::DrawComplete:
+                LOGI("CommandQueue JNI: Draw completed (drawKey=%lld)", static_cast<long long>(msg.handle));
+                break;
+
+            case rive_android::MessageType::DrawError:
+                {
+                    LOGW("CommandQueue JNI: Draw error: %s", msg.error.c_str());
+                }
+                break;
+
             default:
                 {
                     std::string errorMsg = "CommandQueue JNI: Unknown message type: " + 
