@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace rive_android {
 
@@ -105,6 +106,8 @@ enum class CommandType {
     DeleteFont,               // Delete a decoded font
     RegisterFont,             // Register font by name for asset loading
     UnregisterFont,           // Unregister font by name
+    // Synchronous execution on worker thread
+    RunOnce,                  // Execute a function on the worker thread (for GL operations)
 };
 
 /**
@@ -314,6 +317,9 @@ struct Command {
     int32_t pointerID = 0;       // For pointer events (multi-touch support)
     float pointerX = 0.0f;       // For pointer events (x coordinate)
     float pointerY = 0.0f;       // For pointer events (y coordinate)
+
+    // RunOnce callback (Phase C.2.6 - synchronous GL operations)
+    std::function<void()> runOnceCallback;
 
     Command() = default;
     explicit Command(CommandType t, int64_t reqID = 0) 

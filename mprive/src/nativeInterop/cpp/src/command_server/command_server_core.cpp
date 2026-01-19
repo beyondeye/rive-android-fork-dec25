@@ -1,5 +1,6 @@
 #include "command_server.hpp"
 #include "rive_log.hpp"
+#include <future>
 
 namespace rive_android {
 
@@ -50,6 +51,26 @@ void CommandServer::enqueueCommand(Command cmd)
         m_commandQueue.push(std::move(cmd));
     }
     m_cv.notify_one();
+}
+
+void CommandServer::runOnce(std::function<void()> func)
+{
+    // Use a promise/future to make this synchronous
+    auto promise = std::make_shared<std::promise<void>>();
+    std::future<void> future = promise->get_future();
+
+    // Create a RunOnce command with a callback that signals completion
+    Command cmd(CommandType::RunOnce);
+    cmd.runOnceCallback = [func = std::move(func), promise]() {
+        func();
+        promise->set_value();
+    };
+
+    // Enqueue the command
+    enqueueCommand(std::move(cmd));
+
+    // Wait for completion - this blocks the calling thread until the worker thread executes the callback
+    future.wait();
 }
 
 void CommandServer::commandLoop()
@@ -415,6 +436,14 @@ void CommandServer::executeCommand(const Command& cmd)
 
         case CommandType::UnregisterFont:
             handleUnregisterFont(cmd);
+            break;
+
+        // Synchronous execution on worker thread
+        case CommandType::RunOnce:
+            if (cmd.runOnceCallback) {
+                LOGI("CommandServer: Executing RunOnce callback");
+                cmd.runOnceCallback();
+            }
             break;
 
         default:

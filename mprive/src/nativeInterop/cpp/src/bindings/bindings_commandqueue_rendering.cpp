@@ -1,6 +1,73 @@
 #include "bindings_commandqueue_internal.hpp"
+#include "rive/renderer/gl/render_target_gl.hpp"
+#include <GLES3/gl3.h>
+#include <future>
 
 extern "C" {
+
+// =============================================================================
+// Phase C.2.6: Synchronous Render Target Creation
+// =============================================================================
+
+/**
+ * Creates a Rive render target synchronously on the command server thread.
+ * This function blocks until the render target is created on the worker thread
+ * where the GL context is active.
+ *
+ * This matches the original rive-android implementation pattern using runOnce
+ * to execute GL operations on the command server thread.
+ *
+ * JNI signature: cppCreateRiveRenderTarget(ptr: Long, width: Int, height: Int): Long
+ *
+ * @param env The JNI environment.
+ * @param thiz The Java CommandQueue object.
+ * @param ptr The native pointer to the CommandServer.
+ * @param width The width of the render target in pixels.
+ * @param height The height of the render target in pixels.
+ * @return The native pointer to the created FramebufferRenderTargetGL.
+ */
+JNIEXPORT jlong JNICALL
+Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateRiveRenderTarget(
+    JNIEnv* env,
+    jobject thiz,
+    jlong ptr,
+    jint width,
+    jint height
+) {
+    auto* server = reinterpret_cast<CommandServer*>(ptr);
+    if (server == nullptr) {
+        LOGW("CommandQueue JNI: Attempted to create Rive render target on null CommandServer");
+        return 0L;
+    }
+
+    // Use a promise/future to make this synchronous and return the result
+    auto promise = std::make_shared<std::promise<jlong>>();
+    std::future<jlong> future = promise->get_future();
+
+    // Use runOnce to execute on the command server thread where GL context is active
+    server->runOnce([width, height, promise]() {
+        // Query sample count from the current GL context
+        GLint actualSampleCount = 1;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glGetIntegerv(GL_SAMPLES, &actualSampleCount);
+        
+        LOGD("Creating Rive render target on command server thread (%dx%d, sample count: %d)",
+             width, height, actualSampleCount);
+
+        // Create a FramebufferRenderTargetGL targeting FBO 0 (the EGL window surface)
+        auto* renderTarget = new rive::gpu::FramebufferRenderTargetGL(
+            static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height),
+            0,  // FBO 0 = EGL surface's default framebuffer
+            static_cast<uint32_t>(actualSampleCount)
+        );
+
+        promise->set_value(reinterpret_cast<jlong>(renderTarget));
+    });
+
+    // Wait for the result - blocks the calling thread until complete
+    return future.get();
+}
 
 // =============================================================================
 // Phase C.2.3: Render Target Operations

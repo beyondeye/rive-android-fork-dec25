@@ -75,6 +75,15 @@ public:
     void enqueueCommand(Command cmd);
     
     /**
+     * Executes a function on the worker thread where the GL context is active.
+     * This is used for operations that require OpenGL (like creating render targets).
+     * The function is executed synchronously - this call blocks until the function completes.
+     *
+     * @param func The function to execute on the worker thread.
+     */
+    void runOnce(std::function<void()> func);
+    
+    /**
      * Polls for messages from the command server.
      * Delivers pending messages to Kotlin via JNI callbacks.
      */
