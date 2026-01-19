@@ -46,8 +46,16 @@ int64_t CommandServer::createDefaultStateMachineSync(int64_t artboardHandle)
     
     // Create the default state machine
     auto sm = artboard->defaultStateMachine();
+    
+    // Fallback to first state machine if defaultStateMachine() returns null
+    // This matches the behavior of rive's ArtboardInstance::defaultScene()
+    if (!sm && smCount > 0) {
+        LOGI("CommandServer: defaultStateMachine() returned null, falling back to stateMachineAt(0)");
+        sm = artboard->stateMachineAt(0);
+    }
+    
     if (!sm) {
-        LOGW("CommandServer: Failed to create default state machine (defaultStateMachine() returned null)");
+        LOGW("CommandServer: Failed to create state machine (stateMachineAt(0) also returned null)");
         return 0;
     }
     
@@ -149,8 +157,16 @@ void CommandServer::handleCreateDefaultStateMachine(const Command& cmd)
     
     // Create the default state machine
     auto sm = it->second->defaultStateMachine();
+    
+    // Fallback to first state machine if defaultStateMachine() returns null
+    // This matches the behavior of rive's ArtboardInstance::defaultScene()
+    if (!sm && it->second->stateMachineCount() > 0) {
+        LOGI("CommandServer: defaultStateMachine() returned null, falling back to stateMachineAt(0)");
+        sm = it->second->stateMachineAt(0);
+    }
+    
     if (!sm) {
-        LOGW("CommandServer: Failed to create default state machine");
+        LOGW("CommandServer: Failed to create state machine (no state machines available or stateMachineAt(0) returned null)");
         
         Message msg(MessageType::StateMachineError, cmd.requestID);
         msg.error = "Failed to create default state machine";
