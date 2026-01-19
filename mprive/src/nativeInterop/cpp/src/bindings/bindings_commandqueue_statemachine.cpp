@@ -68,23 +68,23 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateStateMachineByName(
 /**
  * Advances a state machine by a time delta.
  * 
- * JNI signature: cppAdvanceStateMachine(ptr: Long, requestID: Long, smHandle: Long, deltaTimeSeconds: Float): Unit
+ * JNI signature: cppAdvanceStateMachine(ptr: Long, smHandle: Long, deltaTimeNs: Long): Unit
+ * 
+ * This matches the kotlin/src/main reference implementation.
  * 
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
- * @param requestID The request ID for async completion.
  * @param smHandle The handle of the state machine to advance.
- * @param deltaTimeSeconds The time delta in seconds.
+ * @param deltaTimeNs The time delta in nanoseconds.
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppAdvanceStateMachine(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong smHandle,
-    jfloat deltaTimeSeconds
+    jlong deltaTimeNs
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
@@ -92,7 +92,9 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppAdvanceStateMachine(
         return;
     }
     
-    server->advanceStateMachine(static_cast<int64_t>(requestID), static_cast<int64_t>(smHandle), static_cast<float>(deltaTimeSeconds));
+    // Convert nanoseconds to seconds for the server
+    float deltaTimeSeconds = static_cast<float>(deltaTimeNs) / 1000000000.0f;
+    server->advanceStateMachine(static_cast<int64_t>(smHandle), deltaTimeSeconds);
 }
 
 /**

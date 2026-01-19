@@ -30,12 +30,13 @@ void CommandServer::createStateMachineByName(int64_t requestID, int64_t artboard
     enqueueCommand(std::move(cmd));
 }
 
-void CommandServer::advanceStateMachine(int64_t requestID, int64_t smHandle, float deltaTime)
+void CommandServer::advanceStateMachine(int64_t smHandle, float deltaTime)
 {
-    LOGI("CommandServer: Enqueuing AdvanceStateMachine command (requestID=%lld, smHandle=%lld, deltaTime=%f)",
-         static_cast<long long>(requestID), static_cast<long long>(smHandle), deltaTime);
+    LOGI("CommandServer: Enqueuing AdvanceStateMachine command (smHandle=%lld, deltaTime=%f)",
+         static_cast<long long>(smHandle), deltaTime);
     
-    Command cmd(CommandType::AdvanceStateMachine, requestID);
+    // Fire-and-forget operation - no requestID needed (matches kotlin/src/main reference)
+    Command cmd(CommandType::AdvanceStateMachine, 0);  // requestID=0 for fire-and-forget
     cmd.handle = smHandle;
     cmd.deltaTime = deltaTime;
     
@@ -137,16 +138,13 @@ void CommandServer::handleCreateStateMachineByName(const Command& cmd)
 
 void CommandServer::handleAdvanceStateMachine(const Command& cmd)
 {
-    LOGI("CommandServer: Handling AdvanceStateMachine command (requestID=%lld, smHandle=%lld, deltaTime=%f)",
-         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.deltaTime);
+    LOGI("CommandServer: Handling AdvanceStateMachine command (smHandle=%lld, deltaTime=%f)",
+         static_cast<long long>(cmd.handle), cmd.deltaTime);
     
     auto it = m_stateMachines.find(cmd.handle);
     if (it == m_stateMachines.end()) {
+        // Fire-and-forget - just log warning, no error message (matches reference)
         LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
-        
-        Message msg(MessageType::StateMachineError, cmd.requestID);
-        msg.error = "Invalid state machine handle";
-        enqueueMessage(std::move(msg));
         return;
     }
     
@@ -159,12 +157,8 @@ void CommandServer::handleAdvanceStateMachine(const Command& cmd)
     LOGI("CommandServer: State machine advanced (handle=%lld, settled=%d)", 
          static_cast<long long>(cmd.handle), settled);
     
-    // If settled, send settled message
-    if (settled) {
-        Message msg(MessageType::StateMachineSettled, cmd.requestID);
-        msg.handle = cmd.handle;
-        enqueueMessage(std::move(msg));
-    }
+    // Note: In fire-and-forget mode, we don't send settled messages
+    // The reference implementation doesn't send these either
 }
 
 void CommandServer::handleDeleteStateMachine(const Command& cmd)

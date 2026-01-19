@@ -256,11 +256,13 @@ public:
     /**
      * Enqueues an AdvanceStateMachine command.
      * 
-     * @param requestID The request ID for async completion.
+     * This matches the kotlin/src/main reference implementation.
+     * No requestID needed - this is a fire-and-forget operation.
+     * 
      * @param smHandle The handle of the state machine to advance.
      * @param deltaTime The time delta in seconds.
      */
-    void advanceStateMachine(int64_t requestID, int64_t smHandle, float deltaTime);
+    void advanceStateMachine(int64_t smHandle, float deltaTime);
     
     /**
      * Enqueues a DeleteStateMachine command.
