@@ -1,7 +1,7 @@
 # Task: Solve Grey Box Rendering Issue in mprive RiveDemo
 
 **Date**: January 19, 2026
-**Status**: 🔄 In Progress (Diagnostic Phase)
+**Status**: ✅ SOLVED
 **Related**: t3_crash_when_running_demoapp.md
 
 ---
@@ -262,6 +262,93 @@ CommandServer: Draw command completed successfully
 
 ---
 
+## SOLUTION IMPLEMENTED (January 19, 2026)
+
+### Root Cause
+
+The grey box was caused by **using `NoOpFactory` instead of the GPU render context's factory** when loading Rive files.
+
+In `command_server_file.cpp::handleLoadFile()`, there was a TODO comment that was never completed:
+
+```cpp
+if (m_renderContext != nullptr) {
+    // TODO: Get factory from render context in Phase C  ← NEVER COMPLETED!
+    // factory = static_cast<RenderContext*>(m_renderContext)->getFactory();
+}
+if (factory == nullptr) {
+    // ALWAYS fell through to here!
+    factory = m_noOpFactory.get();
+}
+```
+
+**What `NoOpFactory` does**: Creates dummy/no-op render objects (paths, paints, images) that don't actually render anything. The file loads correctly, artboards and state machines work, but all visual content becomes invisible!
+
+### Fix Applied
+
+**1. Added `getFactory()` method to `RenderContext` base class** (`render_context.hpp`)
+
+```cpp
+virtual rive::Factory* getFactory() const
+{
+    return riveContext ? riveContext.get() : nullptr;
+}
+```
+
+This is multiplatform-ready:
+- `rive::gpu::RenderContext` (stored as `riveContext`) inherits from `rive::Factory`
+- Works on all platforms (Android, Desktop, iOS, WASM)
+- Virtual method allows platform-specific overrides if needed (e.g., custom image decoding)
+
+**2. Updated `handleLoadFile` to use `getFactory()`** (`command_server_file.cpp`)
+
+```cpp
+rive::Factory* factory = nullptr;
+if (m_renderContext != nullptr) {
+    auto* renderContext = static_cast<rive_mp::RenderContext*>(m_renderContext);
+    factory = renderContext->getFactory();
+    if (factory != nullptr) {
+        LOGI("CommandServer: Using GPU factory from RenderContext");
+    }
+}
+if (factory == nullptr) {
+    LOGW("CommandServer: No GPU factory available, using NoOpFactory (content will not render)");
+    // ...fallback to NoOpFactory
+}
+```
+
+### Why This Works
+
+1. `rive::gpu::RenderContext` inherits from `rive::Factory`
+2. When Rive imports a file, it uses the factory to create render objects
+3. With `NoOpFactory`: Creates no-op objects → nothing renders
+4. With `riveContext`: Creates GPU-accelerated render objects → proper rendering
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `mprive/src/nativeInterop/cpp/include/render_context.hpp` | Added `getFactory()` method with comprehensive multiplatform documentation |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_file.cpp` | Updated `handleLoadFile()` to use `getFactory()`, added include for `render_context.hpp` |
+
+### Multiplatform Considerations
+
+The fix is designed to be multiplatform-friendly:
+
+1. **Abstract base class pattern**: `getFactory()` is on the abstract `RenderContext` base class
+2. **Virtual method**: Can be overridden for platform-specific behavior (e.g., custom image decoding wrapper)
+3. **Common denominator**: `rive::gpu::RenderContext` works on all GPU platforms
+4. **Fallback preserved**: `NoOpFactory` still available for tests/headless mode
+
+For future platforms (Desktop, iOS, WASM), they only need to implement the `RenderContext` abstract methods:
+- `initialize()` - Create the GPU context
+- `destroy()` - Clean up resources
+- `beginFrame()` - Bind the rendering surface
+- `present()` - Swap buffers
+
+The `getFactory()` implementation is inherited from the base class and works automatically once `riveContext` is initialized.
+
+---
+
 ## Related Documentation
 
 - [mprive_commandqueue_consolidated_plan.md](../aiplans/mprive_commandqueue_consolidated_plan.md) - Full architecture plan
@@ -269,4 +356,4 @@ CommandServer: Draw command completed successfully
 
 ---
 
-**Last Updated**: January 19, 2026 (Diagnostic logging added)
+**Last Updated**: January 19, 2026 (SOLUTION IMPLEMENTED - Factory fix applied)
