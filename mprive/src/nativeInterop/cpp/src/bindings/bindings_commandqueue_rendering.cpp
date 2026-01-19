@@ -147,44 +147,45 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteRenderTarget(
  * This is a fire-and-forget operation. The actual rendering happens asynchronously
  * on the CommandServer thread with the PLS renderer.
  *
- * JNI signature: cppDraw(ptr: Long, requestID: Long, artboardHandle: Long, smHandle: Long,
- *                        surfacePtr: Long, renderTargetPtr: Long, drawKey: Long,
- *                        surfaceWidth: Int, surfaceHeight: Int, fitMode: Int, alignmentMode: Int,
- *                        clearColor: Int, scaleFactor: Float): Unit
+ * JNI signature matches reference kotlin/src/main implementation:
+ * cppDraw(ptr: Long, renderContextPtr: Long, surfacePtr: Long, drawKey: Long,
+ *         artboardHandle: Long, smHandle: Long, renderTargetPtr: Long,
+ *         width: Int, height: Int, fit: Byte, alignment: Byte,
+ *         scaleFactor: Float, clearColor: Int): Unit
  *
  * @param env The JNI environment.
  * @param thiz The Java CommandQueue object.
  * @param ptr The native pointer to the CommandServer.
- * @param requestID The request ID for async completion.
+ * @param renderContextPtr Render context pointer (for EGL surface management).
+ * @param surfacePtr Native EGL surface pointer.
+ * @param drawKey Unique draw operation key for correlation.
  * @param artboardHandle Handle to the artboard to draw.
  * @param smHandle Handle to the state machine (0 for static artboards).
- * @param surfacePtr Native EGL surface pointer.
  * @param renderTargetPtr Rive render target pointer.
- * @param drawKey Unique draw operation key for correlation.
- * @param surfaceWidth Surface width in pixels.
- * @param surfaceHeight Surface height in pixels.
- * @param fitMode Fit enum ordinal (0=FILL, 1=CONTAIN, etc.).
- * @param alignmentMode Alignment enum ordinal (0=TOP_LEFT, 1=TOP_CENTER, etc.).
- * @param clearColor Background clear color in 0xAARRGGBB format.
+ * @param width Surface width in pixels.
+ * @param height Surface height in pixels.
+ * @param fit Fit enum ordinal as Byte (0=FILL, 1=CONTAIN, etc.).
+ * @param alignment Alignment enum ordinal as Byte (0=TOP_LEFT, 1=TOP_CENTER, etc.).
  * @param scaleFactor Scale factor for high DPI displays.
+ * @param clearColor Background clear color in 0xAARRGGBB format.
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppDraw(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
+    jlong renderContextPtr,
+    jlong surfacePtr,
+    jlong drawKey,
     jlong artboardHandle,
     jlong smHandle,
-    jlong surfacePtr,
     jlong renderTargetPtr,
-    jlong drawKey,
-    jint surfaceWidth,
-    jint surfaceHeight,
-    jint fitMode,
-    jint alignmentMode,
-    jint clearColor,
-    jfloat scaleFactor
+    jint width,
+    jint height,
+    jbyte fit,
+    jbyte alignment,
+    jfloat scaleFactor,
+    jint clearColor
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
     if (server == nullptr) {
@@ -192,18 +193,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDraw(
         return;
     }
 
-    // Enqueue the draw command
+    // Enqueue the draw command - pass renderContextPtr as requestID for now
+    // (the draw implementation uses it for correlation purposes)
     server->draw(
-        static_cast<int64_t>(requestID),
+        static_cast<int64_t>(renderContextPtr),
         static_cast<int64_t>(artboardHandle),
         static_cast<int64_t>(smHandle),
         static_cast<int64_t>(surfacePtr),
         static_cast<int64_t>(renderTargetPtr),
         static_cast<int64_t>(drawKey),
-        static_cast<int32_t>(surfaceWidth),
-        static_cast<int32_t>(surfaceHeight),
-        static_cast<int32_t>(fitMode),
-        static_cast<int32_t>(alignmentMode),
+        static_cast<int32_t>(width),
+        static_cast<int32_t>(height),
+        static_cast<int32_t>(fit),
+        static_cast<int32_t>(alignment),
         static_cast<uint32_t>(clearColor),
         static_cast<float>(scaleFactor)
     );

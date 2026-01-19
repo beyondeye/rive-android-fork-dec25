@@ -36,7 +36,8 @@ class MainActivity : ComponentActivity() {
         return try {
             // Try to load rating.riv - a simple interactive animation
             // This file should be copied to mpapp/src/androidMain/res/raw/
-            val resourceId = resources.getIdentifier("rating", "raw", packageName)
+//            val resourceId = resources.getIdentifier("rating", "raw", packageName)
+            val resourceId = resources.getIdentifier("off_road_car_blog", "raw", packageName)
             if (resourceId != 0) {
                 resources.openRawResource(resourceId).use { it.readBytes() }
             } else {

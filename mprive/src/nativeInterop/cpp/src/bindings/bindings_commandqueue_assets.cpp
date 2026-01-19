@@ -42,14 +42,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDecodeImage(
 /**
  * Deletes a decoded image.
  *
- * JNI signature: cppDeleteImage(ptr: Long, requestID: Long, imageHandle: Long): Unit
+ * JNI signature matches reference: cppDeleteImage(ptr: Long, imageHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteImage(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong imageHandle
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
@@ -58,22 +57,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteImage(
         return;
     }
 
-    // Note: requestID is ignored - deleteImage is fire-and-forget
     server->deleteImage(static_cast<int64_t>(imageHandle));
 }
 
 /**
- * Registers an image asset with a file.
+ * Registers an image asset with a name for use in Rive files.
  *
- * JNI signature: cppRegisterImage(ptr: Long, requestID: Long, fileHandle: Long, assetName: String, imageHandle: Long): Unit
+ * JNI signature matches reference: cppRegisterImage(ptr: Long, name: String, imageHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterImage(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
-    jlong fileHandle,
     jstring assetName,
     jlong imageHandle
 ) {
@@ -87,22 +83,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterImage(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    // Note: requestID and fileHandle are ignored - registerImage only needs name and handle
     server->registerImage(name, static_cast<int64_t>(imageHandle));
 }
 
 /**
- * Unregisters an image asset from a file.
+ * Unregisters an image asset by name.
  *
- * JNI signature: cppUnregisterImage(ptr: Long, requestID: Long, fileHandle: Long, assetName: String): Unit
+ * JNI signature matches reference: cppUnregisterImage(ptr: Long, name: String): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterImage(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
-    jlong fileHandle,
     jstring assetName
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
@@ -115,7 +108,6 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterImage(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    // Note: requestID and fileHandle are ignored - unregisterImage only needs name
     server->unregisterImage(name);
 }
 
@@ -155,14 +147,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDecodeAudio(
 /**
  * Deletes a decoded audio clip.
  *
- * JNI signature: cppDeleteAudio(ptr: Long, requestID: Long, audioHandle: Long): Unit
+ * JNI signature matches reference: cppDeleteAudio(ptr: Long, audioHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteAudio(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong audioHandle
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
@@ -171,22 +162,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteAudio(
         return;
     }
 
-    // Note: requestID is ignored - deleteAudio is fire-and-forget
     server->deleteAudio(static_cast<int64_t>(audioHandle));
 }
 
 /**
- * Registers an audio asset with a file.
+ * Registers an audio asset with a name for use in Rive files.
  *
- * JNI signature: cppRegisterAudio(ptr: Long, requestID: Long, fileHandle: Long, assetName: String, audioHandle: Long): Unit
+ * JNI signature matches reference: cppRegisterAudio(ptr: Long, name: String, audioHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterAudio(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
-    jlong fileHandle,
     jstring assetName,
     jlong audioHandle
 ) {
@@ -200,22 +188,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterAudio(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    // Note: requestID and fileHandle are ignored - registerAudio only needs name and handle
     server->registerAudio(name, static_cast<int64_t>(audioHandle));
 }
 
 /**
- * Unregisters an audio asset from a file.
+ * Unregisters an audio asset by name.
  *
- * JNI signature: cppUnregisterAudio(ptr: Long, requestID: Long, fileHandle: Long, assetName: String): Unit
+ * JNI signature matches reference: cppUnregisterAudio(ptr: Long, name: String): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterAudio(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
-    jlong fileHandle,
     jstring assetName
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
@@ -228,7 +213,6 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterAudio(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    // Note: requestID and fileHandle are ignored - unregisterAudio only needs name
     server->unregisterAudio(name);
 }
 
@@ -268,14 +252,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDecodeFont(
 /**
  * Deletes a decoded font.
  *
- * JNI signature: cppDeleteFont(ptr: Long, requestID: Long, fontHandle: Long): Unit
+ * JNI signature matches reference: cppDeleteFont(ptr: Long, fontHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteFont(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong fontHandle
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
@@ -284,22 +267,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppDeleteFont(
         return;
     }
 
-    // Note: requestID is ignored - deleteFont is fire-and-forget
     server->deleteFont(static_cast<int64_t>(fontHandle));
 }
 
 /**
- * Registers a font asset with a file.
+ * Registers a font asset with a name for use in Rive files.
  *
- * JNI signature: cppRegisterFont(ptr: Long, requestID: Long, fileHandle: Long, assetName: String, fontHandle: Long): Unit
+ * JNI signature matches reference: cppRegisterFont(ptr: Long, name: String, fontHandle: Long): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterFont(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
-    jlong fileHandle,
     jstring assetName,
     jlong fontHandle
 ) {
@@ -313,22 +293,19 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppRegisterFont(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    // Note: requestID and fileHandle are ignored - registerFont only needs name and handle
     server->registerFont(name, static_cast<int64_t>(fontHandle));
 }
 
 /**
- * Unregisters a font asset from a file.
+ * Unregisters a font asset by name.
  *
- * JNI signature: cppUnregisterFont(ptr: Long, requestID: Long, fileHandle: Long, assetName: String): Unit
+ * JNI signature matches reference: cppUnregisterFont(ptr: Long, name: String): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterFont(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
-    jlong fileHandle,
     jstring assetName
 ) {
     auto* server = reinterpret_cast<CommandServer*>(ptr);
@@ -341,7 +318,6 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppUnregisterFont(
     std::string name(nameChars);
     env->ReleaseStringUTFChars(assetName, nameChars);
 
-    // Note: requestID and fileHandle are ignored - unregisterFont only needs name
     server->unregisterFont(name);
 }
 

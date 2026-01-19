@@ -148,14 +148,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetNumberProperty(
 /**
  * Sets a number property value on a ViewModelInstance.
  *
- * JNI signature: cppSetNumberProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Float): Unit
+ * JNI signature matches reference: cppSetNumberProperty(ptr: Long, vmiHandle: Long, propertyPath: String, value: Float): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetNumberProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong vmiHandle,
     jstring propertyPath,
     jfloat value
@@ -170,7 +169,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetNumberProperty(
     std::string path(pathChars);
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
-    server->setNumberProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<float>(value));
+    // Fire-and-forget - pass 0 for requestID (no async callback needed)
+    server->setNumberProperty(0L, static_cast<int64_t>(vmiHandle), path, static_cast<float>(value));
 }
 
 /**
@@ -203,14 +203,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetStringProperty(
 /**
  * Sets a string property value on a ViewModelInstance.
  *
- * JNI signature: cppSetStringProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
+ * JNI signature matches reference: cppSetStringProperty(ptr: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetStringProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong vmiHandle,
     jstring propertyPath,
     jstring value
@@ -229,7 +228,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetStringProperty(
     std::string valueStr(valueChars);
     env->ReleaseStringUTFChars(value, valueChars);
 
-    server->setStringProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, valueStr);
+    // Fire-and-forget - pass 0 for requestID (no async callback needed)
+    server->setStringProperty(0L, static_cast<int64_t>(vmiHandle), path, valueStr);
 }
 
 /**
@@ -262,14 +262,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetBooleanProperty(
 /**
  * Sets a boolean property value on a ViewModelInstance.
  *
- * JNI signature: cppSetBooleanProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Boolean): Unit
+ * JNI signature matches reference: cppSetBooleanProperty(ptr: Long, vmiHandle: Long, propertyPath: String, value: Boolean): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetBooleanProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong vmiHandle,
     jstring propertyPath,
     jboolean value
@@ -284,7 +283,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetBooleanProperty(
     std::string path(pathChars);
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
-    server->setBooleanProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<bool>(value));
+    // Fire-and-forget - pass 0 for requestID (no async callback needed)
+    server->setBooleanProperty(0L, static_cast<int64_t>(vmiHandle), path, static_cast<bool>(value));
 }
 
 // =============================================================================
@@ -321,14 +321,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetEnumProperty(
 /**
  * Sets an enum property value on a ViewModelInstance.
  *
- * JNI signature: cppSetEnumProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
+ * JNI signature matches reference: cppSetEnumProperty(ptr: Long, vmiHandle: Long, propertyPath: String, value: String): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetEnumProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong vmiHandle,
     jstring propertyPath,
     jstring value
@@ -347,7 +346,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetEnumProperty(
     std::string valueStr(valueChars);
     env->ReleaseStringUTFChars(value, valueChars);
 
-    server->setEnumProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, valueStr);
+    // Fire-and-forget - pass 0 for requestID (no async callback needed)
+    server->setEnumProperty(0L, static_cast<int64_t>(vmiHandle), path, valueStr);
 }
 
 /**
@@ -380,14 +380,13 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppGetColorProperty(
 /**
  * Sets a color property value on a ViewModelInstance.
  *
- * JNI signature: cppSetColorProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String, value: Int): Unit
+ * JNI signature matches reference: cppSetColorProperty(ptr: Long, vmiHandle: Long, propertyPath: String, value: Int): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetColorProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong vmiHandle,
     jstring propertyPath,
     jint value
@@ -402,20 +401,20 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppSetColorProperty(
     std::string path(pathChars);
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
-    server->setColorProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path, static_cast<int32_t>(value));
+    // Fire-and-forget - pass 0 for requestID (no async callback needed)
+    server->setColorProperty(0L, static_cast<int64_t>(vmiHandle), path, static_cast<int32_t>(value));
 }
 
 /**
  * Fires a trigger property on a ViewModelInstance.
  *
- * JNI signature: cppFireTriggerProperty(ptr: Long, requestID: Long, vmiHandle: Long, propertyPath: String): Unit
+ * JNI signature matches reference: cppFireTriggerProperty(ptr: Long, vmiHandle: Long, propertyPath: String): Unit
  */
 JNIEXPORT void JNICALL
 Java_app_rive_mp_core_CommandQueueJNIBridge_cppFireTriggerProperty(
     JNIEnv* env,
     jobject thiz,
     jlong ptr,
-    jlong requestID,
     jlong vmiHandle,
     jstring propertyPath
 ) {
@@ -429,7 +428,8 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppFireTriggerProperty(
     std::string path(pathChars);
     env->ReleaseStringUTFChars(propertyPath, pathChars);
 
-    server->fireTriggerProperty(static_cast<int64_t>(requestID), static_cast<int64_t>(vmiHandle), path);
+    // Fire-and-forget - pass 0 for requestID (no async callback needed)
+    server->fireTriggerProperty(0L, static_cast<int64_t>(vmiHandle), path);
 }
 
 // =============================================================================

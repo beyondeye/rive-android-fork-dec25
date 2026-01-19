@@ -158,7 +158,21 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     // Drawing Operations
     // =========================================================================
     
-    external override fun cppDraw(pointer: Long, requestID: Long, artboardHandle: Long, smHandle: Long, surfacePtr: Long, renderTargetPtr: Long, drawKey: Long, surfaceWidth: Int, surfaceHeight: Int, fitMode: Int, alignmentMode: Int, clearColor: Int, scaleFactor: Float)
+    external override fun cppDraw(
+        pointer: Long,
+        renderContextPointer: Long,
+        surfaceNativePointer: Long,
+        drawKey: Long,
+        artboardHandle: Long,
+        stateMachineHandle: Long,
+        renderTargetPointer: Long,
+        width: Int,
+        height: Int,
+        fit: Byte,
+        alignment: Byte,
+        scaleFactor: Float,
+        clearColor: Int
+    )
     
     external override fun cppDrawToBuffer(pointer: Long, renderContextPointer: Long, surfaceNativePointer: Long, drawKey: Long, artboardHandle: Long, stateMachineHandle: Long, renderTargetPointer: Long, width: Int, height: Int, fit: Byte, alignment: Byte, scaleFactor: Float, clearColor: Int, buffer: ByteArray)
     

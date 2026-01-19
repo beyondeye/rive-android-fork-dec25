@@ -626,21 +626,20 @@ class CommandQueue(
         clearColor: Int = 0xFF000000.toInt(),
         scaleFactor: Float = 1.0f
     ) {
-        val requestID = nextRequestID.getAndIncrement()
         bridge.cppDraw(
             cppPointer.pointer,
-            requestID,
+            renderContext.nativeObjectPointer,
+            surface.surfaceNativePointer,
+            surface.drawKey.handle,
             artboardHandle.handle,
             smHandle.handle,
-            surface.surfaceNativePointer,
             surface.renderTargetPointer.pointer,
-            surface.drawKey.handle,
             surface.width,
             surface.height,
-            fit.ordinal,
-            alignment.ordinal,
-            clearColor,
-            scaleFactor
+            fit.ordinal.toByte(),
+            alignment.ordinal.toByte(),
+            scaleFactor,
+            clearColor
         )
     }
 
