@@ -1,4 +1,5 @@
 #include "command_server.hpp"
+#include "render_context.hpp"
 #include "rive_log.hpp"
 #include <future>
 
@@ -77,8 +78,22 @@ void CommandServer::commandLoop()
 {
     LOGI("CommandServer: Worker thread started");
     
-    // Phase C+: Initialize OpenGL context here
-    // m_renderContext->initialize();
+    // Initialize the RenderContext on the worker thread (thread affinity requirement)
+    // The RenderContext must be initialized on the same thread where GL operations occur
+    if (m_renderContext != nullptr) {
+        auto* renderContext = static_cast<rive_mp::RenderContext*>(m_renderContext);
+        LOGI("CommandServer: Initializing RenderContext on worker thread");
+        auto result = renderContext->initialize();
+        if (!result.success) {
+            LOGE("CommandServer: Failed to initialize RenderContext: %s (error code: %d)", 
+                 result.message.c_str(), result.errorCode);
+            // Note: Could send error message to Kotlin here via enqueueMessage
+        } else {
+            LOGI("CommandServer: RenderContext initialized successfully");
+        }
+    } else {
+        LOGW("CommandServer: No RenderContext provided, GPU rendering will not be available");
+    }
     
     while (true) {
         Command cmd;
@@ -110,8 +125,12 @@ void CommandServer::commandLoop()
         }
     }
     
-    // Phase C+: Cleanup OpenGL context here
-    // m_renderContext->destroy();
+    // Cleanup OpenGL context on shutdown
+    if (m_renderContext != nullptr) {
+        auto* renderContext = static_cast<rive_mp::RenderContext*>(m_renderContext);
+        LOGI("CommandServer: Destroying RenderContext");
+        renderContext->destroy();
+    }
     
     LOGI("CommandServer: Worker thread stopped");
 }
