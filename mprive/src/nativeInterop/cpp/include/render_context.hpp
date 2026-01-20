@@ -4,14 +4,28 @@
 #include "rive_log.hpp"
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/renderer/render_context.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <EGL/egl.h>
 
+// Include AndroidFactory for Android builds
+// This is needed because render_context.hpp uses unique_ptr<AndroidFactory>
+// which requires the complete type definition
+#ifdef RIVE_ANDROID
+#include "helpers/android_factory.hpp"
+#endif
+
 namespace rive_mp
 {
+
+#ifndef RIVE_ANDROID
+// Forward declaration for non-Android platforms
+class AndroidFactory;
+#endif
 
 // Log prefix for RenderContext messages (embedded in log strings since macros already provide LOG_TAG)
 #define RC_PREFIX "[RenderContext] "
@@ -75,10 +89,33 @@ static std::string errorString(int32_t errorCode)
  * This class has thread affinity. It must be initialized, used, and
  * destroyed on the same thread.
  * 
- * Platform implementations:
- * - Android: RenderContextGL (EGL/OpenGL ES) - implemented here
- * - Desktop: Would use GLFW or Skia (Phase F)
- * - iOS: Would use EAGLContext or Metal (Future)
+ * ## Platform Implementations
+ * 
+ * - **Android**: `RenderContextGL` (EGL/OpenGL ES) - implemented here
+ * - **Desktop**: Would use GLFW or Skia (Phase F)
+ * - **iOS**: Would use EAGLContext or Metal (Future)
+ * - **Web/WASM**: Would use WebGL (Future)
+ * 
+ * ## Factory Pattern for File Loading
+ * 
+ * When loading Rive files via `rive::File::import()`, a `rive::Factory*` is
+ * required to create GPU-accelerated render objects (paths, paints, images).
+ * 
+ * The `rive::gpu::RenderContext` (stored as `riveContext`) inherits from 
+ * `rive::Factory`, so it can be used directly as the factory. The `getFactory()`
+ * method provides access to this.
+ * 
+ * ### Why This Matters
+ * 
+ * If a `NoOpFactory` is used instead of the GPU factory, the file will load
+ * correctly (artboards, state machines work) but all visual content becomes
+ * invisible because no-op render objects don't actually draw anything!
+ * 
+ * ### Platform-Specific Customization
+ * 
+ * If a platform needs custom factory behavior (e.g., custom image decoding),
+ * override `getFactory()` in the derived class to return a custom factory
+ * wrapper. See `CommandServerFactory` in rive-android for an example.
  */
 class RenderContext
 {
@@ -97,6 +134,89 @@ public:
     virtual void beginFrame(void* surface) = 0;
     /** Present the frame by swapping buffers on the provided surface. */
     virtual void present(void* surface) = 0;
+
+    /**
+     * Get the Rive Factory for creating render objects.
+     * 
+     * This factory is used when importing Rive files to create GPU-accelerated
+     * paths, paints, and images. The `rive::gpu::RenderContext` itself inherits
+     * from `rive::Factory`, so we return it directly.
+     * 
+     * @return The factory, or nullptr if the render context is not initialized.
+     * 
+     * ## Multiplatform Note
+     * 
+     * This method is virtual to allow platform-specific overrides if needed.
+     * For example, Android might want to wrap the factory for custom image
+     * decoding (see `CommandServerFactory` in rive-android). By default,
+     * all platforms can use the `riveContext` directly since it's Rive's
+     * cross-platform GPU abstraction.
+     * 
+     * ## Usage Example (in CommandServer)
+     * 
+     * ```cpp
+     * rive::Factory* factory = nullptr;
+     * if (m_renderContext != nullptr) {
+     *     auto* renderContext = static_cast<rive_mp::RenderContext*>(m_renderContext);
+     *     factory = renderContext->getFactory();
+     * }
+     * if (factory == nullptr) {
+     *     // Fallback for tests or headless mode
+     *     factory = m_noOpFactory.get();
+     * }
+     * auto file = rive::File::import(bytes, factory, ...);
+     * ```
+     */
+    virtual rive::Factory* getFactory() const
+    {
+        return riveContext ? riveContext.get() : nullptr;
+    }
+
+    /**
+     * Create a GPU render image from RGBA pixel data.
+     * 
+     * This is used by platform-specific image decoders (like AndroidFactory)
+     * to create GPU textures from decoded pixel data.
+     * 
+     * @param width Image width in pixels.
+     * @param height Image height in pixels.
+     * @param pixels RGBA pixel data (premultiplied alpha, 4 bytes per pixel).
+     * @return A GPU-accelerated RenderImage, or nullptr if creation failed.
+     */
+    virtual rive::rcp<rive::RenderImage> makeImage(
+        uint32_t width,
+        uint32_t height,
+        std::unique_ptr<uint8_t[]> pixels)
+    {
+        if (riveContext == nullptr)
+        {
+            LOGE(RC_PREFIX "makeImage: riveContext is null");
+            return nullptr;
+        }
+        
+        // Calculate mip level count based on image dimensions
+        auto mipLevelCount = rive::math::msb(height | width);
+        
+        LOGD(RC_PREFIX "makeImage: Creating RiveRenderImage %ux%u with %u mip levels",
+             width, height, mipLevelCount);
+        
+        // Create a GPU texture from the RGBA pixel data using the impl
+        // The impl() gives us access to RenderContextImpl which has makeImageTexture
+        auto texture = riveContext->impl()->makeImageTexture(
+            width,
+            height,
+            mipLevelCount,
+            pixels.get());
+        
+        if (texture == nullptr)
+        {
+            LOGE(RC_PREFIX "makeImage: Failed to create GPU texture");
+            return nullptr;
+        }
+        
+        // Create a RiveRenderImage wrapping the GPU texture
+        return rive::make_rcp<rive::RiveRenderImage>(std::move(texture));
+    }
 
     std::unique_ptr<rive::gpu::RenderContext> riveContext;
 };
@@ -146,6 +266,13 @@ static EGLSurface createPBufferSurface(EGLDisplay eglDisplay,
  * This is the Android implementation. For other platforms:
  * - Desktop (Phase F): Would create a RenderContextGLFW or RenderContextSkia
  * - iOS (Future): Would create a RenderContextEAGL or RenderContextMetal
+ * 
+ * ## Android Image Decoding
+ * 
+ * On Android, this class uses AndroidFactory which wraps the GPU factory
+ * and overrides decodeImage() to use Android's BitmapFactory through JNI.
+ * This provides platform-native image decoding without requiring rive-runtime's
+ * built-in image decoders (libpng, libjpeg, libwebp).
  */
 struct RenderContextGL : RenderContext
 {
@@ -153,6 +280,7 @@ struct RenderContextGL : RenderContext
         RenderContext(),
         eglDisplay(eglDisplay),
         eglContext(eglContext),
+        m_androidFactory(nullptr),
         pBuffer(createPBufferSurface(eglDisplay, eglContext))
     {}
 
@@ -194,6 +322,10 @@ struct RenderContextGL : RenderContext
             return {false, error, "Failed to create Rive RenderContextGL"};
         }
 
+        // Create AndroidFactory for platform-native image decoding
+        // This is done after riveContext is created since AndroidFactory delegates to it
+        createAndroidFactory();
+
         return {true, EGL_SUCCESS, "RenderContextGL initialized successfully"};
     }
 
@@ -226,10 +358,28 @@ struct RenderContextGL : RenderContext
     void beginFrame(void* surface) override
     {
         auto eglSurface = static_cast<EGLSurface>(surface);
-        if (!eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext))
+        
+        // Diagnostic logging for grey box debugging
+        LOGD(RC_PREFIX "beginFrame: surface ptr=%p, eglSurface=%p, eglDisplay=%p, eglContext=%p",
+             surface, eglSurface, eglDisplay, eglContext);
+        
+        EGLBoolean result = eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+        if (!result)
         {
-            std::string errMsg = "Failed to make EGL context current in beginFrame. Error: " + errorString(eglGetError());
+            EGLint error = eglGetError();
+            std::string errMsg = "Failed to make EGL context current in beginFrame. Error: " + errorString(error);
             LOGE(RC_PREFIX "%s", errMsg.c_str());
+        }
+        else
+        {
+            LOGD(RC_PREFIX "beginFrame: eglMakeCurrent succeeded");
+            
+            // Verify current context
+            EGLContext currentCtx = eglGetCurrentContext();
+            EGLSurface currentDraw = eglGetCurrentSurface(EGL_DRAW);
+            EGLSurface currentRead = eglGetCurrentSurface(EGL_READ);
+            LOGD(RC_PREFIX "beginFrame: current context=%p, draw surface=%p, read surface=%p",
+                 currentCtx, currentDraw, currentRead);
         }
     }
 
@@ -237,17 +387,56 @@ struct RenderContextGL : RenderContext
     void present(void* surface) override
     {
         auto eglSurface = static_cast<EGLSurface>(surface);
-        if (!eglSwapBuffers(eglDisplay, eglSurface))
+        
+        // Diagnostic logging for grey box debugging
+        LOGD(RC_PREFIX "present: surface ptr=%p, eglSurface=%p", surface, eglSurface);
+        
+        EGLBoolean result = eglSwapBuffers(eglDisplay, eglSurface);
+        if (!result)
         {
-            std::string errMsg = "Failed to swap EGL buffers in present. Error: " + errorString(eglGetError());
-            LOGE(RC_PREFIX "%s", errMsg.c_str());
+            EGLint error = eglGetError();
+            std::string errMsg = "Failed to swap EGL buffers in present. Error: " + errorString(error);
+            LOGE(RC_PREFIX "%s (surface=%p)", errMsg.c_str(), eglSurface);
         }
+        else
+        {
+            LOGD(RC_PREFIX "present: eglSwapBuffers succeeded");
+        }
+    }
+
+    /**
+     * Get the Rive Factory for creating render objects.
+     * 
+     * On Android, this returns an AndroidFactory that uses platform-native
+     * image decoding via BitmapFactory. All other factory methods delegate
+     * to the underlying riveContext.
+     * 
+     * @return The AndroidFactory, or nullptr if not initialized.
+     */
+    rive::Factory* getFactory() const override
+    {
+        if (m_androidFactory)
+        {
+            return m_androidFactory.get();
+        }
+        // Fallback to riveContext if AndroidFactory not available
+        return riveContext ? riveContext.get() : nullptr;
     }
 
     EGLDisplay eglDisplay;
     EGLContext eglContext;
 
 private:
+    /**
+     * Create the AndroidFactory for platform-native image decoding.
+     * Called after riveContext is initialized.
+     */
+    void createAndroidFactory();
+
+    /** AndroidFactory for platform-native image decoding on Android.
+     * Must be declared before pBuffer to ensure correct initialization order. */
+    std::unique_ptr<AndroidFactory> m_androidFactory;
+
     /** A 1x1 PBuffer to bind to the context (some devices do not support
      * surface-less bindings).
      * We must have a valid binding for `MakeContext` to succeed. */

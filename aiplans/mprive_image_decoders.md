@@ -237,17 +237,29 @@ target_link_libraries(mprive_native
 
 **Goal**: Fix the grey box rendering issue on Android
 
+**Status**: ✅ Code Complete (as of January 20, 2026)
+
 **Steps**:
 
-1. [ ] Create `mprive/src/androidMain/cpp/helpers/` directory
-2. [ ] Copy and adapt `image_decode.hpp` from kotlin module
-3. [ ] Copy and adapt `image_decode.cpp` from kotlin module
-4. [ ] Create `AndroidFactory` wrapper class
-5. [ ] Modify `RenderContextGL::getFactory()` to return `AndroidFactory`
-6. [ ] Update `CMakeLists.txt` to include new files
-7. [ ] Test with `off_road_car_blog.riv` (contains images)
+1. [x] Create `mprive/src/androidMain/cpp/helpers/` directory
+2. [x] Copy and adapt `image_decode.hpp` from kotlin module
+3. [x] Copy and adapt `image_decode.cpp` from kotlin module
+4. [x] Create `AndroidFactory` wrapper class (`android_factory.hpp`, `android_factory.cpp`)
+5. [x] Modify `RenderContextGL::getFactory()` to return `AndroidFactory`
+6. [x] Update `CMakeLists.txt` to include new files
+7. [x] Create `ImageDecoder.kt` Kotlin class for JNI (in `app/rive/mp/core/`)
+8. [x] Create `render_context_android.cpp` with `createAndroidFactory()` implementation
+9. [ ] Test with `off_road_car_blog.riv` (contains images)
 
-**Estimated Effort**: 4-6 hours
+**Implementation Files Created**:
+- `mprive/src/androidMain/cpp/helpers/image_decode.hpp` - Header for Android image decoding
+- `mprive/src/androidMain/cpp/helpers/image_decode.cpp` - BitmapFactory JNI implementation
+- `mprive/src/androidMain/cpp/helpers/android_factory.hpp` - Factory wrapper header
+- `mprive/src/androidMain/cpp/helpers/android_factory.cpp` - Factory wrapper implementation
+- `mprive/src/androidMain/cpp/helpers/render_context_android.cpp` - Android-specific RenderContext methods
+- `mprive/src/androidMain/kotlin/app/rive/mp/core/ImageDecoder.kt` - Kotlin JNI bridge
+
+**Estimated Effort**: 4-6 hours (Actual: Complete)
 
 ### Phase 2: Desktop/Linux Support
 

@@ -39,6 +39,11 @@ file(GLOB ANDROID_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+# Find Android-specific helper sources (image decoding, platform factory)
+file(GLOB ANDROID_HELPERS CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/helpers/*.cpp"
+)
+
 # Rive utility sources from rive-runtime/utils/
 #
 # WHY: The rive-runtime static library (librive.a) built by Premake does NOT include
@@ -67,6 +72,7 @@ set(ALL_SOURCES
         ${NATIVE_INTEROP_BINDINGS}
         ${NATIVE_INTEROP_COMMAND_SERVER}
         ${ANDROID_SOURCES}
+        ${ANDROID_HELPERS}
         ${RIVE_UTILS_SOURCES}
 )
 
@@ -75,6 +81,7 @@ message(STATUS "Native Interop JNI Common files: ${NATIVE_INTEROP_JNI_COMMON}")
 message(STATUS "Native Interop Bindings files: ${NATIVE_INTEROP_BINDINGS}")
 message(STATUS "Native Interop Command Server files: ${NATIVE_INTEROP_COMMAND_SERVER}")
 message(STATUS "Android-specific files: ${ANDROID_SOURCES}")
+message(STATUS "Android helper files: ${ANDROID_HELPERS}")
 message(STATUS "Total source files: ${ALL_SOURCES}")
 
 # Create the mprive-android library target
@@ -219,9 +226,12 @@ endif ()
 # NOTE: ${RIVE_RUNTIME_DIR} (without /include) is added to support #include "utils/no_op_factory.hpp"
 # which is how the header is referenced in command_server.hpp. The utils/ directory lives at
 # the root of rive-runtime, not under include/.
+#
+# Android-specific helpers directory is added for platform-native image decoding support.
 target_include_directories(mprive-android PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../nativeInterop/cpp/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${RIVE_RUNTIME_DIR}/include
         ${RIVE_RUNTIME_DIR}/renderer/include
         ${RIVE_RUNTIME_DIR})
