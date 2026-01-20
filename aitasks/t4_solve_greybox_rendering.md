@@ -729,3 +729,222 @@ The current flow:
 3. **Try removing advance(0)** to see what breaks
 4. **Try passing actual deltaTime** to artboard advance
 5. **Add deltaTime logging** to trace timing flow
+
+---
+
+## 🎉 ANIMATION FIX IMPLEMENTED (January 20, 2026 - 15:24)
+
+### Root Cause Found
+
+The problem was a **mismatch between state machine and artboard advance calls**:
+
+1. **`StateMachineInstance::advance(seconds)`** - Only advances the state machine layers, does NOT advance the artboard
+2. **`StateMachineInstance::advanceAndApply(seconds)`** - Advances BOTH the state machine AND calls `m_artboardInstance->advanceInternal(seconds, ...)` to advance the artboard
+
+**mprive's previous flow (broken):**
+1. `handleAdvanceStateMachine()` calls `sm->advance(deltaTime)` - only SM, NOT artboard
+2. `handleDraw()` calls `artboard->advance(0)` - advances artboard with **0 delta**, overwriting animation!
+
+### The Fix
+
+**File 1: `command_server_statemachine.cpp` - `handleAdvanceStateMachine()`**
+```cpp
+// CHANGED FROM:
+it->second->advance(cmd.deltaTime);
+
+// TO:
+it->second->advanceAndApply(cmd.deltaTime);
+```
+
+**File 2: `command_server_render.cpp` - `handleDraw()`**
+```cpp
+// REMOVED:
+artboard->advance(0);
+
+// REPLACED WITH comment explaining why it's not needed
+```
+
+### Why This Works
+
+1. **First frame**: Kotlin calls `advanceStateMachine(0)` → `advanceAndApply(0)` initializes render state
+2. **Subsequent frames**: Kotlin calls `advanceStateMachine(deltaTime)` → `advanceAndApply(deltaTime)` properly animates both SM and artboard
+3. **Draw**: Just renders the current state without overwriting anything
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `command_server_statemachine.cpp` | Changed `advance()` to `advanceAndApply()` |
+| `command_server_render.cpp` | Removed `artboard->advance(0)` call |
+
+### Expected Behavior After Fix
+
+- ✅ Static content renders correctly (from first frame's `advanceAndApply(0)`)
+- ✅ Animations play correctly (state machine and artboard advance together)
+- ✅ No more grey box on first render
+- ✅ No animation state being overwritten
+
+---
+
+## CONTINUED INVESTIGATION - isSettled Optimization Issue (January 20, 2026 - 15:55)
+
+### The advanceAndApply() Fix Was Correct But Incomplete
+
+The change from `advance()` to `advanceAndApply()` was correct - it matches the original JNI binding. However, the animation still wasn't playing due to a separate issue in the Kotlin composable.
+
+### Root Cause: `isSettled` Frame-Skipping
+
+In `Rive.android.kt`, the animation loop was skipping ALL frames when `isSettled=true`:
+
+```kotlin
+while (isActive) {
+    val deltaTime = withFrameNanos { ... }
+
+    // Skip advance and draw when settled
+    if (isSettled) {
+        continue  // ← SKIPS ALL FRAMES!
+    }
+
+    stateMachineToUse?.advance(deltaTime)
+    riveWorker.draw(...)
+}
+```
+
+When `advanceAndApply()` returned `false` (`needsAdvance()=false`), the `settledFlow` emitted an event, setting `isSettled=true`. This caused ALL subsequent frames to be skipped.
+
+### Log Evidence
+
+```
+State machine advanced (handle=3, settled=1)  ← SETTLED IMMEDIATELY on first frame!
+```
+
+The state machine reported `settled=1` on the very first advance (with deltaTime=0) and continued reporting settled, causing the loop to skip all frames.
+
+### How Original rive-android Handles This
+
+From `RiveFileController.advance()`:
+
+```kotlin
+// Only remove the state machines if the elapsed time was
+// greater than 0. 0 elapsed time causes no changes so it's a no-op advance.
+if (elapsed > 0.0) {
+    stateMachinesToPause.forEach { pause(stateMachine = it) }
+}
+```
+
+The original:
+1. **Always advances state machines** - regardless of `stillPlaying` return value
+2. **Only pauses when elapsed > 0** - protects the first settle frame
+3. **Never skips frames** - paused state machines just aren't advanced
+
+### The Fix
+
+Removed the `isSettled` frame-skipping in `Rive.android.kt` to match original behavior:
+
+```kotlin
+// REMOVED:
+if (isSettled) {
+    continue
+}
+
+// Now always advances and draws while playing=true
+stateMachineToUse?.advance(deltaTime)
+riveWorker.draw(...)
+```
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `mprive/src/androidMain/kotlin/app/rive/mp/compose/Rive.android.kt` | Removed `isSettled` frame-skipping |
+
+### Future Optimization
+
+The `isSettled` optimization is a battery-saving feature that should be revisited with more nuanced logic. See `aitasks/t5_statemachine_skipframes_optimizations.md` for recommendations.
+
+---
+
+**Last Updated**: January 20, 2026 (Added diagnostic logging for animation state)
+
+---
+
+## CONTINUED INVESTIGATION - Diagnostic Logging Added (January 20, 2026 - 18:45)
+
+### Previous Fix Did Not Work
+
+The `isSettled` frame-skipping fix and the `advanceAndApply()` change did not resolve the animation issue. The animation loop runs but animations don't play.
+
+### Root Cause Identified: Wrong "Settled" Check
+
+In `handleAdvanceStateMachine()`, the code was using `needsAdvance()` to determine if the state machine was "settled", but this is WRONG:
+
+```cpp
+// WRONG - needsAdvance() checks for pending INPUT changes, not animation state
+bool settled = !it->second->needsAdvance();
+
+// CORRECT - use the RETURN VALUE of advanceAndApply() which indicates if animations continue
+bool stillPlaying = sm->advanceAndApply(cmd.deltaTime);
+bool settled = !stillPlaying;
+```
+
+### Key Difference: needsAdvance() vs advanceAndApply() Return Value
+
+| Method | What It Checks |
+|--------|----------------|
+| `needsAdvance()` | Returns `m_needsAdvance` flag - set when inputs change |
+| `advanceAndApply()` return | Returns true if animations will CONTINUE playing |
+
+The reference implementation returns `advanceAndApply()` result directly to Kotlin, which uses it to determine if the animation should continue.
+
+### Diagnostic Logging Added
+
+Added comprehensive diagnostics to `handleAdvanceStateMachine()` in `command_server_statemachine.cpp`:
+
+```cpp
+// BEFORE advance
+size_t animCountBefore = sm->currentAnimationCount();
+LOGW("DIAGNOSTIC BEFORE advance - currentAnimationCount=%zu, deltaTime=%f", ...);
+
+// Capture return value!
+bool stillPlaying = sm->advanceAndApply(cmd.deltaTime);
+
+// AFTER advance
+size_t animCountAfter = sm->currentAnimationCount();
+size_t stateChangedCount = sm->stateChangedCount();
+bool needsAdvanceFlag = sm->needsAdvance();
+
+LOGW("DIAGNOSTIC AFTER advance - stillPlaying=%d, currentAnimationCount=%zu, stateChangedCount=%zu, needsAdvance=%d", ...);
+
+// FIXED: Use return value instead of needsAdvance()
+bool settled = !stillPlaying;
+```
+
+### What to Look For in New Logs
+
+| Log Value | What It Means |
+|-----------|---------------|
+| `currentAnimationCount=0` | No animations are active |
+| `stillPlaying=0` | Animations have completed or not started |
+| `stateChangedCount>0` | State transitions occurred |
+| `needsAdvance=0` but `stillPlaying=1` | Animation running, no pending inputs |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `command_server_statemachine.cpp` | Added diagnostic logging, fixed settled check to use `stillPlaying` |
+
+### Next Steps
+
+1. **Run the app** and capture new logs
+2. **Analyze** `currentAnimationCount` and `stillPlaying` values
+3. **If `currentAnimationCount=0`**: The state machine may need a trigger to start
+4. **If `stillPlaying=0`**: Animations may complete instantly or not be configured
+
+---
+
+## Related Documentation
+
+- [mprive_commandqueue_consolidated_plan.md](../aiplans/mprive_commandqueue_consolidated_plan.md) - Full architecture plan
+- [t3_crash_when_running_demoapp.md](./t3_crash_when_running_demoapp.md) - Original crash logs
+- [t5_statemachine_skipframes_optimizations.md](./t5_statemachine_skipframes_optimizations.md) - Future optimization notes
