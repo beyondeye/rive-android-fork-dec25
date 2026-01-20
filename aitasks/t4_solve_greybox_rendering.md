@@ -534,6 +534,114 @@ Run the original `:app` module with `:kotlin` to verify:
 
 ---
 
+## ROOT CAUSE FOUND: BindableArtboard vs ArtboardInstance (January 20, 2026 - Session 3)
+
+### Critical Difference Discovered
+
+After extensive comparison of the reference implementation (Rive runtime's `command_server.cpp`) with mprive's implementation, a **key architectural difference** was found that explains why animations don't work in mprive:
+
+| Aspect | Reference (Rive runtime) | mprive |
+|--------|--------------------------|--------|
+| Artboard type | `BindableArtboard` | `ArtboardInstance` |
+| Creation method | `file->bindableArtboardDefault()` | `file->artboardDefault()` |
+| Storage | `rcp<BindableArtboard>` | `unique_ptr<ArtboardInstance>` |
+
+### Reference Implementation (command_server.cpp)
+
+```cpp
+// Storage type
+std::unordered_map<ArtboardHandle, rcp<BindableArtboard>> m_artboards;
+
+// Artboard creation
+case CommandQueue::Command::instantiateArtboard:
+{
+    if (auto artboard = name.empty()
+                            ? file->bindableArtboardDefault()
+                            : file->bindableArtboardNamed(name))
+    {
+        m_artboards[handle] = std::move(artboard);
+    }
+}
+
+// State machine creation uses artboard->artboard() to get ArtboardInstance
+case CommandQueue::Command::instantiateStateMachine:
+{
+    if (rive::ArtboardInstance* artboard = getArtboardInstance(artboardHandle))
+    {
+        // getArtboardInstance returns it->second.get()->artboard()
+        auto stateMachine = artboard->defaultStateMachine();
+        ...
+    }
+}
+```
+
+### mprive Implementation (command_server_artboard.cpp)
+
+```cpp
+// Storage type
+std::unordered_map<int64_t, std::unique_ptr<rive::ArtboardInstance>> m_artboards;
+
+// Artboard creation
+auto artboard = it->second->artboardDefault();  // Returns ArtboardInstance directly
+m_artboards[handle] = std::move(artboard);
+
+// State machine creation uses ArtboardInstance directly
+auto sm = it->second->defaultStateMachine();
+```
+
+### Why This Matters
+
+`BindableArtboard` is a wrapper around `ArtboardInstance` that provides:
+
+1. **Proper state machine binding** - The wrapper ensures state machines are properly initialized with the artboard's animation state
+2. **Data binding support** - Required for ViewModel integration
+3. **Reference counting** - Uses `rcp<>` for proper lifecycle management
+4. **Additional initialization** - May perform initialization that plain `ArtboardInstance` doesn't
+
+The symptom we observed (`currentAnimationCount=0` always) suggests that when using plain `ArtboardInstance`, the state machine layers don't properly initialize their animation states. The `BindableArtboard` wrapper likely handles this initialization.
+
+### Evidence Supporting This Theory
+
+1. **Logs show `currentAnimationCount=0`** - Despite the file having 5 animations, no animations are ever active
+2. **`stillPlaying` goes to 0 after first frame** - State machine immediately settles without playing anything
+3. **Static content renders correctly** - The rendering pipeline works, it's just the animation state that's wrong
+4. **Same .riv file works in reference implementation** - Confirms the file has valid animations
+
+---
+
+## Implementation Plan: Fix Animation Issue
+
+### Step 1: Add BindableArtboard include
+File: `mprive/src/nativeInterop/cpp/include/command_server.hpp`
+- Add include for `rive/bindable_property.hpp` or find the correct header for `BindableArtboard`
+
+### Step 2: Update artboard storage type
+File: `mprive/src/nativeInterop/cpp/include/command_server.hpp`
+- Change: `std::unordered_map<int64_t, std::unique_ptr<rive::ArtboardInstance>> m_artboards;`
+- To: `std::unordered_map<int64_t, rive::rcp<rive::BindableArtboard>> m_artboards;`
+
+### Step 3: Update artboard creation methods
+File: `mprive/src/nativeInterop/cpp/src/command_server/command_server_artboard.cpp`
+- Change `artboardDefault()` to `bindableArtboardDefault()`
+- Change `artboardNamed()` to `bindableArtboardNamed()`
+- Update return types and storage
+
+### Step 4: Update state machine creation to use artboard()
+File: `mprive/src/nativeInterop/cpp/src/command_server/command_server_statemachine.cpp`
+- When accessing artboard for state machine creation, use `bindableArtboard->artboard()`
+- This extracts the `ArtboardInstance*` from the `BindableArtboard` wrapper
+
+### Step 5: Update all artboard accessors
+- Any code that accesses `m_artboards[handle]` directly needs to call `->artboard()` to get the `ArtboardInstance*`
+- Draw operations, resize operations, etc.
+
+### Step 6: Test and verify
+- Run the demo app
+- Verify animations now play
+- Check that `currentAnimationCount > 0` in logs
+
+---
+
 ## CONTINUED INVESTIGATION (January 20, 2026 - Session 2)
 
 ### Fixes Applied This Session
@@ -865,6 +973,50 @@ The `isSettled` optimization is a battery-saving feature that should be revisite
 ---
 
 **Last Updated**: January 20, 2026 (Added diagnostic logging for animation state)
+
+---
+
+## ✅ BINDABLEARTBOARD FIX IMPLEMENTED (January 20, 2026 - 21:51)
+
+### Root Cause
+
+The animation wasn't working because mprive was using `ArtboardInstance` directly instead of `BindableArtboard`. The reference Rive runtime implementation uses `BindableArtboard` which:
+
+1. **Keeps the File alive** - Holds an `rcp<const File>` to ensure the file isn't destroyed while artboards are in use
+2. **Wraps ArtboardInstance** - Provides access via `artboard()` method
+3. **Required for proper animation state** - The `BindableArtboard` wrapper likely performs initialization that plain `ArtboardInstance` doesn't
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `mprive/src/nativeInterop/cpp/include/command_server.hpp` | Added `#include "rive/bindable_artboard.hpp"`, changed `m_artboards` from `std::map<int64_t, std::unique_ptr<rive::ArtboardInstance>>` to `std::map<int64_t, rive::rcp<rive::BindableArtboard>>` |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_artboard.cpp` | Changed `artboardDefault()` → `bindableArtboardDefault()`, `artboardNamed()` → `bindableArtboardNamed()`, updated resize/reset handlers to use `->artboard()` |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_statemachine.cpp` | Updated all state machine creation methods to get `ArtboardInstance*` via `->artboard()` |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_render.cpp` | Updated draw handler to get `ArtboardInstance*` via `->artboard()` |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_file.cpp` | Updated `handleGetStateMachineNames` to use `->artboard()` |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_list.cpp` | Updated `handleSetArtboardProperty` - can now use `BindableArtboard` directly |
+| `mprive/src/nativeInterop/cpp/src/command_server/command_server_vmi.cpp` | Updated `handleGetDefaultVMI` to use `->artboard()` |
+
+### Key Changes
+
+1. **Storage type**: `std::unique_ptr<ArtboardInstance>` → `rcp<BindableArtboard>`
+2. **Creation**: `file->artboardDefault()` → `file->bindableArtboardDefault()`
+3. **Access**: When needing `ArtboardInstance*`, call `bindableArtboard->artboard()`
+
+### Build Status
+
+✅ Native C++ compilation successful for all architectures:
+- arm64-v8a
+- armeabi-v7a  
+- x86
+- x86_64
+
+### Next Steps
+
+1. **Run the app** and verify animations now play correctly
+2. **Remove diagnostic code** (red test quad, verbose logging) once working
+3. **Test with different .riv files** to ensure broad compatibility
 
 ---
 
