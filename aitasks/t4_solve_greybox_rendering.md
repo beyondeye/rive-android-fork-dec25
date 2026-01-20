@@ -531,3 +531,201 @@ Run the original `:app` module with `:kotlin` to verify:
 ---
 
 **Last Updated**: January 20, 2026 (GL diagnostic confirms pipeline works, artboard content not rendering)
+
+---
+
+## CONTINUED INVESTIGATION (January 20, 2026 - Session 2)
+
+### Fixes Applied This Session
+
+1. **Sample Count Fix** (`bindings_commandqueue_rendering.cpp`)
+   - Problem: Render target was created with `samples=0` because PBuffer has no MSAA
+   - Fix: Ensure sample count is at least 1 when queried as 0
+   ```cpp
+   GLint actualSampleCount = (queriedSampleCount > 0) ? queriedSampleCount : 1;
+   ```
+   - Result: Logs confirm `queried samples=0, using samples=1`
+
+2. **Blue Rectangle Diagnostic** (command_server_render.cpp)
+   - Added RiveRenderer-based diagnostic before artboard draw
+   - **CRASHED** when calling `renderContext->riveContext->makeRenderPaint()`
+   - Temporarily disabled to continue testing
+
+### Key Findings This Session
+
+1. **Sample count fix applied** - Render target now uses samples=1 instead of 0
+2. **Blue rectangle diagnostic crashes** - Suggests `riveContext->makeRenderPaint()` fails during frame
+3. **Red quad still appears** - Raw GL after flush works
+4. **Artboard content still not rendering** - Same grey box issue persists
+
+### Why Blue Rectangle Crashed
+
+The crash when calling `renderContext->riveContext->makeRenderPaint()` is significant:
+- `rive::gpu::RenderContext` inherits from `rive::Factory` 
+- Creating new render objects during a frame might not be supported
+- The original implementation doesn't create new objects during draw - it uses objects created during file import
+- This explains why artboard.draw() doesn't crash but blue rectangle does
+
+### Next Investigation Direction
+
+The artboard has 1147 objects (shapes, fills, etc.) but nothing renders. The objects were created during import using the GPU factory. When artboard->draw() is called, it should queue draw commands that flush() executes.
+
+**Hypothesis**: The draw commands ARE being queued but something in the render target or viewport configuration prevents them from appearing.
+
+**Next Steps**:
+1. Add diagnostic to log the renderer's internal state (transforms, clip regions)
+2. Check if Rive's flush() respects the current viewport or uses its own
+3. Compare the exact parameters passed to flush() vs original implementation
+4. Try setting viewport explicitly before flush (like the red quad does)
+
+### Potential Fix: Viewport Before Flush
+
+The red quad works because it explicitly sets viewport before drawing:
+```cpp
+glViewport(0, 0, cmd.surfaceWidth, cmd.surfaceHeight);
+```
+
+Maybe Rive's flush() expects a specific viewport configuration that isn't being set. Try adding `glViewport()` before `flush()`.
+
+---
+
+## Investigation Session 2 Summary (January 20, 2026 - 13:30)
+
+### Extensive Comparison - No Differences Found
+
+| Aspect | Original | mprive | Match? |
+|--------|----------|--------|--------|
+| RenderContext creation | `RenderContextGLImpl::MakeContext()` | `RenderContextGLImpl::MakeContext()` | ✅ |
+| Render target | `new FramebufferRenderTargetGL(w, h, 0, samples)` | Same | ✅ |
+| Flush call | `{.renderTarget = renderTarget}` | Same | ✅ |
+| beginFrame params | `{width, height, clear, color}` | Same | ✅ |
+| Factory for loading | `riveContext.get()` | `renderContext->getFactory()` → `riveContext.get()` | ✅ |
+
+### All Applied Fixes
+1. Sample count >= 1 (was 0)
+2. Viewport set before flush
+3. GPU factory used for file loading
+
+### Remaining Mystery
+
+The implementations are **functionally identical** yet:
+- Original: Renders content correctly
+- mprive: Grey background only (clear works, content doesn't)
+
+### Possible Root Causes (Not Yet Tested)
+
+1. **Artboard visibility state** - Artboard might be hidden/zero opacity
+2. **Rive internal draw list empty** - draw() might not generate commands
+3. **State machine interference** - SM might be setting visibility states
+4. **Object initialization** - GPU objects might need warmup/first-frame behavior
+
+### Next Steps for Future Session
+
+1. **Check artboard visibility**:
+   - Add diagnostic: `artboard->opacity()`, any visibility flags
+   - Try `artboard->advance(0)` before draw to ensure state is updated
+
+2. **Try without state machine**:
+   - Draw artboard without creating/advancing state machine
+   - This isolates whether SM is affecting visibility
+
+3. **Compare with simpler .riv file**:
+   - Test with a minimal .riv (single colored rectangle)
+   - Isolates whether the file complexity is the issue
+
+4. **Add Rive debug logging**:
+   - Check if Rive has debug modes or logging
+   - Track what happens inside artboard->draw()
+
+---
+
+## 🎉 BREAKTHROUGH! Rendering Now Works (January 20, 2026 - 13:35)
+
+### The Fix
+
+Adding `artboard->advance(0)` before `artboard->draw()` in `handleDraw()` **fixed the grey box issue**!
+
+```cpp
+// In handleDraw(), before artboard->draw():
+artboard->advance(0);  // <-- THIS FIXED IT!
+artboard->draw(&renderer);
+```
+
+### Why This Works
+
+The artboard needs to have its state "advanced" at least once before drawing, even if the delta time is 0. This initializes the visual state of all components in the artboard hierarchy. Without this call, the artboard's render state was never computed, resulting in nothing being drawn.
+
+### Current Status
+- ✅ **Static content renders correctly**
+- ❌ **Animation not playing** - Content appears but doesn't animate
+
+### Root Cause Analysis
+
+The issue was that artboard render state wasn't initialized:
+1. File loads successfully with GPU factory ✅
+2. Artboard and state machine created ✅
+3. Draw is called, but artboard internal state was never "computed"
+4. `artboard->advance(0)` initializes the render state
+5. Now `artboard->draw()` has valid state to render
+
+---
+
+## Animation Not Working - Investigation Plan
+
+### Current Behavior
+- Static content renders ✅
+- Animation doesn't play ❌
+- State machine advances are being logged correctly
+
+### Hypothesis: `advance(0)` is Overwriting State Machine Changes
+
+The current flow:
+1. Kotlin calls `advanceStateMachine(deltaTime)` → `sm->advance(dt)` 
+2. Kotlin calls `draw()` → `artboard->advance(0)` + `artboard->draw()`
+
+**Problem**: Calling `artboard->advance(0)` AFTER the state machine advance might be resetting/overwriting the animation state that the SM just computed.
+
+### Proposed Investigation Steps
+
+1. **Check if SM advance already advances artboard**
+   - `StateMachineInstance::advance(dt)` might internally call artboard->advance()
+   - If so, our extra `advance(0)` is redundant AND possibly harmful
+
+2. **Try removing `artboard->advance(0)`**
+   - If rendering breaks, we definitely need it
+   - If rendering works but animation still broken, issue is elsewhere
+
+3. **Try calling `artboard->advance(deltaTime)` instead**
+   - Pass actual time delta instead of 0
+   - Would properly advance both artboard state AND animations
+
+4. **Check original implementation**
+   - How does original rive-android handle artboard advance?
+   - Is advance called in draw or separately?
+
+5. **Verify timing between SM advance and draw**
+   - Are SM changes being lost between commands?
+   - Is there a synchronization issue?
+
+### Key Questions to Answer
+
+| Question | To Investigate |
+|----------|----------------|
+| Does SM::advance() call artboard::advance()? | Check Rive runtime source |
+| Is artboard::advance(0) resetting animation state? | Try removing it |
+| Should advance be called in draw or separately? | Compare with original |
+| Is deltaTime being passed correctly? | Add logging |
+
+### Files to Check
+
+- `submodules/rive-runtime/include/rive/animation/state_machine_instance.hpp`
+- `kotlin/src/main/cpp/src/bindings/bindings_command_queue.cpp` (original draw)
+- `mprive/src/nativeInterop/cpp/src/command_server/command_server_statemachine.cpp`
+
+### Next Session Tasks
+
+1. **Check Rive documentation** on artboard vs state machine advance
+2. **Examine original draw implementation** for advance patterns  
+3. **Try removing advance(0)** to see what breaks
+4. **Try passing actual deltaTime** to artboard advance
+5. **Add deltaTime logging** to trace timing flow
