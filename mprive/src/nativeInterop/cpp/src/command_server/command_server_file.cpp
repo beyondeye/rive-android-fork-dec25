@@ -1,4 +1,5 @@
 #include "command_server.hpp"
+#include "render_context.hpp"
 #include "rive_log.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
@@ -34,14 +35,26 @@ void CommandServer::handleLoadFile(const Command& cmd)
     LOGI("CommandServer: Handling LoadFile command (requestID=%lld, size=%zu)",
          static_cast<long long>(cmd.requestID), cmd.bytes.size());
 
-    // Get the factory - use render context factory if available, otherwise NoOpFactory
+    // Get the factory for creating GPU-accelerated render objects.
+    // 
+    // IMPORTANT: The factory determines how render objects (paths, paints, images)
+    // are created when importing the Rive file. Using the GPU factory from the
+    // render context creates actual GPU render objects. Using NoOpFactory creates
+    // dummy objects that don't render anything (useful for tests/headless mode).
+    //
+    // See RenderContext::getFactory() documentation for multiplatform considerations.
     rive::Factory* factory = nullptr;
     if (m_renderContext != nullptr) {
-        // TODO: Get factory from render context in Phase C
-        // factory = static_cast<RenderContext*>(m_renderContext)->getFactory();
+        auto* renderContext = static_cast<rive_mp::RenderContext*>(m_renderContext);
+        factory = renderContext->getFactory();
+        if (factory != nullptr) {
+            LOGI("CommandServer: Using GPU factory from RenderContext");
+        }
     }
     if (factory == nullptr) {
-        // Use NoOpFactory for tests or when no render context
+        // Fallback to NoOpFactory for tests or when no render context is available.
+        // Note: Files loaded with NoOpFactory will NOT render visible content!
+        LOGW("CommandServer: No GPU factory available, using NoOpFactory (content will not render)");
         if (!m_noOpFactory) {
             m_noOpFactory = std::make_unique<rive::NoOpFactory>();
         }
@@ -192,7 +205,16 @@ void CommandServer::handleGetStateMachineNames(const Command& cmd)
             return;
         }
         
-        auto& artboard = it->second;
+        // Get ArtboardInstance from BindableArtboard
+        auto* artboard = it->second->artboard();
+        if (!artboard) {
+            LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(cmd.handle));
+            
+            Message msg(MessageType::QueryError, cmd.requestID);
+            msg.error = "BindableArtboard has no artboard instance";
+            enqueueMessage(std::move(msg));
+            return;
+        }
         
         for (size_t i = 0; i < artboard->stateMachineCount(); i++) {
             auto sm = artboard->stateMachine(i);

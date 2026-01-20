@@ -39,8 +39,9 @@ int64_t CommandServer::createDefaultArtboardSync(int64_t fileHandle)
         return 0;
     }
     
-    // Create the default artboard (returns unique_ptr<ArtboardInstance>)
-    auto artboard = it->second->artboardDefault();
+    // Create the default artboard (returns rcp<BindableArtboard>)
+    // BindableArtboard wraps ArtboardInstance and keeps file reference alive
+    auto artboard = it->second->bindableArtboardDefault();
     if (!artboard) {
         LOGW("CommandServer: Failed to create default artboard");
         return 0;
@@ -71,8 +72,9 @@ int64_t CommandServer::createArtboardByNameSync(int64_t fileHandle, const std::s
         return 0;
     }
     
-    // Create the artboard by name (returns unique_ptr<ArtboardInstance>)
-    auto artboard = it->second->artboardNamed(name);
+    // Create the artboard by name (returns rcp<BindableArtboard>)
+    // BindableArtboard wraps ArtboardInstance and keeps file reference alive
+    auto artboard = it->second->bindableArtboardNamed(name);
     if (!artboard) {
         LOGW("CommandServer: Failed to create artboard with name: %s", name.c_str());
         return 0;
@@ -141,7 +143,12 @@ void CommandServer::handleResizeArtboard(const Command& cmd)
         return;  // Fire-and-forget, no error message
     }
     
-    auto& artboard = it->second;
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = it->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(cmd.handle));
+        return;
+    }
     
     // Apply scale factor to dimensions
     float scaledWidth = static_cast<float>(cmd.surfaceWidth) / cmd.scaleFactor;
@@ -167,7 +174,12 @@ void CommandServer::handleResetArtboardSize(const Command& cmd)
         return;  // Fire-and-forget, no error message
     }
     
-    auto& artboard = it->second;
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = it->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(cmd.handle));
+        return;
+    }
     
     // Reset to original dimensions from the Rive file
     // ArtboardInstance inherits from Artboard which stores original bounds
@@ -192,8 +204,9 @@ void CommandServer::handleCreateDefaultArtboard(const Command& cmd)
         return;
     }
     
-    // Create the default artboard (returns unique_ptr<ArtboardInstance>)
-    auto artboard = it->second->artboardDefault();
+    // Create the default artboard (returns rcp<BindableArtboard>)
+    // BindableArtboard wraps ArtboardInstance and keeps file reference alive
+    auto artboard = it->second->bindableArtboardDefault();
     if (!artboard) {
         LOGW("CommandServer: Failed to create default artboard");
         
@@ -233,8 +246,9 @@ void CommandServer::handleCreateArtboardByName(const Command& cmd)
         return;
     }
     
-    // Create the artboard by name (returns unique_ptr<ArtboardInstance>)
-    auto artboard = it->second->artboardNamed(cmd.name);
+    // Create the artboard by name (returns rcp<BindableArtboard>)
+    // BindableArtboard wraps ArtboardInstance and keeps file reference alive
+    auto artboard = it->second->bindableArtboardNamed(cmd.name);
     if (!artboard) {
         LOGW("CommandServer: Failed to create artboard with name: %s", cmd.name.c_str());
         

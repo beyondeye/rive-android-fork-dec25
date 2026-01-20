@@ -32,8 +32,14 @@ int64_t CommandServer::createDefaultStateMachineSync(int64_t artboardHandle)
         return 0;
     }
     
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = it->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(artboardHandle));
+        return 0;
+    }
+    
     // Log state machine count for debugging
-    auto& artboard = it->second;
     size_t smCount = artboard->stateMachineCount();
     LOGI("CommandServer: Artboard has %zu state machines", smCount);
     
@@ -97,8 +103,15 @@ int64_t CommandServer::createStateMachineByNameSync(int64_t artboardHandle, cons
         return 0;
     }
     
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = it->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(artboardHandle));
+        return 0;
+    }
+    
     // Create the state machine by name
-    auto sm = it->second->stateMachineNamed(name);
+    auto sm = artboard->stateMachineNamed(name);
     if (!sm) {
         LOGW("CommandServer: Failed to create state machine with name: %s", name.c_str());
         return 0;
@@ -155,14 +168,25 @@ void CommandServer::handleCreateDefaultStateMachine(const Command& cmd)
         return;
     }
     
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = it->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "BindableArtboard has no artboard instance";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
     // Create the default state machine
-    auto sm = it->second->defaultStateMachine();
+    auto sm = artboard->defaultStateMachine();
     
     // Fallback to first state machine if defaultStateMachine() returns null
     // This matches the behavior of rive's ArtboardInstance::defaultScene()
-    if (!sm && it->second->stateMachineCount() > 0) {
+    if (!sm && artboard->stateMachineCount() > 0) {
         LOGI("CommandServer: defaultStateMachine() returned null, falling back to stateMachineAt(0)");
-        sm = it->second->stateMachineAt(0);
+        sm = artboard->stateMachineAt(0);
     }
     
     if (!sm) {
@@ -204,8 +228,19 @@ void CommandServer::handleCreateStateMachineByName(const Command& cmd)
         return;
     }
     
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = it->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(cmd.handle));
+        
+        Message msg(MessageType::StateMachineError, cmd.requestID);
+        msg.error = "BindableArtboard has no artboard instance";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+    
     // Create the state machine by name
-    auto sm = it->second->stateMachineNamed(cmd.name);
+    auto sm = artboard->stateMachineNamed(cmd.name);
     if (!sm) {
         LOGW("CommandServer: Failed to create state machine with name: %s", cmd.name.c_str());
         
@@ -242,11 +277,31 @@ void CommandServer::handleAdvanceStateMachine(const Command& cmd)
         return;
     }
     
-    // Advance the state machine
-    it->second->advance(cmd.deltaTime);
+    auto& sm = it->second;
     
-    // Check if the state machine has settled
-    bool settled = !it->second->needsAdvance();
+    // DIAGNOSTIC: Log animation state BEFORE advance
+    size_t animCountBefore = sm->currentAnimationCount();
+    LOGW("CommandServer: DIAGNOSTIC BEFORE advance - currentAnimationCount=%zu, deltaTime=%f",
+         animCountBefore, cmd.deltaTime);
+    
+    // Use advanceAndApply() instead of advance() - this advances BOTH the state machine
+    // AND the artboard together, ensuring proper animation synchronization.
+    // The artboard's advanceInternal() is called internally with the same deltaTime.
+    // IMPORTANT: Capture the return value - it indicates if animations will continue!
+    bool stillPlaying = sm->advanceAndApply(cmd.deltaTime);
+    
+    // DIAGNOSTIC: Log animation state AFTER advance
+    size_t animCountAfter = sm->currentAnimationCount();
+    size_t stateChangedCount = sm->stateChangedCount();
+    bool needsAdvanceFlag = sm->needsAdvance();
+    
+    LOGW("CommandServer: DIAGNOSTIC AFTER advance - stillPlaying=%d, currentAnimationCount=%zu, stateChangedCount=%zu, needsAdvance=%d",
+         stillPlaying, animCountAfter, stateChangedCount, needsAdvanceFlag);
+    
+    // The "settled" state should be based on the RETURN VALUE of advanceAndApply(),
+    // NOT needsAdvance(). The return value indicates if animations will continue.
+    // needsAdvance() only indicates pending state changes (like input changes).
+    bool settled = !stillPlaying;
     
     LOGI("CommandServer: State machine advanced (handle=%lld, settled=%d)", 
          static_cast<long long>(cmd.handle), settled);

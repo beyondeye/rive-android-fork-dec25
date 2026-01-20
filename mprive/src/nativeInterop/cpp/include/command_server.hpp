@@ -13,6 +13,7 @@
 
 // Rive headers
 #include "rive/file.hpp"
+#include "rive/bindable_artboard.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
@@ -1091,7 +1092,7 @@ private:
     
     // Phase B: Resource maps (protected by m_resourceMutex for thread safety)
     std::map<int64_t, rive::rcp<rive::File>> m_files;
-    std::map<int64_t, std::unique_ptr<rive::ArtboardInstance>> m_artboards;
+    std::map<int64_t, rive::rcp<rive::BindableArtboard>> m_artboards;
     std::atomic<int64_t> m_nextHandle{1};
     
     // Mutex to protect resource maps when accessed from multiple threads

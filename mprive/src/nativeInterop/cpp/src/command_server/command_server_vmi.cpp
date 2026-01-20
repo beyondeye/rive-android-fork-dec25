@@ -324,9 +324,18 @@ void CommandServer::handleGetDefaultVMI(const Command& cmd)
         return;
     }
 
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = artboardIt->second->artboard();
+    if (!artboard) {
+        Message msg(MessageType::DefaultVMIError, cmd.requestID);
+        msg.error = "BindableArtboard has no artboard instance";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
     // Get default VMI from file for the artboard
     // File::createDefaultViewModelInstance returns rcp<ViewModelInstance>
-    auto defaultVMI = fileIt->second->createDefaultViewModelInstance(artboardIt->second.get());
+    auto defaultVMI = fileIt->second->createDefaultViewModelInstance(artboard);
 
     if (!defaultVMI) {
         // No default VMI for this artboard - return 0 handle (not an error, just no default)

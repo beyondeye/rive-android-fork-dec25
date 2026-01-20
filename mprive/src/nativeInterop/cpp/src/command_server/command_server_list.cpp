@@ -471,16 +471,7 @@ void CommandServer::handleSetArtboardProperty(const Command& cmd)
         // Clear the artboard property
         artboardProp->value(nullptr);
     } else {
-        // Look up file from our storage map
-        auto fileIt = m_files.find(cmd.fileHandle);
-        if (fileIt == m_files.end()) {
-            Message msg(MessageType::AssetPropertyError, cmd.requestID);
-            msg.error = "Invalid file handle";
-            enqueueMessage(std::move(msg));
-            return;
-        }
-
-        // Look up artboard from our storage map
+        // Look up artboard from our storage map - it's already a BindableArtboard
         auto artboardIt = m_artboards.find(cmd.assetHandle);
         if (artboardIt == m_artboards.end()) {
             Message msg(MessageType::AssetPropertyError, cmd.requestID);
@@ -489,12 +480,8 @@ void CommandServer::handleSetArtboardProperty(const Command& cmd)
             return;
         }
 
-        // Get the artboard as a raw pointer (we need the base Artboard, not ArtboardInstance)
-        rive::Artboard* artboard = artboardIt->second.get();
-
-        // Create a BindableArtboard using the file's internal method
-        auto bindableArtboard = fileIt->second->internalBindableArtboardFromArtboard(artboard);
-        artboardProp->value(bindableArtboard);
+        // m_artboards now stores rcp<BindableArtboard> directly, so we can use it
+        artboardProp->value(artboardIt->second);
     }
 
     Message msg(MessageType::AssetPropertySetSuccess, cmd.requestID);
