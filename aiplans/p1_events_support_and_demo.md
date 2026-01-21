@@ -127,7 +127,8 @@ namespace mprive {
 
 enum class RiveEventType : uint16_t {
     GeneralEvent = 128,
-    OpenURLEvent = 131
+    OpenURLEvent = 131,
+    AudioEvent = 407
 };
 
 // Variant for property values
@@ -143,7 +144,8 @@ struct RiveEventData {
     RiveEventType type;
     float delay;
     std::string url;           // For OpenURLEvent
-    std::string target;        // For OpenURLEvent
+    uint32_t targetValue;      // For OpenURLEvent (0=_blank, 1=_parent, 2=_self, 3=_top)
+    uint32_t assetId;          // For AudioEvent
     std::map<std::string, PropertyValue> properties;
 };
 
@@ -159,6 +161,7 @@ Add to `command_server_state_machine.cpp`:
 #include "rive/event.hpp"
 #include "rive/event_report.hpp"
 #include "rive/open_url_event.hpp"
+#include "rive/audio_event.hpp"
 #include "rive/custom_property.hpp"
 
 size_t CommandServer::getReportedEventCount(StateMachineHandle smHandle) {
@@ -187,9 +190,15 @@ RiveEventData CommandServer::getReportedEventAt(StateMachineHandle smHandle, siz
     if (event->coreType() == rive::OpenUrlEventBase::typeKey) {
         auto* urlEvent = static_cast<rive::OpenUrlEvent*>(event);
         data.url = urlEvent->url();
-        data.target = urlEvent->targetValue();
+        data.targetValue = urlEvent->targetValue();  // Returns uint32_t (0-3)
     }
-    
+
+    // For AudioEvent, extract assetId
+    if (event->coreType() == rive::AudioEventBase::typeKey) {
+        auto* audioEvent = static_cast<rive::AudioEvent*>(event);
+        data.assetId = audioEvent->assetId();
+    }
+
     return data;
 }
 
@@ -256,26 +265,27 @@ Java_app_rive_mp_core_CommandQueueBridgeKt_nativeGetReportedEventAt(
 jobject createRiveEventDataObject(JNIEnv* env, const RiveEventData& data) {
     // Find the Kotlin class
     jclass eventDataClass = env->FindClass("app/rive/mp/event/RiveEventData");
-    
-    // Get constructor
+
+    // Get constructor: (String name, Short typeCode, Float delay, String url,
+    //                   Int targetValue, Int assetId, Map properties)
     jmethodID constructor = env->GetMethodID(eventDataClass, "<init>",
-        "(Ljava/lang/String;SFLjava/lang/String;Ljava/lang/String;Ljava/util/Map;)V");
-    
+        "(Ljava/lang/String;SFLjava/lang/String;IILjava/util/Map;)V");
+
     // Convert properties map
     jobject propertiesMap = createPropertiesMap(env, data.properties);
-    
+
     // Create strings
     jstring name = env->NewStringUTF(data.name.c_str());
     jstring url = env->NewStringUTF(data.url.c_str());
-    jstring target = env->NewStringUTF(data.target.c_str());
-    
+
     // Create object
     return env->NewObject(eventDataClass, constructor,
         name,
         static_cast<jshort>(data.type),
         data.delay,
         url,
-        target,
+        static_cast<jint>(data.targetValue),
+        static_cast<jint>(data.assetId),
         propertiesMap
     );
 }
@@ -283,7 +293,16 @@ jobject createRiveEventDataObject(JNIEnv* env, const RiveEventData& data) {
 
 ### Phase 3: Kotlin/Common Layer - Event Classes ✅ COMPLETE
 
-**Status:** Implemented on 2026-01-21
+**Status:** Implemented on 2026-01-21 (expanded with AudioEvent and OpenUrlTarget enum)
+
+**Supported Event Types:**
+| Type Key | Event Type | Kotlin Class | Description |
+|----------|-----------|--------------|-------------|
+| 128 | GeneralEvent | `RiveGeneralEvent` | General-purpose event with custom properties |
+| 131 | OpenURLEvent | `RiveOpenURLEvent` | URL event with `url` and `target` properties |
+| 407 | AudioEvent | `RiveAudioEvent` | Audio event with `assetId` property |
+
+**Note:** Internal event types (ListenerFireEvent=168, StateMachineFireEvent=169) are not exposed as they are trigger mechanisms, not reportable events.
 
 **Files created in `mprive/src/commonMain/kotlin/app/rive/mp/event/`:**
 
@@ -292,14 +311,10 @@ jobject createRiveEventDataObject(JNIEnv* env, const RiveEventData& data) {
 ```kotlin
 package app.rive.mp.event
 
-/**
- * The type of Rive event.
- * 
- * Matches the reference implementation in kotlin/src/main.
- */
 enum class EventType(val value: Short) {
     GeneralEvent(128),
-    OpenURLEvent(131);
+    OpenURLEvent(131),
+    AudioEvent(407);
 
     companion object {
         private val map = entries.associateBy(EventType::value)
@@ -308,29 +323,32 @@ enum class EventType(val value: Short) {
 }
 ```
 
-#### 3.2 RiveEvent.kt
+#### 3.2 OpenUrlTarget.kt
 
 ```kotlin
 package app.rive.mp.event
 
-/**
- * A Rive event emitted by a state machine during animation playback.
- *
- * Events can carry custom properties and be used to trigger application logic
- * in response to animation state changes.
- *
- * This is a pure Kotlin data class (no native pointers) suitable for
- * Kotlin Multiplatform.
- *
- * @property name Name of the event as defined in Rive.
- * @property type Type of event ([EventType.GeneralEvent] or [EventType.OpenURLEvent]).
- * @property delay Delay in seconds since the advance that triggered the event.
- * @property properties Custom properties attached to the event.
- * @property data All event data as a flat map.
- *
- * @see RiveGeneralEvent
- * @see RiveOpenURLEvent
- */
+enum class OpenUrlTarget(val value: Int, val targetName: String) {
+    Blank(0, "_blank"),
+    Parent(1, "_parent"),
+    Self(2, "_self"),
+    Top(3, "_top");
+
+    companion object {
+        private val valueMap = entries.associateBy(OpenUrlTarget::value)
+        private val nameMap = entries.associateBy(OpenUrlTarget::targetName)
+
+        fun fromValue(value: Int): OpenUrlTarget = valueMap[value] ?: Blank
+        fun fromName(name: String): OpenUrlTarget = nameMap[name] ?: Blank
+    }
+}
+```
+
+#### 3.3 RiveEvent.kt
+
+```kotlin
+package app.rive.mp.event
+
 open class RiveEvent(
     val name: String,
     val type: EventType,
@@ -342,121 +360,68 @@ open class RiveEvent(
 }
 ```
 
-#### 3.3 RiveGeneralEvent.kt
+#### 3.4 RiveGeneralEvent.kt
 
 ```kotlin
 package app.rive.mp.event
 
-/**
- * A general-purpose Rive event.
- *
- * General events can carry arbitrary properties defined in the Rive editor.
- * Access properties via the [properties] map.
- *
- * Example:
- * ```kotlin
- * if (event is RiveGeneralEvent) {
- *     val rating = event.properties["rating"] as? Number
- *     println("Rating: $rating")
- * }
- * ```
- *
- * @see RiveOpenURLEvent
- */
 class RiveGeneralEvent(
     name: String,
     delay: Float,
     properties: Map<String, Any>,
     data: Map<String, Any>
-) : RiveEvent(name, EventType.GeneralEvent, delay, properties, data) {
-    override fun toString(): String =
-        "RiveGeneralEvent(name=$name, delay=$delay, properties=$properties)"
-}
+) : RiveEvent(name, EventType.GeneralEvent, delay, properties, data)
 ```
 
-#### 3.4 RiveOpenURLEvent.kt
+#### 3.5 RiveOpenURLEvent.kt
 
 ```kotlin
 package app.rive.mp.event
 
-/**
- * A Rive event that requests opening a URL.
- *
- * This event type is specifically designed for "Open URL" actions in Rive.
- * The application should handle this event by opening the URL in an appropriate way.
- *
- * Example:
- * ```kotlin
- * if (event is RiveOpenURLEvent) {
- *     uriHandler.openUri(event.url)
- * }
- * ```
- *
- * @property url The URL to open.
- * @property target The target window/context for the URL (e.g., "_blank", "_self").
- *
- * @see RiveGeneralEvent
- */
 class RiveOpenURLEvent(
     name: String,
     delay: Float,
     properties: Map<String, Any>,
     data: Map<String, Any>,
     val url: String,
-    val target: String
+    val target: OpenUrlTarget  // Type-safe enum instead of String
 ) : RiveEvent(name, EventType.OpenURLEvent, delay, properties, data) {
-    override fun toString(): String =
-        "RiveOpenURLEvent(name=$name, url=$url, target=$target)"
+    val targetName: String get() = target.targetName
 }
 ```
 
-#### 3.5 RiveEventData.kt (Internal transfer class)
+#### 3.6 RiveAudioEvent.kt
 
 ```kotlin
 package app.rive.mp.event
 
-/**
- * Internal data class for transferring event data from native layer.
- * Used by the JNI bindings to create typed event objects.
- */
+class RiveAudioEvent(
+    name: String,
+    delay: Float,
+    properties: Map<String, Any>,
+    data: Map<String, Any>,
+    val assetId: UInt
+) : RiveEvent(name, EventType.AudioEvent, delay, properties, data)
+```
+
+#### 3.7 RiveEventData.kt (Internal transfer class)
+
+```kotlin
+package app.rive.mp.event
+
 internal data class RiveEventData(
     val name: String,
     val typeCode: Short,
     val delay: Float,
     val url: String,
-    val target: String,
+    val targetValue: Int,      // Numeric value (0-3) instead of String
+    val assetId: UInt,         // For AudioEvent
     val properties: Map<String, Any>
 ) {
-    /**
-     * Converts this data object to the appropriate RiveEvent subclass.
-     */
     fun toRiveEvent(): RiveEvent {
         val type = EventType.fromValue(typeCode)
-        val data = buildMap<String, Any> {
-            put("name", name)
-            put("type", type.value)
-            put("delay", delay)
-            putAll(properties)
-            if (url.isNotEmpty()) put("url", url)
-            if (target.isNotEmpty()) put("target", target)
-        }
-        
-        return when (type) {
-            EventType.OpenURLEvent -> RiveOpenURLEvent(
-                name = name,
-                delay = delay,
-                properties = properties,
-                data = data,
-                url = url,
-                target = target
-            )
-            EventType.GeneralEvent -> RiveGeneralEvent(
-                name = name,
-                delay = delay,
-                properties = properties,
-                data = data
-            )
-        }
+        val target = OpenUrlTarget.fromValue(targetValue)
+        // ... converts to appropriate RiveEvent subclass
     }
 }
 ```
@@ -1050,11 +1015,13 @@ fun MainScreen(
 2. Convert C++ event data to JNI-compatible format
 
 ### Step 3: Kotlin Event Classes (Phase 3) ✅ COMPLETE
-1. ✅ Create EventType enum
-2. ✅ Create RiveEvent base class
-3. ✅ Create RiveGeneralEvent class
-4. ✅ Create RiveOpenURLEvent class
-5. ✅ Create RiveEventData transfer class
+1. ✅ Create EventType enum (GeneralEvent, OpenURLEvent, AudioEvent)
+2. ✅ Create OpenUrlTarget enum (Blank, Parent, Self, Top)
+3. ✅ Create RiveEvent base class
+4. ✅ Create RiveGeneralEvent class
+5. ✅ Create RiveOpenURLEvent class (with OpenUrlTarget)
+6. ✅ Create RiveAudioEvent class (with assetId)
+7. ✅ Create RiveEventData transfer class (with targetValue as Int, assetId)
 
 ### Step 4: CommandQueue Event Methods (Phase 4)
 1. Add event retrieval methods to CommandQueueBridge
@@ -1079,12 +1046,14 @@ fun MainScreen(
 
 ## Files Summary
 
-### New Files (10 total)
+### New Files (12 total)
 - `mprive/src/nativeInterop/cpp/include/rive_event.hpp`
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/EventType.kt` ✅ Created
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/OpenUrlTarget.kt` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEvent.kt` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveGeneralEvent.kt` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveOpenURLEvent.kt` ✅ Created
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveAudioEvent.kt` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEventData.kt` ✅ Created
 - `mpapp/src/commonMain/kotlin/app/rive/mpapp/EventsDemo.kt`
 - `mpapp/src/commonMain/composeResources/files/url_event_button.riv` (copy)

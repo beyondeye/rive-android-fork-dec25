@@ -15,6 +15,7 @@ package app.rive.mp.event
  * ```
  *
  * @see RiveOpenURLEvent
+ * @see RiveAudioEvent
  */
 class RiveGeneralEvent(
     name: String,

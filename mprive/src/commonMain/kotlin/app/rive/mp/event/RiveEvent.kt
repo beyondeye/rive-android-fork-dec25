@@ -9,14 +9,24 @@ package app.rive.mp.event
  * This is a pure Kotlin data class (no native pointers) suitable for
  * Kotlin Multiplatform.
  *
+ * Use `when` to handle different event types:
+ * ```kotlin
+ * when (event) {
+ *     is RiveGeneralEvent -> handleGeneral(event)
+ *     is RiveOpenURLEvent -> openUrl(event.url)
+ *     is RiveAudioEvent -> playAudio(event.assetId)
+ * }
+ * ```
+ *
  * @property name Name of the event as defined in Rive.
- * @property type Type of event ([EventType.GeneralEvent] or [EventType.OpenURLEvent]).
+ * @property type Type of event (see [EventType]).
  * @property delay Delay in seconds since the advance that triggered the event.
  * @property properties Custom properties attached to the event.
  * @property data All event data as a flat map.
  *
  * @see RiveGeneralEvent
  * @see RiveOpenURLEvent
+ * @see RiveAudioEvent
  */
 open class RiveEvent(
     val name: String,
