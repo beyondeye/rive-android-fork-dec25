@@ -1133,7 +1133,7 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppPollMessages(
 
             // Phase C.2.6: Draw operation results (fire-and-forget, just log)
             case rive_android::MessageType::DrawComplete:
-                LOGI("CommandQueue JNI: Draw completed (drawKey=%lld)", static_cast<long long>(msg.handle));
+                LOGI("CommandQueue JNI: DIAGNOSTIC - Draw completed (drawKey=%lld)", static_cast<long long>(msg.handle));
                 break;
 
             case rive_android::MessageType::DrawError:

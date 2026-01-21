@@ -360,7 +360,7 @@ struct RenderContextGL : RenderContext
         auto eglSurface = static_cast<EGLSurface>(surface);
         
         // Diagnostic logging for grey box debugging
-        LOGD(RC_PREFIX "beginFrame: surface ptr=%p, eglSurface=%p, eglDisplay=%p, eglContext=%p",
+        LOGD(RC_PREFIX "beginFrame: DIAGNOSTIC - surface ptr=%p, eglSurface=%p, eglDisplay=%p, eglContext=%p",
              surface, eglSurface, eglDisplay, eglContext);
         
         EGLBoolean result = eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
@@ -372,13 +372,13 @@ struct RenderContextGL : RenderContext
         }
         else
         {
-            LOGD(RC_PREFIX "beginFrame: eglMakeCurrent succeeded");
+            LOGD(RC_PREFIX "beginFrame: DIAGNOSTIC - eglMakeCurrent succeeded");
             
             // Verify current context
             EGLContext currentCtx = eglGetCurrentContext();
             EGLSurface currentDraw = eglGetCurrentSurface(EGL_DRAW);
             EGLSurface currentRead = eglGetCurrentSurface(EGL_READ);
-            LOGD(RC_PREFIX "beginFrame: current context=%p, draw surface=%p, read surface=%p",
+            LOGD(RC_PREFIX "beginFrame: DIAGNOSTIC - current context=%p, draw surface=%p, read surface=%p",
                  currentCtx, currentDraw, currentRead);
         }
     }
@@ -389,7 +389,7 @@ struct RenderContextGL : RenderContext
         auto eglSurface = static_cast<EGLSurface>(surface);
         
         // Diagnostic logging for grey box debugging
-        LOGD(RC_PREFIX "present: surface ptr=%p, eglSurface=%p", surface, eglSurface);
+        LOGD(RC_PREFIX "DIAGNOSTIC - present: surface ptr=%p, eglSurface=%p", surface, eglSurface);
         
         EGLBoolean result = eglSwapBuffers(eglDisplay, eglSurface);
         if (!result)
@@ -400,7 +400,7 @@ struct RenderContextGL : RenderContext
         }
         else
         {
-            LOGD(RC_PREFIX "present: eglSwapBuffers succeeded");
+            LOGD(RC_PREFIX "DIAGNOSTIC - present: eglSwapBuffers succeeded");
         }
     }
 
