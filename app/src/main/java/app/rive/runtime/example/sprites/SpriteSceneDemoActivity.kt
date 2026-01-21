@@ -58,7 +58,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.rive.ExperimentalRiveComposeAPI
 import app.rive.Result
 import app.rive.RiveFileSource
 import app.rive.RiveLog
@@ -320,7 +319,6 @@ class FramePerSecondCalculator(val averageFrameCount: Int = DEFAULT_FPS_AVERAGE_
  */
 class SpriteSceneDemoActivity : ComponentActivity() {
 
-    @OptIn(ExperimentalRiveComposeAPI::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -405,7 +403,6 @@ private fun lerp(start: Float, end: Float, fraction: Float): Float {
     return start + (end - start) * fraction
 }
 
-@OptIn(ExperimentalRiveComposeAPI::class)
 @Composable
 private fun SpriteSceneDemo(modifier: Modifier = Modifier) {
     val context = LocalContext.current
