@@ -771,9 +771,9 @@ However, for proper rive-android parity, full linear animation support (Option A
 
 ## Related Documentation
 
-- [mprive_commandqueue_consolidated_plan.md](../aiplans/mprive_commandqueue_consolidated_plan.md) - Full architecture plan
-- [t3_crash_when_running_demoapp.md](./t3_crash_when_running_demoapp.md) - Original crash logs
-- [t5_statemachine_skipframes_optimizations.md](./t5_statemachine_skipframes_optimizations.md) - Future optimization notes
+- [mprive_commandqueue_consolidated_plan.md](../../aiplans/mprive_commandqueue_consolidated_plan.md) - Full architecture plan
+- [t3_crash_when_running_demoapp.md](t3_crash_when_running_demoapp.md) - Original crash logs
+- [t5_statemachine_skipframes_optimizations.md](../t5_statemachine_skipframes_optimizations.md) - Future optimization notes
 
 ---
 
