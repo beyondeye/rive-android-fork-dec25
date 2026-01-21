@@ -21,23 +21,19 @@ enum class Screen {
  * This is shared across all platforms.
  */
 @Composable
-fun App(
-    riveFileBytes: ByteArray? = null
-) {
+fun App() {
     var currentScreen by remember { mutableStateOf(Screen.Main) }
     
     MaterialTheme {
         Surface(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().safeContentPadding(),
             color = MaterialTheme.colorScheme.background
         ) {
             when (currentScreen) {
                 Screen.Main -> MainScreen(
-                    onNavigateToDemo = { currentScreen = Screen.RiveDemo },
-                    hasRiveFile = riveFileBytes != null
+                    onNavigateToDemo = { currentScreen = Screen.RiveDemo }
                 )
                 Screen.RiveDemo -> RiveDemo(
-                    riveFileBytes = riveFileBytes,
                     onBack = { currentScreen = Screen.Main }
                 )
             }
@@ -47,8 +43,7 @@ fun App(
 
 @Composable
 fun MainScreen(
-    onNavigateToDemo: () -> Unit = {},
-    hasRiveFile: Boolean = false
+    onNavigateToDemo: () -> Unit = {}
 ) {
     val platform = remember { getRivePlatform() }
     var initialized by remember { mutableStateOf(false) }
@@ -93,19 +88,10 @@ fun MainScreen(
         // Rive Demo Button
         Button(
             onClick = onNavigateToDemo,
-            enabled = initialized && hasRiveFile,
+            enabled = initialized,
             modifier = Modifier.fillMaxWidth(0.8f)
         ) {
             Text("Open Rive Demo")
-        }
-        
-        if (!hasRiveFile) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "(No Rive file loaded)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
-            )
         }
         
         Spacer(modifier = Modifier.height(24.dp))
@@ -124,7 +110,7 @@ fun MainScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "This is a Compose Multiplatform demo app for testing the mprive library's Rive composable.",
+                    text = "This is a Compose Multiplatform demo app for testing the mprive library's Rive composable. Select from multiple demo Rive files in the demo screen.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
