@@ -1,5 +1,21 @@
 # Rive Events Support and Events Demo Implementation Plan
 
+## Implementation Progress
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | C++ Layer - Event Retrieval Commands | ⏳ Not Started |
+| Phase 2 | JNI/Bindings Layer | ⏳ Not Started |
+| Phase 3 | Kotlin/Common Layer - Event Classes | ✅ Complete |
+| Phase 4 | CommandQueue Event Methods | ⏳ Not Started |
+| Phase 5 | StateMachine Event Support | ⏳ Not Started |
+| Phase 6 | Rive Composable - onEvent Parameter | ⏳ Not Started |
+| Phase 7 | Demo App Implementation | ⏳ Not Started |
+
+**Last Updated:** 2026-01-21
+
+---
+
 ## Overview
 
 This document outlines the plan to implement Rive Events support in the `mprive` multiplatform library and create an Events demo screen in the `mpapp` module, matching the functionality of the reference implementation in `app/src/main/java/app/rive/runtime/example/EventsActivity.kt`.
@@ -265,9 +281,11 @@ jobject createRiveEventDataObject(JNIEnv* env, const RiveEventData& data) {
 }
 ```
 
-### Phase 3: Kotlin/Common Layer - Event Classes
+### Phase 3: Kotlin/Common Layer - Event Classes ✅ COMPLETE
 
-**New files to create in `mprive/src/commonMain/kotlin/app/rive/mp/event/`:**
+**Status:** Implemented on 2026-01-21
+
+**Files created in `mprive/src/commonMain/kotlin/app/rive/mp/event/`:**
 
 #### 3.1 EventType.kt
 
@@ -1031,12 +1049,12 @@ fun MainScreen(
 1. Add JNI functions for event count and retrieval
 2. Convert C++ event data to JNI-compatible format
 
-### Step 3: Kotlin Event Classes (Phase 3)
-1. Create EventType enum
-2. Create RiveEvent base class
-3. Create RiveGeneralEvent class
-4. Create RiveOpenURLEvent class
-5. Create RiveEventData transfer class
+### Step 3: Kotlin Event Classes (Phase 3) ✅ COMPLETE
+1. ✅ Create EventType enum
+2. ✅ Create RiveEvent base class
+3. ✅ Create RiveGeneralEvent class
+4. ✅ Create RiveOpenURLEvent class
+5. ✅ Create RiveEventData transfer class
 
 ### Step 4: CommandQueue Event Methods (Phase 4)
 1. Add event retrieval methods to CommandQueueBridge
@@ -1063,11 +1081,11 @@ fun MainScreen(
 
 ### New Files (10 total)
 - `mprive/src/nativeInterop/cpp/include/rive_event.hpp`
-- `mprive/src/commonMain/kotlin/app/rive/mp/event/EventType.kt`
-- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEvent.kt`
-- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveGeneralEvent.kt`
-- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveOpenURLEvent.kt`
-- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEventData.kt`
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/EventType.kt` ✅ Created
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEvent.kt` ✅ Created
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveGeneralEvent.kt` ✅ Created
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveOpenURLEvent.kt` ✅ Created
+- `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEventData.kt` ✅ Created
 - `mpapp/src/commonMain/kotlin/app/rive/mpapp/EventsDemo.kt`
 - `mpapp/src/commonMain/composeResources/files/url_event_button.riv` (copy)
 - `mpapp/src/commonMain/composeResources/files/log_event_button.riv` (copy)
