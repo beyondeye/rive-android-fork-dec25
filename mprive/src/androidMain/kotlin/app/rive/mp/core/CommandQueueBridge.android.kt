@@ -56,6 +56,18 @@ internal class CommandQueueJNIBridge : CommandQueueBridge {
     external override fun cppAdvanceStateMachine(pointer: Long, stateMachineHandle: Long, deltaTimeNs: Long)
     
     // =========================================================================
+    // Linear Animation Operations
+    // =========================================================================
+    
+    external override fun cppCreateDefaultAnimation(pointer: Long, artboardHandle: Long): Long
+    external override fun cppCreateAnimationByName(pointer: Long, artboardHandle: Long, name: String): Long
+    external override fun cppAdvanceAndApplyAnimation(pointer: Long, animHandle: Long, artboardHandle: Long, deltaTime: Float, advanceArtboard: Boolean): Boolean
+    external override fun cppDeleteAnimation(pointer: Long, animHandle: Long)
+    external override fun cppSetAnimationTime(pointer: Long, animHandle: Long, time: Float)
+    external override fun cppSetAnimationLoop(pointer: Long, animHandle: Long, loopMode: Int)
+    external override fun cppSetAnimationDirection(pointer: Long, animHandle: Long, direction: Int)
+    
+    // =========================================================================
     // State Machine Input Manipulation (SMI)
     // =========================================================================
     

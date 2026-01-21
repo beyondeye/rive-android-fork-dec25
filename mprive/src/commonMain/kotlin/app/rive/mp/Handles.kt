@@ -36,6 +36,21 @@ value class StateMachineHandle(val handle: Long) {
 }
 
 /**
+ * A handle to a linear animation instance on the CommandServer. Created with
+ * [CommandQueue.createDefaultAnimation] or [CommandQueue.createAnimationByName]
+ * and deleted with [CommandQueue.deleteAnimation].
+ *
+ * Linear animations are timeline-based animations that play independently of state machines.
+ * They are simpler than state machines but don't support interactivity.
+ *
+ * @param handle The handle issued by the native CommandQueue.
+ */
+@JvmInline
+value class AnimationHandle(val handle: Long) {
+    override fun toString(): String = "AnimationHandle($handle)"
+}
+
+/**
  * A handle to a view model instance on the CommandServer. Created with
  * [CommandQueue.createViewModelInstance] and deleted with [CommandQueue.deleteViewModelInstance].
  *

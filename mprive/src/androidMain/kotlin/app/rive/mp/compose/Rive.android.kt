@@ -19,6 +19,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import app.rive.mp.AnimationHandle
 import app.rive.mp.Artboard
 import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.RenderContextGL
@@ -36,6 +37,7 @@ import app.rive.mp.core.Fit as CoreFit
 
 private const val GENERAL_TAG = "Rive/UI"
 private const val STATE_MACHINE_TAG = "Rive/UI/SM"
+private const val ANIMATION_TAG = "Rive/UI/Anim"
 private const val DRAW_TAG = "Rive/UI/Draw"
 private const val VM_INSTANCE_TAG = "Rive/UI/VMI"
 
@@ -104,6 +106,12 @@ actual fun Rive(
     val stateMachineToUse = stateMachine ?: rememberStateMachineOrNull(artboardToUse)
     val stateMachineHandle = stateMachineToUse?.stateMachineHandle ?: StateMachineHandle(0)
     var isSettled by remember(stateMachineHandle) { mutableStateOf(stateMachineToUse == null) }
+
+    // Create a linear animation if no state machine exists (for files with only linear animations)
+    // This matches rive-android reference behavior where BOTH linear animations AND state machines
+    // can play simultaneously.
+    val animationToUse = rememberAnimationOrNull(artboardToUse, stateMachineToUse)
+    val animationHandle = animationToUse?.animationHandle ?: AnimationHandle(0)
 
     var surface by remember { mutableStateOf<RiveSurface?>(null) }
     var surfaceWidth by remember { mutableIntStateOf(0) }
@@ -179,6 +187,7 @@ actual fun Rive(
         surface,
         artboardHandle,
         stateMachineHandle,
+        animationHandle,
         viewModelInstance,
         fit,
         backgroundColor,
@@ -209,7 +218,7 @@ actual fun Rive(
             return@LaunchedEffect
         }
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            RiveLog.d(DRAW_TAG) { "Starting drawing with $artboardHandle and $stateMachineHandle" }
+            RiveLog.d(DRAW_TAG) { "Starting drawing with $artboardHandle, $stateMachineHandle, $animationHandle" }
             var lastFrameTime = 0.nanoseconds
             while (isActive) {
                 val deltaTime = withFrameNanos { frameTimeNs ->
@@ -219,12 +228,26 @@ actual fun Rive(
                     }
                 }
 
-                // Skip advance and draw when settled
-                if (isSettled) {
-                    continue
-                }
+                // NOTE: We intentionally DO NOT skip frames when settled.
+                // The original rive-android implementation continues advancing all playing
+                // state machines every frame, and only pauses them when elapsed > 0 AND
+                // they report not still playing. See t5_statemachine_skipframes_optimizations.md
+                // for future battery optimization strategies.
+                //
+                // The isSettled flag can still be used for other optimizations (e.g., reducing
+                // frame rate) but NOT for skipping frames entirely, as this breaks auto-playing
+                // animations that report settled immediately.
 
+                // Advance state machine if present
                 stateMachineToUse?.advance(deltaTime)
+
+                // Advance linear animation if present (for files without auto-playing state machines)
+                // This matches rive-android reference behavior where linear animations drive
+                // the artboard when the state machine doesn't have auto-playing content.
+                // Pass advanceArtboard=true only when no state machine exists, since the
+                // state machine handles artboard advancement internally.
+                animationToUse?.advanceAndApply(deltaTime, advanceArtboard = stateMachineToUse == null)
+
                 riveWorker.draw(
                     artboardHandle,
                     stateMachineHandle,

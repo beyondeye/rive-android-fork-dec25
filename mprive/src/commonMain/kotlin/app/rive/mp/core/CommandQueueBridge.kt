@@ -111,6 +111,68 @@ interface CommandQueueBridge {
     fun cppAdvanceStateMachine(pointer: Long, stateMachineHandle: Long, deltaTimeNs: Long)
     
     // =========================================================================
+    // Linear Animation Operations (for files without auto-playing state machines)
+    // =========================================================================
+    
+    /**
+     * Create the default (first) animation from an artboard.
+     * @param pointer Pointer to the CommandQueue.
+     * @param artboardHandle Handle to the artboard.
+     * @return The animation handle, or 0 if creation failed.
+     */
+    fun cppCreateDefaultAnimation(pointer: Long, artboardHandle: Long): Long
+    
+    /**
+     * Create an animation by name from an artboard.
+     * @param pointer Pointer to the CommandQueue.
+     * @param artboardHandle Handle to the artboard.
+     * @param name The name of the animation.
+     * @return The animation handle, or 0 if creation failed.
+     */
+    fun cppCreateAnimationByName(pointer: Long, artboardHandle: Long, name: String): Long
+    
+    /**
+     * Advance and apply an animation to its artboard.
+     * @param pointer Pointer to the CommandQueue.
+     * @param animHandle Handle to the animation.
+     * @param artboardHandle Handle to the artboard.
+     * @param deltaTime Time delta in seconds.
+     * @return true if animation is still playing, false if completed (oneShot).
+     */
+    fun cppAdvanceAndApplyAnimation(pointer: Long, animHandle: Long, artboardHandle: Long, deltaTime: Float, advanceArtboard: Boolean): Boolean
+    
+    /**
+     * Delete an animation instance.
+     * @param pointer Pointer to the CommandQueue.
+     * @param animHandle Handle to the animation to delete.
+     */
+    fun cppDeleteAnimation(pointer: Long, animHandle: Long)
+    
+    /**
+     * Set the animation's current time position.
+     * @param pointer Pointer to the CommandQueue.
+     * @param animHandle Handle to the animation.
+     * @param time Time in seconds.
+     */
+    fun cppSetAnimationTime(pointer: Long, animHandle: Long, time: Float)
+    
+    /**
+     * Set the animation's loop mode.
+     * @param pointer Pointer to the CommandQueue.
+     * @param animHandle Handle to the animation.
+     * @param loopMode 0=oneShot, 1=loop, 2=pingPong.
+     */
+    fun cppSetAnimationLoop(pointer: Long, animHandle: Long, loopMode: Int)
+    
+    /**
+     * Set the animation's playback direction.
+     * @param pointer Pointer to the CommandQueue.
+     * @param animHandle Handle to the animation.
+     * @param direction 1=forwards, -1=backwards.
+     */
+    fun cppSetAnimationDirection(pointer: Long, animHandle: Long, direction: Int)
+    
+    // =========================================================================
     // State Machine Input Manipulation (SMI - Legacy Support for RiveSprite)
     // =========================================================================
     

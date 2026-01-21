@@ -15,6 +15,7 @@
 #include "rive/file.hpp"
 #include "rive/bindable_artboard.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
 #include "utils/no_op_factory.hpp"
@@ -289,6 +290,70 @@ public:
      * @param smHandle The handle of the state machine to delete.
      */
     void deleteStateMachine(int64_t requestID, int64_t smHandle);
+
+    // =========================================================================
+    // Linear Animation Operations
+    // =========================================================================
+
+    /**
+     * Creates the default (first) animation synchronously.
+     *
+     * @param artboardHandle The handle of the artboard to create animation from.
+     * @return The animation handle, or 0 if creation failed.
+     */
+    int64_t createDefaultAnimationSync(int64_t artboardHandle);
+
+    /**
+     * Creates an animation by name synchronously.
+     *
+     * @param artboardHandle The handle of the artboard to create animation from.
+     * @param name The name of the animation to create.
+     * @return The animation handle, or 0 if creation failed.
+     */
+    int64_t createAnimationByNameSync(int64_t artboardHandle, const std::string& name);
+
+    /**
+     * Advances and applies an animation to its artboard.
+     * Returns whether the animation is still playing (false for oneShot that completed).
+     *
+     * @param animHandle The handle of the animation.
+     * @param artboardHandle The handle of the artboard.
+     * @param deltaTime The time delta in seconds.
+     * @param advanceArtboard If true, also advances the artboard (use when no state machine is active).
+     * @return true if animation is still playing, false if completed.
+     */
+    bool advanceAndApplyAnimation(int64_t animHandle, int64_t artboardHandle, float deltaTime, bool advanceArtboard);
+
+    /**
+     * Deletes an animation instance.
+     *
+     * @param animHandle The handle of the animation to delete.
+     */
+    void deleteAnimation(int64_t animHandle);
+
+    /**
+     * Sets the animation's current time position.
+     *
+     * @param animHandle The handle of the animation.
+     * @param time The time in seconds.
+     */
+    void setAnimationTime(int64_t animHandle, float time);
+
+    /**
+     * Sets the animation's loop mode.
+     *
+     * @param animHandle The handle of the animation.
+     * @param loopMode 0=oneShot, 1=loop, 2=pingPong.
+     */
+    void setAnimationLoop(int64_t animHandle, int32_t loopMode);
+
+    /**
+     * Sets the animation's playback direction.
+     *
+     * @param animHandle The handle of the animation.
+     * @param direction 1=forwards, -1=backwards.
+     */
+    void setAnimationDirection(int64_t animHandle, int32_t direction);
 
     // =========================================================================
     // State Machine Input Operations (Phase C.4)
@@ -1101,6 +1166,9 @@ private:
     
     // Phase C: State machine resource map
     std::map<int64_t, std::unique_ptr<rive::StateMachineInstance>> m_stateMachines;
+
+    // Linear animation resource map (for files without auto-playing state machines)
+    std::map<int64_t, std::unique_ptr<rive::LinearAnimationInstance>> m_animations;
 
     // Phase C.2.3: Render target resource map
     std::map<int64_t, rive::gpu::RenderTargetGL*> m_renderTargets;

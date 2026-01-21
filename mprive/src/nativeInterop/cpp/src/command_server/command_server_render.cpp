@@ -4,6 +4,7 @@
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/math/aabb.hpp"
+#include <GLES3/gl3.h>
 
 namespace rive_android {
 
@@ -207,6 +208,14 @@ void CommandServer::handleDraw(const Command& cmd)
          static_cast<long long>(cmd.artboardHandle),
          static_cast<long long>(cmd.smHandle),
          cmd.surfaceWidth, cmd.surfaceHeight);
+    
+    // Diagnostic: Log all draw parameters
+    LOGD("CommandServer: Draw params - surfacePtr=%lld, renderTargetPtr=%lld, drawKey=%lld",
+         static_cast<long long>(cmd.surfacePtr),
+         static_cast<long long>(cmd.renderTargetPtr),
+         static_cast<long long>(cmd.drawKey));
+    LOGD("CommandServer: Draw params - fit=%d, alignment=%d, scaleFactor=%.2f, clearColor=0x%08X",
+         cmd.fitMode, cmd.alignmentMode, cmd.scaleFactor, cmd.clearColor);
 
     // 1. Validate artboard handle
     auto artboardIt = m_artboards.find(cmd.artboardHandle);
@@ -234,7 +243,16 @@ void CommandServer::handleDraw(const Command& cmd)
         sm = smIt->second.get();
     }
 
-    auto& artboard = artboardIt->second;
+    // Get ArtboardInstance from BindableArtboard
+    auto* artboard = artboardIt->second->artboard();
+    if (!artboard) {
+        LOGW("CommandServer: BindableArtboard has no artboard instance: %lld", static_cast<long long>(cmd.artboardHandle));
+
+        Message msg(MessageType::DrawError, cmd.requestID);
+        msg.error = "BindableArtboard has no artboard instance";
+        enqueueMessage(std::move(msg));
+        return;
+    }
 
     // 3. Check render context
     if (m_renderContext == nullptr) {
@@ -270,17 +288,38 @@ void CommandServer::handleDraw(const Command& cmd)
 
     // 6. Make EGL context current for this surface
     void* surfacePtr = reinterpret_cast<void*>(cmd.surfacePtr);
+    LOGD("CommandServer: About to call beginFrame with surfacePtr=%p (from %lld)",
+         surfacePtr, static_cast<long long>(cmd.surfacePtr));
     renderContext->beginFrame(surfacePtr);
+    
+    // Check GL errors after making context current
+    GLenum glErr = glGetError();
+    if (glErr != GL_NO_ERROR) {
+        LOGW("CommandServer: GL error after beginFrame: 0x%04X", glErr);
+    }
 
+    // DIAGNOSTIC: Check riveContext state BEFORE beginFrame
+    LOGW("CommandServer: DIAGNOSTIC - riveContext=%p, riveContext valid=%d",
+         renderContext->riveContext.get(),
+         renderContext->riveContext != nullptr);
+    
     // 7. Begin Rive GPU frame with clear
     // Extract RGBA components from 0xAARRGGBB format
     uint32_t clearColor = cmd.clearColor;
+    LOGD("CommandServer: Calling riveContext->beginFrame(%dx%d, clearColor=0x%08X)",
+         cmd.surfaceWidth, cmd.surfaceHeight, clearColor);
     renderContext->riveContext->beginFrame({
         .renderTargetWidth = static_cast<uint32_t>(cmd.surfaceWidth),
         .renderTargetHeight = static_cast<uint32_t>(cmd.surfaceHeight),
         .loadAction = rive::gpu::LoadAction::clear,
         .clearColor = clearColor
     });
+    
+    // Check GL errors after Rive beginFrame
+    glErr = glGetError();
+    if (glErr != GL_NO_ERROR) {
+        LOGW("CommandServer: GL error after riveContext->beginFrame: 0x%04X", glErr);
+    }
 
     // 8. Create renderer and apply fit/alignment transformation
     auto renderer = rive::RiveRenderer(renderContext->riveContext.get());
@@ -292,27 +331,213 @@ void CommandServer::handleDraw(const Command& cmd)
     // Save renderer state before transformation
     renderer.save();
 
-    // Apply fit & alignment to map artboard bounds to surface bounds
+    // DIAGNOSTIC: Try different align configurations
     rive::AABB surfaceBounds(0, 0,
                              static_cast<float>(cmd.surfaceWidth),
                              static_cast<float>(cmd.surfaceHeight));
+    
+    LOGW("CommandServer: DIAGNOSTIC - artboard bounds: (%.1f, %.1f, %.1f, %.1f)",
+         artboard->bounds().minX, artboard->bounds().minY, 
+         artboard->bounds().maxX, artboard->bounds().maxY);
+    LOGW("CommandServer: DIAGNOSTIC - surface bounds: (%.1f, %.1f, %.1f, %.1f)",
+         surfaceBounds.minX, surfaceBounds.minY, surfaceBounds.maxX, surfaceBounds.maxY);
+    LOGW("CommandServer: DIAGNOSTIC - fit=%d, alignment=%d, scaleFactor=%.2f",
+         cmd.fitMode, cmd.alignmentMode, cmd.scaleFactor);
+    
     renderer.align(fit,
                    alignment,
                    surfaceBounds,
                    artboard->bounds(),
                    cmd.scaleFactor);
 
+    // NOTE: artboard->advance() is now called by advanceAndApply() in handleAdvanceStateMachine()
+    // This ensures proper synchronization between state machine and artboard updates.
+    // Previously, we called artboard->advance(0) here which was overwriting animation state.
+    
     // 9. Draw the artboard
+    // =========================================================================
+    // DIAGNOSTIC: Log artboard content details
+    // =========================================================================
+    LOGW("CommandServer: ARTBOARD DIAGNOSTIC - name='%s', size=%.0fx%.0f",
+         artboard->name().c_str(), artboard->width(), artboard->height());
+    LOGW("CommandServer: ARTBOARD DIAGNOSTIC - objectCount=%zu, animationCount=%zu, stateMachineCount=%zu",
+         artboard->objects().size(), artboard->animationCount(), artboard->stateMachineCount());
+    
+    // Log first few objects in the artboard
+    auto& objects = artboard->objects();
+    size_t objectsToLog = std::min(objects.size(), static_cast<size_t>(10));
+    for (size_t i = 0; i < objectsToLog; i++) {
+        auto* obj = objects[i];
+        if (obj != nullptr) {
+            LOGW("CommandServer: ARTBOARD DIAGNOSTIC - object[%zu]: coreType=%u", i, obj->coreType());
+        }
+    }
+    if (objects.size() > 10) {
+        LOGW("CommandServer: ARTBOARD DIAGNOSTIC - ... and %zu more objects", objects.size() - 10);
+    }
+    // =========================================================================
+    
+    LOGD("CommandServer: Drawing artboard '%s' (%.0fx%.0f)",
+         artboard->name().c_str(), artboard->width(), artboard->height());
     artboard->draw(&renderer);
 
     // Restore renderer state
     renderer.restore();
+    
+    // Check GL errors after draw
+    glErr = glGetError();
+    if (glErr != GL_NO_ERROR) {
+        LOGW("CommandServer: GL error after artboard->draw: 0x%04X", glErr);
+    }
 
-    // 10. Flush Rive GPU context to submit rendering commands
+    // 10. Set viewport explicitly before flush (like original implementation)
+    // This ensures Rive knows the correct target dimensions
+    glViewport(0, 0, cmd.surfaceWidth, cmd.surfaceHeight);
+    LOGD("CommandServer: Set viewport to (%d, %d)", cmd.surfaceWidth, cmd.surfaceHeight);
+    
+    // 11. Flush Rive GPU context to submit rendering commands
+    LOGD("CommandServer: Flushing to renderTarget=%p (width=%d, height=%d)",
+         renderTarget, renderTarget->width(), renderTarget->height());
     renderContext->riveContext->flush({.renderTarget = renderTarget});
+    
+    // Check GL errors after flush
+    glErr = glGetError();
+    if (glErr != GL_NO_ERROR) {
+        LOGW("CommandServer: GL error after riveContext->flush: 0x%04X", glErr);
+    }
+    
+    // Diagnostic: Check current framebuffer binding
+    GLint currentFBO = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFBO);
+    LOGD("CommandServer: After flush, current FBO binding=%d", currentFBO);
+
+    // =========================================================================
+    // DIAGNOSTIC: Draw a bright red test quad AFTER flush to verify it appears
+    // If you see RED now, it confirms flush was clearing our previous draws
+    // =========================================================================
+    {
+        LOGW("CommandServer: DIAGNOSTIC - Drawing red test quad AFTER FLUSH");
+        
+        // Simple vertex shader
+        const char* vertShader = R"(#version 300 es
+            in vec2 aPos;
+            void main() {
+                gl_Position = vec4(aPos, 0.0, 1.0);
+            }
+        )";
+        
+        // Simple fragment shader - outputs bright red
+        const char* fragShader = R"(#version 300 es
+            precision mediump float;
+            out vec4 fragColor;
+            void main() {
+                fragColor = vec4(1.0, 0.0, 0.0, 1.0); // BRIGHT RED
+            }
+        )";
+        
+        // Compile vertex shader
+        GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vs, 1, &vertShader, nullptr);
+        glCompileShader(vs);
+        
+        GLint compiled = 0;
+        glGetShaderiv(vs, GL_COMPILE_STATUS, &compiled);
+        if (!compiled) {
+            char log[512];
+            glGetShaderInfoLog(vs, 512, nullptr, log);
+            LOGE("CommandServer: DIAGNOSTIC - Vertex shader compile error: %s", log);
+        }
+        
+        // Compile fragment shader
+        GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fs, 1, &fragShader, nullptr);
+        glCompileShader(fs);
+        
+        glGetShaderiv(fs, GL_COMPILE_STATUS, &compiled);
+        if (!compiled) {
+            char log[512];
+            glGetShaderInfoLog(fs, 512, nullptr, log);
+            LOGE("CommandServer: DIAGNOSTIC - Fragment shader compile error: %s", log);
+        }
+        
+        // Link program
+        GLuint program = glCreateProgram();
+        glAttachShader(program, vs);
+        glAttachShader(program, fs);
+        glLinkProgram(program);
+        
+        GLint linked = 0;
+        glGetProgramiv(program, GL_LINK_STATUS, &linked);
+        if (!linked) {
+            char log[512];
+            glGetProgramInfoLog(program, 512, nullptr, log);
+            LOGE("CommandServer: DIAGNOSTIC - Program link error: %s", log);
+        }
+        
+        // Create a small quad in center of screen (NDC coordinates)
+        // Small size (10% of screen) so Rive content is visible behind it
+        float vertices[] = {
+            -0.1f, -0.1f,  // Bottom-left
+             0.1f, -0.1f,  // Bottom-right
+             0.1f,  0.1f,  // Top-right
+            -0.1f,  0.1f   // Top-left
+        };
+        unsigned int indices[] = {0, 1, 2, 0, 2, 3};
+        
+        GLuint vao, vbo, ebo;
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+        glGenBuffers(1, &ebo);
+        
+        glBindVertexArray(vao);
+        
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        
+        GLint posLoc = glGetAttribLocation(program, "aPos");
+        glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(posLoc);
+        
+        // Set viewport and bind FBO 0 explicitly
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, cmd.surfaceWidth, cmd.surfaceHeight);
+        
+        // Draw the red quad
+        glUseProgram(program);
+        glBindVertexArray(vao);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        
+        // Cleanup
+        glDeleteVertexArrays(1, &vao);
+        glDeleteBuffers(1, &vbo);
+        glDeleteBuffers(1, &ebo);
+        glDeleteProgram(program);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        
+        glErr = glGetError();
+        if (glErr != GL_NO_ERROR) {
+            LOGE("CommandServer: DIAGNOSTIC - GL error after drawing red quad: 0x%04X", glErr);
+        } else {
+            LOGW("CommandServer: DIAGNOSTIC - Red quad drawn AFTER FLUSH successfully");
+        }
+    }
+    // =========================================================================
+    // END DIAGNOSTIC
+    // =========================================================================
 
     // 11. Present the frame (swap buffers)
+    LOGD("CommandServer: About to call present with surfacePtr=%p", surfacePtr);
     renderContext->present(surfacePtr);
+    
+    // Check GL errors after present
+    glErr = glGetError();
+    if (glErr != GL_NO_ERROR) {
+        LOGW("CommandServer: GL error after present: 0x%04X", glErr);
+    }
 
     // 12. Send success message
     LOGI("CommandServer: Draw command completed successfully (artboard=%s, %dx%d)",

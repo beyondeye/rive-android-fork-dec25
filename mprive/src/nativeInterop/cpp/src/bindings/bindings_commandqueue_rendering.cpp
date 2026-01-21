@@ -1,6 +1,7 @@
 #include "bindings_commandqueue_internal.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include <GLES3/gl3.h>
+#include <EGL/egl.h>
 #include <future>
 
 extern "C" {
@@ -46,10 +47,37 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateRiveRenderTarget(
 
     // Use runOnce to execute on the command server thread where GL context is active
     server->runOnce([width, height, promise]() {
+        // Diagnostic: Check current EGL context state
+        EGLContext currentCtx = eglGetCurrentContext();
+        EGLSurface currentDraw = eglGetCurrentSurface(EGL_DRAW);
+        LOGD("CreateRiveRenderTarget: current EGL context=%p, draw surface=%p",
+             currentCtx, currentDraw);
+        
         // Query sample count from the current GL context
-        GLint actualSampleCount = 1;
+        // Note: When querying from PBuffer, this often returns 0 since PBuffers
+        // typically don't have MSAA. We default to 1 to ensure valid configuration.
+        GLint queriedSampleCount = 0;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glGetIntegerv(GL_SAMPLES, &actualSampleCount);
+        glGetIntegerv(GL_SAMPLES, &queriedSampleCount);
+        
+        // Ensure sample count is at least 1 - FramebufferRenderTargetGL may not
+        // handle 0 samples correctly, and the actual window surface typically
+        // supports at least 1 sample.
+        GLint actualSampleCount = (queriedSampleCount > 0) ? queriedSampleCount : 1;
+        LOGD("CreateRiveRenderTarget: queried samples=%d, using samples=%d", 
+             queriedSampleCount, actualSampleCount);
+        
+        // Diagnostic: Check GL state
+        GLenum glErr = glGetError();
+        if (glErr != GL_NO_ERROR) {
+            LOGW("CreateRiveRenderTarget: GL error after sample count query: 0x%04X", glErr);
+        }
+        
+        // Query viewport dimensions
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        LOGD("CreateRiveRenderTarget: current GL viewport: x=%d, y=%d, w=%d, h=%d",
+             viewport[0], viewport[1], viewport[2], viewport[3]);
         
         LOGD("Creating Rive render target on command server thread (%dx%d, sample count: %d)",
              width, height, actualSampleCount);
@@ -61,6 +89,9 @@ Java_app_rive_mp_core_CommandQueueJNIBridge_cppCreateRiveRenderTarget(
             0,  // FBO 0 = EGL surface's default framebuffer
             static_cast<uint32_t>(actualSampleCount)
         );
+
+        LOGD("CreateRiveRenderTarget: created renderTarget=%p (FBO=0, %dx%d, samples=%d)",
+             renderTarget, width, height, actualSampleCount);
 
         promise->set_value(reinterpret_cast<jlong>(renderTarget));
     });

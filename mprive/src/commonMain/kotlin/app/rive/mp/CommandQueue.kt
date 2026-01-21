@@ -1048,6 +1048,127 @@ class CommandQueue(
     }
 
     // =============================================================================
+    // Linear Animation Operations (for files without auto-playing state machines)
+    // =============================================================================
+
+    /**
+     * Create the default (first) animation from an artboard.
+     *
+     * This is a synchronous operation that returns the animation handle directly.
+     * Linear animations are timeline-based and play independently of state machines.
+     *
+     * @param artboardHandle The handle of the artboard to create animation from.
+     * @return A handle to the created animation.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws IllegalArgumentException If the artboard handle is invalid or has no animations.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createDefaultAnimation(artboardHandle: ArtboardHandle): AnimationHandle {
+        val handle = bridge.cppCreateDefaultAnimation(cppPointer.pointer, artboardHandle.handle)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create default animation - artboard may have no animations")
+        }
+        return AnimationHandle(handle)
+    }
+
+    /**
+     * Create an animation by name from an artboard.
+     *
+     * This is a synchronous operation that returns the animation handle directly.
+     *
+     * @param artboardHandle The handle of the artboard to create animation from.
+     * @param name The name of the animation to create.
+     * @return A handle to the created animation.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     * @throws IllegalArgumentException If the artboard handle is invalid or animation not found.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class)
+    fun createAnimationByName(artboardHandle: ArtboardHandle, name: String): AnimationHandle {
+        val handle = bridge.cppCreateAnimationByName(cppPointer.pointer, artboardHandle.handle, name)
+        if (handle == 0L) {
+            throw IllegalArgumentException("Failed to create animation '$name'")
+        }
+        return AnimationHandle(handle)
+    }
+
+    /**
+     * Advance and apply an animation to its artboard.
+     *
+     * This advances the animation by the given time delta and applies the result
+     * to the artboard.
+     *
+     * @param animHandle The handle of the animation.
+     * @param artboardHandle The handle of the artboard.
+     * @param deltaTimeSeconds The time delta in seconds.
+     * @param advanceArtboard If true, also advances the artboard (use when no state machine is active).
+     *                        When a state machine is present, it handles artboard advancement internally.
+     * @return true if the animation is still playing, false if it completed (for oneShot mode).
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun advanceAndApplyAnimation(
+        animHandle: AnimationHandle,
+        artboardHandle: ArtboardHandle,
+        deltaTimeSeconds: Float,
+        advanceArtboard: Boolean
+    ): Boolean {
+        return bridge.cppAdvanceAndApplyAnimation(
+            cppPointer.pointer,
+            animHandle.handle,
+            artboardHandle.handle,
+            deltaTimeSeconds,
+            advanceArtboard
+        )
+    }
+
+    /**
+     * Delete an animation and free its resources.
+     *
+     * @param animHandle The handle of the animation to delete.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun deleteAnimation(animHandle: AnimationHandle) {
+        bridge.cppDeleteAnimation(cppPointer.pointer, animHandle.handle)
+    }
+
+    /**
+     * Set the animation's current time position.
+     *
+     * @param animHandle The handle of the animation.
+     * @param time The time position in seconds.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setAnimationTime(animHandle: AnimationHandle, time: Float) {
+        bridge.cppSetAnimationTime(cppPointer.pointer, animHandle.handle, time)
+    }
+
+    /**
+     * Set the animation's loop mode.
+     *
+     * @param animHandle The handle of the animation.
+     * @param loopMode 0=oneShot, 1=loop, 2=pingPong.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setAnimationLoop(animHandle: AnimationHandle, loopMode: Int) {
+        bridge.cppSetAnimationLoop(cppPointer.pointer, animHandle.handle, loopMode)
+    }
+
+    /**
+     * Set the animation's playback direction.
+     *
+     * @param animHandle The handle of the animation.
+     * @param direction 1=forwards, -1=backwards.
+     * @throws IllegalStateException If the CommandQueue has been released.
+     */
+    @Throws(IllegalStateException::class)
+    fun setAnimationDirection(animHandle: AnimationHandle, direction: Int) {
+        bridge.cppSetAnimationDirection(cppPointer.pointer, animHandle.handle, direction)
+    }
+
+    // =============================================================================
     // Phase 0.3: State Machine Input Manipulation (SMI - for RiveSprite)
     // =============================================================================
 
