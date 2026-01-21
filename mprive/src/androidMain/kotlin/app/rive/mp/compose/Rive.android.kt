@@ -21,7 +21,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import app.rive.mp.AnimationHandle
 import app.rive.mp.Artboard
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.RenderContextGL
 import app.rive.mp.RiveFile
 import app.rive.mp.RiveLog
@@ -81,7 +80,6 @@ private fun Fit.toCoreAlignment(): CoreAlignment = when (this.alignment) {
  * - Supports ViewModelInstance binding for data-driven animations
  * - Optimizes for battery life with settled state detection
  */
-@ExperimentalRiveComposeAPI
 @Composable
 actual fun Rive(
     file: RiveFile,

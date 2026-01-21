@@ -169,7 +169,6 @@ sealed interface RiveFileSource {
     data class Path(val path: String) : RiveFileSource  // Desktop/common
 }
 
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberRiveFile(
     source: RiveFileSource,
@@ -182,11 +181,9 @@ fun rememberRiveFile(
 **File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/RememberArtboard.kt`
 
 ```kotlin
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberArtboard(file: RiveFile, name: String? = null): Artboard
 
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberStateMachine(artboard: Artboard, name: String? = null): StateMachine
 ```
@@ -196,7 +193,6 @@ fun rememberStateMachine(artboard: Artboard, name: String? = null): StateMachine
 **File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/RememberViewModelInstance.kt`
 
 ```kotlin
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberViewModelInstance(
     file: RiveFile,
@@ -210,7 +206,6 @@ fun rememberViewModelInstance(
 **File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/Rive.kt`
 
 ```kotlin
-@ExperimentalRiveComposeAPI
 @Composable
 fun Rive(
     file: RiveFile,
@@ -235,7 +230,6 @@ fun Rive(
 **File**: `mprive/src/commonMain/kotlin/app/rive/mp/compose/RememberRiveSpriteScene.kt`
 
 ```kotlin
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberRiveSpriteScene(riveWorker: CommandQueue): RiveSpriteScene
 ```

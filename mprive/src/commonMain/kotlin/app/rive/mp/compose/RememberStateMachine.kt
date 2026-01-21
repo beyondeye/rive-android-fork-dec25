@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import app.rive.mp.Artboard
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.RiveLog
 import app.rive.mp.StateMachine
 
@@ -38,7 +37,6 @@ import app.rive.mp.StateMachine
  * @see Artboard For creating an artboard.
  * @see rememberArtboard For creating an artboard with lifecycle management.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberStateMachine(
     artboard: Artboard,
@@ -71,7 +69,6 @@ private const val TAG = "Rive/SM"
  *
  * @see rememberStateMachine For the non-nullable version that throws on missing state machines.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberStateMachineOrNull(
     artboard: Artboard,

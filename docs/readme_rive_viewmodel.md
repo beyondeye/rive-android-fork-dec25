@@ -220,4 +220,3 @@ transfer.dispose()
 
 3. **Thread Safety**: Property access uses `ConcurrentHashMap` internally for safe concurrent access.
 
-4. **Compose API is Experimental**: The `@ExperimentalRiveComposeAPI` annotation is required for Compose-based APIs.

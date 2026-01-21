@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import app.rive.mp.Artboard
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.RiveFile
 
 /**
@@ -36,7 +35,6 @@ import app.rive.mp.RiveFile
  * @see RiveFile For loading a Rive file.
  * @see rememberStateMachine For creating a state machine from the artboard.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberArtboard(
     file: RiveFile,

@@ -6,7 +6,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import app.rive.mp.Artboard
 import app.rive.mp.RiveFile
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.StateMachine
 import app.rive.mp.ViewModelInstance
 
@@ -54,7 +53,6 @@ import app.rive.mp.ViewModelInstance
  * @see Fit For fit mode options
  * @see RivePointerInputMode For pointer event handling modes
  */
-@ExperimentalRiveComposeAPI
 @Composable
 expect fun Rive(
     file: RiveFile,

@@ -3,7 +3,6 @@ package app.rive.mp.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import app.rive.mp.CommandQueue
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.Result
 import app.rive.mp.RiveFile
 
@@ -44,7 +43,6 @@ import app.rive.mp.RiveFile
  * @see RiveFile For operations available on the loaded file.
  * @see rememberRiveWorker For creating the CommandQueue.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberRiveFile(
     source: RiveFileSource,

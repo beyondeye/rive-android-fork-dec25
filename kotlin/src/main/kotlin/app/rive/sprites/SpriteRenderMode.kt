@@ -1,6 +1,5 @@
 package app.rive.sprites
 
-import app.rive.ExperimentalRiveComposeAPI
 
 /**
  * Defines how sprites in a [RiveSpriteScene] are rendered to the screen.
@@ -23,7 +22,6 @@ import app.rive.ExperimentalRiveComposeAPI
  *
  * @see RiveSpriteScene
  */
-@ExperimentalRiveComposeAPI
 enum class SpriteRenderMode {
     /**
      * Render each sprite individually to its own buffer, then composite onto a shared bitmap.

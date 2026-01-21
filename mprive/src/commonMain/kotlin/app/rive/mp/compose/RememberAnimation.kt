@@ -5,7 +5,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import app.rive.mp.Animation
 import app.rive.mp.Artboard
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.Loop
 import app.rive.mp.RiveLog
 import app.rive.mp.StateMachine
@@ -43,7 +42,6 @@ private const val TAG = "Rive/Anim"
  * @see Artboard For creating an artboard.
  * @see rememberArtboard For creating an artboard with lifecycle management.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberAnimation(
     artboard: Artboard,
@@ -77,7 +75,6 @@ fun rememberAnimation(
  *
  * @see rememberAnimation For the non-nullable version that throws on missing animations.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberAnimationOrNull(
     artboard: Artboard,
@@ -119,7 +116,6 @@ fun rememberAnimationOrNull(
  * @param loop The loop mode for the animation. Defaults to [Loop.LOOP].
  * @return The created [Animation], or null if a state machine exists or no animations exist.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberAnimationOrNull(
     artboard: Artboard,

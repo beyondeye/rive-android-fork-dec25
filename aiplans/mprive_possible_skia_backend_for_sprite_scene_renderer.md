@@ -706,7 +706,6 @@ enum class SpriteRenderMode {
 /**
  * Draw all sprites with automatic mode selection.
  */
-@ExperimentalRiveComposeAPI
 fun DrawScope.drawRiveSprites(
     scene: RiveSpriteScene,
     renderMode: SpriteRenderMode = SpriteRenderMode.DEFAULT,
@@ -748,7 +747,6 @@ fun DrawScope.drawRiveSprites(
 /**
  * NEW: Render sprites directly to Skia canvas (no pixel copy!).
  */
-@ExperimentalRiveComposeAPI
 private fun DrawScope.drawRiveSpritesSkiaDirect(
     scene: RiveSpriteScene,
     skiaCanvas: org.jetbrains.skia.Canvas,

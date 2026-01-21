@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.createBitmap
-import app.rive.ExperimentalRiveComposeAPI
 import app.rive.RenderBuffer
 import app.rive.Alignment
 import app.rive.Fit
@@ -46,7 +45,6 @@ private const val RENDERER_TAG = "Rive/SpriteRenderer"
  * @param commandQueue The command queue to use for GPU operations.
  * @return A [RiveSpriteScene] that is automatically managed by the composable lifecycle.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberRiveSpriteScene(commandQueue: CommandQueue): RiveSpriteScene {
     val scene = remember(commandQueue) {
@@ -222,7 +220,6 @@ internal class SpriteSceneBufferHolder {
  * @param clearColor The color to clear the render buffer with before drawing sprites.
  *   Defaults to transparent.
  */
-@ExperimentalRiveComposeAPI
 fun DrawScope.drawRiveSprites(
     scene: RiveSpriteScene,
     renderMode: SpriteRenderMode = SpriteRenderMode.DEFAULT,
@@ -252,7 +249,6 @@ fun DrawScope.drawRiveSprites(
  *
  * Renders each sprite individually to its own buffer, then composites onto a shared bitmap.
  */
-@ExperimentalRiveComposeAPI
 private fun DrawScope.drawRiveSpritesPerSprite(
     scene: RiveSpriteScene,
     width: Int,
@@ -312,7 +308,6 @@ private fun DrawScope.drawRiveSpritesPerSprite(
  *
  * On any error, silently falls back to per-sprite rendering mode.
  */
-@ExperimentalRiveComposeAPI
 private fun DrawScope.drawRiveSpritesBatch(
     scene: RiveSpriteScene,
     width: Int,
@@ -508,7 +503,6 @@ private fun renderSpriteToCanvas(
  * @param bufferHolder A holder for caching the render buffer.
  * @param clearColor The color to clear the render buffer with before drawing sprites.
  */
-@ExperimentalRiveComposeAPI
 internal fun DrawScope.drawRiveSprites(
     scene: RiveSpriteScene,
     bufferHolder: SpriteSceneBufferHolder,

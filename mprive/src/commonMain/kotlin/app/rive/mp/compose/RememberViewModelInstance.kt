@@ -3,7 +3,6 @@ package app.rive.mp.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.RiveFile
 import app.rive.mp.ViewModelInstance
 
@@ -35,7 +34,6 @@ import app.rive.mp.ViewModelInstance
  * @see RiveFile For loading a Rive file.
  * @see ViewModelInstance For operations available on the VMI.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberViewModelInstance(
     file: RiveFile,
@@ -89,7 +87,6 @@ fun rememberViewModelInstance(
  * @see ViewModelInstance For operations available on the VMI.
  * @see rememberViewModelInstance For creating a default instance.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberNamedViewModelInstance(
     file: RiveFile,
@@ -126,7 +123,6 @@ fun rememberNamedViewModelInstance(
  * @see ViewModelInstance For operations available on the VMI.
  * @see rememberViewModelInstance For creating a default instance.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 fun rememberBlankViewModelInstance(
     file: RiveFile,

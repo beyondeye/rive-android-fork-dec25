@@ -12,7 +12,6 @@ import androidx.compose.ui.text.style.TextAlign
 import app.rive.mp.Artboard
 import app.rive.mp.RiveFile
 import app.rive.mp.RiveLog
-import app.rive.mp.ExperimentalRiveComposeAPI
 import app.rive.mp.StateMachine
 import app.rive.mp.ViewModelInstance
 
@@ -24,7 +23,6 @@ private const val TAG = "Rive/Desktop"
  * **Note**: This is a stub implementation. Full desktop rendering support
  * with Skia will be implemented in Phase 4.
  */
-@ExperimentalRiveComposeAPI
 @Composable
 actual fun Rive(
     file: RiveFile,
