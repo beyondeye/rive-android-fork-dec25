@@ -4,6 +4,15 @@
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
+// Event support (Phase F)
+#include "rive/event.hpp"
+#include "rive/event_report.hpp"
+#include "rive/open_url_event.hpp"
+#include "rive/audio_event.hpp"
+#include "rive/custom_property.hpp"
+#include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_number.hpp"
+#include "rive/custom_property_string.hpp"
 
 namespace rive_android {
 
@@ -438,6 +447,33 @@ void CommandServer::fireTrigger(int64_t requestID, int64_t smHandle, const std::
 }
 
 // =============================================================================
+// Event Operations (Phase F)
+// =============================================================================
+
+void CommandServer::getReportedEventCount(int64_t requestID, int64_t smHandle)
+{
+    LOGI("CommandServer: Enqueuing GetReportedEventCount command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle));
+
+    Command cmd(CommandType::GetReportedEventCount, requestID);
+    cmd.handle = smHandle;
+
+    enqueueCommand(std::move(cmd));
+}
+
+void CommandServer::getReportedEventAt(int64_t requestID, int64_t smHandle, int32_t index)
+{
+    LOGI("CommandServer: Enqueuing GetReportedEventAt command (requestID=%lld, smHandle=%lld, index=%d)",
+         static_cast<long long>(requestID), static_cast<long long>(smHandle), index);
+
+    Command cmd(CommandType::GetReportedEventAt, requestID);
+    cmd.handle = smHandle;
+    cmd.eventIndex = index;
+
+    enqueueCommand(std::move(cmd));
+}
+
+// =============================================================================
 // Input Handler Implementations
 // =============================================================================
 
@@ -812,6 +848,134 @@ void CommandServer::handleFireTrigger(const Command& cmd)
     LOGI("CommandServer: Trigger fired: %s", cmd.inputName.c_str());
 
     Message msg(MessageType::InputOperationSuccess, cmd.requestID);
+    enqueueMessage(std::move(msg));
+}
+
+// =============================================================================
+// Event Handlers (Phase F)
+// =============================================================================
+
+void CommandServer::handleGetReportedEventCount(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetReportedEventCount command (requestID=%lld, smHandle=%lld)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle));
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::EventOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& sm = it->second;
+    size_t count = sm->reportedEventCount();
+
+    LOGI("CommandServer: Reported event count: %zu", count);
+
+    Message msg(MessageType::EventCountResult, cmd.requestID);
+    msg.intValue = static_cast<int32_t>(count);
+    enqueueMessage(std::move(msg));
+}
+
+void CommandServer::handleGetReportedEventAt(const Command& cmd)
+{
+    LOGI("CommandServer: Handling GetReportedEventAt command (requestID=%lld, smHandle=%lld, index=%d)",
+         static_cast<long long>(cmd.requestID), static_cast<long long>(cmd.handle), cmd.eventIndex);
+
+    auto it = m_stateMachines.find(cmd.handle);
+    if (it == m_stateMachines.end()) {
+        LOGW("CommandServer: Invalid state machine handle: %lld", static_cast<long long>(cmd.handle));
+
+        Message msg(MessageType::EventOperationError, cmd.requestID);
+        msg.error = "Invalid state machine handle";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    auto& sm = it->second;
+
+    // Validate index
+    if (cmd.eventIndex < 0 || static_cast<size_t>(cmd.eventIndex) >= sm->reportedEventCount()) {
+        LOGW("CommandServer: Event index out of bounds: %d (count=%zu)",
+             cmd.eventIndex, sm->reportedEventCount());
+
+        Message msg(MessageType::EventOperationError, cmd.requestID);
+        msg.error = "Event index out of bounds";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Get the event report
+    const rive::EventReport report = sm->reportedEventAt(static_cast<size_t>(cmd.eventIndex));
+    rive::Event* event = report.event();
+
+    if (!event) {
+        LOGW("CommandServer: Event at index %d is null", cmd.eventIndex);
+
+        Message msg(MessageType::EventOperationError, cmd.requestID);
+        msg.error = "Event is null";
+        enqueueMessage(std::move(msg));
+        return;
+    }
+
+    // Build the message with event data
+    Message msg(MessageType::EventDataResult, cmd.requestID);
+    msg.eventName = event->name();
+    msg.eventDelay = report.secondsDelay();
+    msg.eventTypeCode = static_cast<int32_t>(event->coreType());
+
+    LOGI("CommandServer: Event name=%s, type=%d, delay=%f",
+         msg.eventName.c_str(), msg.eventTypeCode, msg.eventDelay);
+
+    // Handle OpenURLEvent specific data
+    if (event->is<rive::OpenUrlEvent>()) {
+        auto* urlEvent = event->as<rive::OpenUrlEvent>();
+        msg.eventUrl = urlEvent->url();
+        msg.eventTargetValue = static_cast<int32_t>(urlEvent->targetValue());
+        LOGI("CommandServer: OpenURLEvent url=%s, target=%d",
+             msg.eventUrl.c_str(), msg.eventTargetValue);
+    }
+
+    // Handle AudioEvent specific data
+    if (event->is<rive::AudioEvent>()) {
+        auto* audioEvent = event->as<rive::AudioEvent>();
+        msg.eventAssetId = audioEvent->assetId();
+        LOGI("CommandServer: AudioEvent assetId=%u", msg.eventAssetId);
+    }
+
+    // Extract custom properties from the event
+    // Events inherit from CustomPropertyGroup which contains child properties
+    for (auto* child : event->children()) {
+        if (auto* boolProp = child->as<rive::CustomPropertyBoolean>()) {
+            msg.eventPropertyNames.push_back(boolProp->name());
+            msg.eventPropertyTypes.push_back(0);  // 0 = bool
+            msg.eventPropertyBools.push_back(boolProp->propertyValue());
+            msg.eventPropertyFloats.push_back(0.0f);  // placeholder
+            msg.eventPropertyStrings.push_back("");   // placeholder
+            LOGI("CommandServer: Event property (bool) %s = %d",
+                 boolProp->name().c_str(), boolProp->propertyValue());
+        } else if (auto* numProp = child->as<rive::CustomPropertyNumber>()) {
+            msg.eventPropertyNames.push_back(numProp->name());
+            msg.eventPropertyTypes.push_back(1);  // 1 = float
+            msg.eventPropertyBools.push_back(false);  // placeholder
+            msg.eventPropertyFloats.push_back(static_cast<float>(numProp->propertyValue()));
+            msg.eventPropertyStrings.push_back("");   // placeholder
+            LOGI("CommandServer: Event property (number) %s = %f",
+                 numProp->name().c_str(), numProp->propertyValue());
+        } else if (auto* strProp = child->as<rive::CustomPropertyString>()) {
+            msg.eventPropertyNames.push_back(strProp->name());
+            msg.eventPropertyTypes.push_back(2);  // 2 = string
+            msg.eventPropertyBools.push_back(false);  // placeholder
+            msg.eventPropertyFloats.push_back(0.0f);  // placeholder
+            msg.eventPropertyStrings.push_back(strProp->propertyValue());
+            LOGI("CommandServer: Event property (string) %s = %s",
+                 strProp->name().c_str(), strProp->propertyValue().c_str());
+        }
+    }
+
     enqueueMessage(std::move(msg));
 }
 

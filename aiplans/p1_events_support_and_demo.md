@@ -4,7 +4,7 @@
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 1 | C++ Layer - Event Retrieval Commands | ⏳ Not Started |
+| Phase 1 | C++ Layer - Event Retrieval Commands | ✅ Complete |
 | Phase 2 | JNI/Bindings Layer | ⏳ Not Started |
 | Phase 3 | Kotlin/Common Layer - Event Classes | ✅ Complete |
 | Phase 4 | CommandQueue Event Methods | ⏳ Not Started |
@@ -12,7 +12,7 @@
 | Phase 6 | Rive Composable - onEvent Parameter | ⏳ Not Started |
 | Phase 7 | Demo App Implementation | ⏳ Not Started |
 
-**Last Updated:** 2026-01-21
+**Last Updated:** 2026-01-21 (Phase 1 completed)
 
 ---
 
@@ -95,9 +95,18 @@ This differs from the reference implementation's listener pattern but is more na
 
 ## Implementation Plan
 
-### Phase 1: C++ Layer - Event Retrieval Commands
+### Phase 1: C++ Layer - Event Retrieval Commands ✅ COMPLETE
 
-**Files to modify:**
+**Status:** Implemented on 2026-01-21
+
+**Files created/modified:**
+- `mprive/src/nativeInterop/cpp/include/rive_event.hpp` ✅ Created
+- `mprive/src/nativeInterop/cpp/include/command_server_types.hpp` ✅ Modified (note: actual filename differs from plan)
+- `mprive/src/nativeInterop/cpp/include/command_server.hpp` ✅ Modified
+- `mprive/src/nativeInterop/cpp/src/command_server/command_server_statemachine.cpp` ✅ Modified
+- `mprive/src/nativeInterop/cpp/src/command_server/command_server_core.cpp` ✅ Modified
+
+**Original plan files (for reference):**
 - `mprive/src/nativeInterop/cpp/include/command_types.hpp`
 - `mprive/src/nativeInterop/cpp/src/command_server/command_server_state_machine.cpp`
 - `mprive/src/nativeInterop/cpp/include/command_server.hpp`
@@ -1004,11 +1013,11 @@ fun MainScreen(
 
 ## Implementation Order
 
-### Step 1: C++ Event Infrastructure (Phase 1)
-1. Add command types for event retrieval
-2. Create RiveEventData structure
-3. Implement event extraction in command server
-4. Add property extraction from CustomPropertyContainer
+### Step 1: C++ Event Infrastructure (Phase 1) ✅ COMPLETE
+1. ✅ Add command types for event retrieval (GetReportedEventCount, GetReportedEventAt)
+2. ✅ Create RiveEventData structure (rive_event.hpp)
+3. ✅ Implement event extraction in command server (handleGetReportedEventAt)
+4. ✅ Add property extraction from CustomPropertyContainer (bool, float, string properties)
 
 ### Step 2: JNI/Bindings (Phase 2)
 1. Add JNI functions for event count and retrieval
@@ -1047,7 +1056,7 @@ fun MainScreen(
 ## Files Summary
 
 ### New Files (12 total)
-- `mprive/src/nativeInterop/cpp/include/rive_event.hpp`
+- `mprive/src/nativeInterop/cpp/include/rive_event.hpp` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/EventType.kt` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/OpenUrlTarget.kt` ✅ Created
 - `mprive/src/commonMain/kotlin/app/rive/mp/event/RiveEvent.kt` ✅ Created
@@ -1059,10 +1068,11 @@ fun MainScreen(
 - `mpapp/src/commonMain/composeResources/files/url_event_button.riv` (copy)
 - `mpapp/src/commonMain/composeResources/files/log_event_button.riv` (copy)
 
-### Modified Files (11 total)
-- `mprive/src/nativeInterop/cpp/include/command_types.hpp`
-- `mprive/src/nativeInterop/cpp/include/command_server.hpp`
-- `mprive/src/nativeInterop/cpp/src/command_server/command_server_state_machine.cpp`
+### Modified Files (12 total)
+- `mprive/src/nativeInterop/cpp/include/command_server_types.hpp` ✅ Modified (was command_types.hpp in plan)
+- `mprive/src/nativeInterop/cpp/include/command_server.hpp` ✅ Modified
+- `mprive/src/nativeInterop/cpp/src/command_server/command_server_statemachine.cpp` ✅ Modified (was command_server_state_machine.cpp in plan)
+- `mprive/src/nativeInterop/cpp/src/command_server/command_server_core.cpp` ✅ Modified (new - command dispatch)
 - `mprive/src/nativeInterop/cpp/src/bindings/bindings_commandqueue_state_machine.cpp`
 - `mprive/src/commonMain/kotlin/app/rive/mp/core/CommandQueueBridge.kt`
 - `mprive/src/commonMain/kotlin/app/rive/mp/CommandQueue.kt`

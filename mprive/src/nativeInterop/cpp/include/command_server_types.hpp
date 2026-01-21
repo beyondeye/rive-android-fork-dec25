@@ -45,6 +45,9 @@ enum class CommandType {
     GetBooleanInput,
     SetBooleanInput,
     FireTrigger,
+    // Phase F: Event operations
+    GetReportedEventCount,    // Get count of events fired since last advance
+    GetReportedEventAt,       // Get event at specific index
     // Phase D: View model operations
     CreateBlankVMI,           // Create blank instance from named ViewModel
     CreateDefaultVMI,         // Create default instance from named ViewModel
@@ -144,6 +147,10 @@ enum class MessageType {
     BooleanInputValue,
     InputOperationSuccess,
     InputOperationError,
+    // Phase F: Event operation results
+    EventCountResult,         // Returns intValue with event count
+    EventDataResult,          // Returns event data
+    EventOperationError,      // Event operation failed
     // Phase D: View model operations
     VMICreated,
     VMIError,
@@ -261,6 +268,9 @@ struct Command {
     float floatValue = 0.0f;     // For SetNumberInput
     bool boolValue = false;      // For SetBooleanInput
 
+    // Event operation data (Phase F)
+    int32_t eventIndex = -1;     // For GetReportedEventAt
+
     // View model operation data (Phase D)
     std::string viewModelName;   // For CreateBlankVMI, CreateDefaultVMI, CreateNamedVMI
     std::string instanceName;    // For CreateNamedVMI
@@ -352,6 +362,20 @@ struct Message {
     // Property subscription update data (Phase D.4)
     int64_t vmiHandle = 0;       // For property update messages
     std::string propertyPath;    // For property update messages
+
+    // Event operation results (Phase F)
+    std::string eventName;       // For EventDataResult
+    int32_t eventTypeCode = 0;   // For EventDataResult (128=General, 131=OpenURL, 407=Audio)
+    float eventDelay = 0.0f;     // For EventDataResult (delay in seconds)
+    std::string eventUrl;        // For EventDataResult (OpenURLEvent only)
+    int32_t eventTargetValue = 0;// For EventDataResult (0=_blank, 1=_parent, 2=_self, 3=_top)
+    uint32_t eventAssetId = 0;   // For EventDataResult (AudioEvent only)
+    // Event properties stored as parallel vectors (name, type, value)
+    std::vector<std::string> eventPropertyNames;
+    std::vector<int32_t> eventPropertyTypes;  // 0=bool, 1=float, 2=string
+    std::vector<bool> eventPropertyBools;
+    std::vector<float> eventPropertyFloats;
+    std::vector<std::string> eventPropertyStrings;
 
     Message() = default;
     explicit Message(MessageType t, int64_t reqID = 0)

@@ -250,6 +250,15 @@ void CommandServer::executeCommand(const Command& cmd)
             handleFireTrigger(cmd);
             break;
 
+        // Phase F: Event operations
+        case CommandType::GetReportedEventCount:
+            handleGetReportedEventCount(cmd);
+            break;
+
+        case CommandType::GetReportedEventAt:
+            handleGetReportedEventAt(cmd);
+            break;
+
         // Phase D: View model instance operations
         case CommandType::CreateBlankVMI:
             handleCreateBlankVMI(cmd);

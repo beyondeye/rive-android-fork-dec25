@@ -432,6 +432,29 @@ public:
     void fireTrigger(int64_t requestID, int64_t smHandle, const std::string& inputName);
 
     // =========================================================================
+    // Event Operations (Phase F)
+    // =========================================================================
+
+    /**
+     * Enqueues a GetReportedEventCount command.
+     * Gets the number of events reported since the last state machine advance.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     */
+    void getReportedEventCount(int64_t requestID, int64_t smHandle);
+
+    /**
+     * Enqueues a GetReportedEventAt command.
+     * Gets the event data at a specific index.
+     *
+     * @param requestID The request ID for async completion.
+     * @param smHandle The handle of the state machine.
+     * @param index The event index (0 to count-1).
+     */
+    void getReportedEventAt(int64_t requestID, int64_t smHandle, int32_t index);
+
+    // =========================================================================
     // View Model Instance Operations (Phase D)
     // =========================================================================
 
@@ -1008,6 +1031,10 @@ private:
     void handleGetBooleanInput(const Command& cmd);
     void handleSetBooleanInput(const Command& cmd);
     void handleFireTrigger(const Command& cmd);
+
+    // Event handlers (Phase F)
+    void handleGetReportedEventCount(const Command& cmd);
+    void handleGetReportedEventAt(const Command& cmd);
 
     // View model instance handlers (Phase D)
     void handleCreateBlankVMI(const Command& cmd);
